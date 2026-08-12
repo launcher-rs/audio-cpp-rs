@@ -200,7 +200,11 @@ fn main() {
         .profile(&profile)
         .build_target("engine_runtime")
         .very_verbose(env::var("CMAKE_VERBOSE").is_ok())
-        .always_configure(false)
+        // 每次构建都重新 configure：CMake 会在 configure 时根据
+        // AUDIOCPP_MODEL_SET / AUDIOCPP_MODELS 重新生成 registry.inc，
+        // 因此切换模型组合后能正确更新注册的 loader 集合（Ninja 只会
+        // 重编受影响的 registry.cpp 及链接）。
+        .always_configure(true)
         .build();
 
     println!("cargo:rerun-if-env-changed=AUDIOCPP_LIB_PROFILE");

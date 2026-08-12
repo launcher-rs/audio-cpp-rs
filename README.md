@@ -119,6 +119,11 @@ $env:AUDIOCPP_MODELS="citrinet_asr"
 cargo run -p audio-cpp --features custom-models --example asr_offline -- `
   ./citrinet-asr-q8_0.gguf audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav
 
+# 6) 离线 TTS（须先 custom-models 构建并下载 MOSS-TTS-Nano GGUF，见 tts_offline.rs 头注）
+$env:AUDIOCPP_MODELS="moss_tts_nano"
+cargo run -p audio-cpp --features custom-models --example tts_offline -- `
+  ./moss-tts-nano-100m-q8_0.gguf out.wav "Hello from Rust and audio.cpp!"
+
 # 4) 流式 VAD（事件回调 + 分块 process_audio）
 cargo run -p audio-cpp --example vad_streaming -- `
   audio-cpp-sys/audio.cpp/assets/framework/models/silero_vad/silero_vad_16k.safetensors `
@@ -137,8 +142,10 @@ cargo run -p audio-cpp --example vad_streaming -- `
 - [x] 高层安全 API（Registry / Model / Session，离线 + 流式）
 - [x] 内置 VAD 两种模型端到端验证：silero_vad（离线+流式）、marblenet_vad（离线）
 - [x] ASR 端到端验证：Citrinet ASR Q8_0 GGUF 离线转录（sample_16k.wav → Nature 台词）
+- [x] TTS 端到端验证：MOSS-TTS-Nano-100M Q8_0 GGUF 离线合成（~8s 语音写入 WAV）
+- [x] C ABI 音频回传：`audio_output.samples` 携带生成音频的 f32 采样
 - [x] `custom-models` feature：按需编译指定模型族，避免 full 全量成本
-- [ ] 更多模型族端到端验证（TTS 等）
+- [ ] 更多模型族端到端验证（说话人分离 / 音源分离等）
 
 ## 参考
 

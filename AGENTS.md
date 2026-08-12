@@ -77,6 +77,17 @@
   内置 VAD 始终编入。build.rs 的 `custom-models` feature 透传该机制。
 - 请求 JSON 里的 `audio_path` 若为 Windows 路径，反斜杠必须转义（`\\`），
   `\a` 等非法转义会导致 shim 解析失败（"failed to parse json"），改用正斜杠最省事。
+- TTS 已用 MOSS-TTS-Nano-100M Q8_0 GGUF 验证（`audio-cpp/examples/tts_offline` 跑通，
+  合成 ~8s 语音写入 WAV）。MOSS 由 CMake target `moss` 提供，custom 用
+  `AUDIOCPP_MODELS=moss_tts_nano`（或 moss_tts_local，同 target）；其 GGUF 同样须
+  显式 `family_hint="moss_tts_nano"`；输出音频 48kHz 2ch 交错 f32。
+- **C ABI 音频回传**：`dump_audio_buffer` 现把实际采样以 `samples`（f32 数组）字段
+  并入 JSON 的 `audio_output` / `named_audio_outputs`；高层 `AudioBufferInfo.samples`
+  为 `Option<Vec<f32>>`，VAD/ASR 不携带（空数组）。改此 ABI 需同步 capi.cpp /
+  高层 types.rs，两端 serde 均向后兼容（未知字段忽略）。
+- **模型组合切换需重配置**：build.rs 用 `always_configure(true)`，切换
+  `AUDIOCPP_MODELS` 后重新 configure 以更新 registry loader 集合；否则会沿用旧的
+  model 组合（如刚才 citrinet 组合不含 moss）。
 
 ## 常用命令速查
 ```bash

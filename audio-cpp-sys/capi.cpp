@@ -107,6 +107,14 @@ static json::Value dump_audio_buffer(const engine::runtime::AudioBuffer & audio)
     obj.emplace("sample_rate", json::Value::make_number(audio.sample_rate));
     obj.emplace("channels", json::Value::make_number(audio.channels));
     obj.emplace("sample_count", json::Value::make_number(static_cast<double>(audio.samples.size())));
+    // 附带实际采样数据（f32 数组），供 TTS 等需要取回生成音频的调用方使用。
+    // 不含采样数据的空缓冲也照常输出空数组。
+    json::Value::Array samples;
+    samples.reserve(audio.samples.size());
+    for (const float s : audio.samples) {
+        samples.push_back(json::Value::make_number(static_cast<double>(s)));
+    }
+    obj.emplace("samples", json::Value::make_array(std::move(samples)));
     return json::Value::make_object(std::move(obj));
 }
 

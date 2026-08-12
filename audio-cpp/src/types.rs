@@ -185,6 +185,10 @@ pub struct AudioBufferInfo {
     pub channels: i32,
     /// 采样数。
     pub sample_count: usize,
+    /// 实际采样数据（f32，-1..1）。仅当生成音频需要回传时存在
+    /// （如 TTS 的 `audio_output`）；VAD / ASR 通常不携带。
+    #[serde(default)]
+    pub samples: Option<Vec<f32>>,
 }
 
 /// 带名字的音频输出（如 TTS 的多段输出）。
