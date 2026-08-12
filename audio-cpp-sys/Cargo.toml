@@ -43,17 +43,34 @@ default = ["core-models"]
 core-models = []
 # 全量编译 audio.cpp 支持的 44+ 模型族。注意：全量编译耗时很长且生成
 # 的静态库很大；并不等于"能运行任意模型"，权重文件仍需自行下载。
-# 日常建议优先用 custom-models 按需编译，只有需要一次备齐全部能力时才用本项。
+# 日常建议优先用模型族 feature 或 custom-models 按需编译，只有需要一次
+# 备齐全部能力时才用本项。
 full-models = []
-# 只编译 AUDIOCPP_MODELS 环境变量列出的模型族（逗号分隔 CMake target 名），
-# 引擎核心与内置 VAD 始终编入。用法示例：
-#   $env:AUDIOCPP_MODELS="citrinet_asr"; cargo build --features custom-models
-#   $env:AUDIOCPP_MODELS="moss_tts_nano"; cargo build --features custom-models
-# 构建脚本对 custom-models 强制 re-configure（always_configure(true)），
-# 因此同一目标目录切换 AUDIOCPP_MODELS 后重新构建即生效，无需 clean。
-# 常见 target 名：citrinet_asr、moss_tts_nano、qwen3_asr、sortformer_diar、
-# htdemucs、whisper_large_v3 等（完整列表见上游 CMakeLists 的 AUDIOCPP_TARGET）。
+# 按需编译模式：引擎核心 + 内置 VAD + "请求的模型族"（对普通依赖方透明，
+# 通常不需要直接启用它——下面的 model-* 与 AUDIOCPP_MODELS 会自动走进本模式）。
 custom-models = []
+
+# 常用模型族的专用 feature（`model-<target>`）：启用即按需编译对应族，
+# 无需手设 AUDIOCPP_MODELS。Cargo 视 `-` 与 `_` 等价，故 `--features
+# model-qwen3-asr` 与 `model-qwen3_asr` 均可；build.rs 会扫描被启用的
+# `CARGO_FEATURE_MODEL_*`，把后缀大写→小写即为上游 CMake target 名，
+# 因此新增族 feature 时无需改动 build.rs。
+# 其余未列出的模型族（roformer、htdemucs、outetts、glm_tts、pocket_tts、
+# sortformer_diar 等）仍用 custom-models + AUDIOCPP_MODELS 环境变量调用。
+model-citrinet-asr = ["custom-models"]   # ASR：英/多语语音识别
+model-fun-asr-nano = ["custom-models"]   # ASR：FunASR 轻量识别
+model-hviske-asr = ["custom-models"]     # ASR：Hviske 识别
+model-kroko-asr = ["custom-models"]      # ASR：Kroko 识别
+model-nemotron-asr = ["custom-models"]   # ASR：NVIDIA Nemotron 识别
+model-parakeet-tdt = ["custom-models"]   # ASR：NVIDIA Parakeet TDT
+model-qwen3-asr = ["custom-models"]      # ASR：Qwen3 ASR（已验证）
+model-vibevoice-asr = ["custom-models"]  # ASR：VibeVoice 语音
+model-moss = ["custom-models"]           # TTS：MOSS（moss_tts_nano / moss_tts_local，已验证）
+model-qwen3-tts = ["custom-models"]      # TTS：Qwen3 TTS
+model-irodori-tts = ["custom-models"]    # TTS：Irodori TTS
+model-fish-audio = ["custom-models"]     # TTS/Voice：Fish Speech/Cloning
+model-demucs = ["custom-models"]          # 音频分离：Demucs 源分离（alias htdemucs）
+model-roformer = ["custom-models"]        # 音频分离：Mel-Band RoFormer 源分离（alias mel_band_roformer）
 
 # ------------------------------------------------------------------------
 # 计算后端 feature（可叠加，映射 engine 的 ENGINE_ENABLE_*_CPU 选项）。

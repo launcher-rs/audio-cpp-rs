@@ -84,8 +84,42 @@ fn link_static_libs(names: &[String]) {
     }
 }
 
+/// 收集"以 feature 方式启用的模型族"。
+///
+/// Cargo 会把每个启用的 feature 以环境变量 `CARGO_FEATURE_<名>`（名字中的
+/// `-` 映射为 `_`，全大写）注入 build.rs。本项目约定模型族 feature 一律以
+/// `model-` 为前缀（如 `model-qwen3-asr`），其对应环境变量即为
+/// `CARGO_FEATURE_MODEL_QWEN3_ASR`。拿到后缀后大写→小写即是上游 CMake 的
+/// alias/target 名（如 `qwen3_asr`），因此新增模型族 feature 时无需改动
+/// build.rs，只要在 Cargo.toml 里声明的名字与上游 target/alias 一致。
+fn enabled_model_features() -> Vec<String> {
+    let mut names = Vec::new();
+    for (key, _) in env::vars() {
+        if let Some(suffix) = key.strip_prefix("CARGO_FEATURE_MODEL_") {
+            names.push(suffix.to_lowercase());
+        }
+    }
+    names.sort();
+    names
+}
+
+/// 把 feature 名（`citrinet_asr` 等）与 `AUDIOCPP_MODELS` 环境变量的内容
+/// 合并去重，作为传给 CMake 的 `AUDIOCPP_MODELS` 取值。
+fn merge_custom_models(feature_names: Vec<String>) -> String {
+    let mut all: Vec<String> = feature_names;
+    if let Ok(env_models) = env::var("AUDIOCPP_MODELS") {
+        for m in env_models.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+            if !all.iter().any(|s| s == m) {
+                all.push(m.to_string());
+            }
+        }
+    }
+    all.join(",")
+}
+
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=Cargo.toml"); // feature 组合变化（model-* 增删）会重跑
     println!("cargo:rerun-if-changed=capi.h");
     println!("cargo:rerun-if-changed=capi.cpp");
 
@@ -148,18 +182,23 @@ fn main() {
     let model_set = if cfg!(feature = "full-models") {
         "full"
     } else if cfg!(feature = "custom-models") {
-        // custom：只编译指定模型族（逗号分隔，如 "citrinet_asr,qwen3_asr"）。
+        // custom：只编译指定的模型族。来源有二，且会取并集：
+        //   1. `model-<族>` feature（如 model-qwen3-asr）——build.rs 扫描
+        //      CARGO_FEATURE_MODEL_* 自动收集，无需手动设置环境变量；
+        //   2. `AUDIOCPP_MODELS` 环境变量（逗号分隔的 alias/target 名）。
         // 引擎核心 + 内置 VAD 始终编入，见上游 CMakeLists 的 AUDIOCPP_RUNTIME_OBJECTS。
-        let requested = env::var("AUDIOCPP_MODELS")
-            .unwrap_or_default();
-        if requested.trim().is_empty() {
+        let requested = merge_custom_models(enabled_model_features());
+        if requested.is_empty() {
             panic!(
-                "feature `custom-models` 需要设置环境变量 AUDIOCPP_MODELS \
-                 （逗号分隔的模型族目标，如 AUDIOCPP_MODELS=citrinet_asr）"
+                "feature `custom-models` 未指定任何模型族。请至少先启用一个 \
+                 `model-<族>` feature（如 --features model-qwen3-asr），或设置 \
+                 环境变量 AUDIOCPP_MODELS（逗号分隔的模型族目标，如 \
+                 AUDIOCPP_MODELS=qwen3_asr,citrinet_asr）"
             );
         }
         println!("cargo:rerun-if-env-changed=AUDIOCPP_MODELS");
         config.define("AUDIOCPP_MODELS", &requested);
+        debug_log!("AUDIOCPP_MODELS(合并后)={}", requested);
         "custom"
     } else {
         "core"

@@ -25,10 +25,16 @@ cargo build   # 默认 core-models + CPU
 [该 crate 的 Cargo.toml](../audio-cpp-sys/Cargo.toml)）：
 
 ```powershell
-cargo build                                    # core-models（内置 VAD，开箱即用）
-$env:AUDIOCPP_MODELS = "citrinet_asr"; cargo build --features custom-models   # 按需模型族
-cargo build --features full-models,cuda,openmp # 全量 + GPU 后端
+cargo build                                   # core-models（内置 VAD，开箱即用）
+cargo build --features model-qwen3-asr        # 按需编译单个模型族（无需环境变量）
+cargo build --features model-citrinet-asr,model-moss,openmp   # 多族 + 后端
+cargo build --features full-models,cuda       # 全量 + GPU 后端
 ```
+
+> 模型族 feature 命名约定 `model-<上游 target 名>`（`-`/`_` 等价，如
+> `model-qwen3-asr` 或 `model-qwen3_asr`）。已内置一组常用族（ASR/TTS/分离，
+> 见 `[features]` 表）；未覆盖的族仍可 `$env:AUDIOCPP_MODELS="..."` 配合
+> `--features custom-models` 使用，两者可混用（取并集）。
 
 ## 架构：一次调用的完整链路
 
@@ -118,7 +124,7 @@ session.reset();                  // 复用会话重新开始
 > （512）个采样，末尾不足块必须补零。回调可能来自 C++ 侧线程，回调内不得
 > 再调用本会话的方法。
 
-### 4. 离线 ASR（Citrinet，需 custom-models 构建）
+### 4. 离线 ASR（Citrinet，需按需编译）
 
 ```rust
 use audio_cpp::{Backend, Registry, RunMode, TaskKind};

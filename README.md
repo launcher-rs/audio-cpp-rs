@@ -71,18 +71,44 @@ cargo build --release
 | Feature | audio.cpp 映射 | 作用 |
 |---|---|---|
 | `core-models`（默认） | `AUDIOCPP_MODEL_SET=core` | **最小编译集**：引擎核心 + 内置 VAD（silero_vad / marblenet_vad）。内置 VAD 权重随上游 vendored，开箱即用 |
-| `custom-models` | `AUDIOCPP_MODEL_SET=custom` | **按需编译**：引擎核心 + 内置 VAD + `AUDIOCPP_MODELS` 指定的模型族，避免 full 全量成本 |
+| `model-<族>` | `AUDIOCPP_MODEL_SET=custom` | **按需编译单个模型族**（最推荐，无需设环境变量） |
+| `custom-models` | `AUDIOCPP_MODEL_SET=custom` | **按需编译**：引擎核心 + 内置 VAD + `AUDIOCPP_MODELS` 指定的模型族（兜底，配合环境变量使用） |
 | `full-models` | `AUDIOCPP_MODEL_SET=full` | **全量**：audio.cpp 全部 44+ 模型族（编译极慢、产物很大，权重仍需自行下载） |
 
-`custom-models` 用法（逗号分隔多个族）：
+**按需编译单个模型族**：启用对应的 `model-<族>` feature 即可，无需设置环境变量：
 
 ```powershell
-$env:AUDIOCPP_MODELS = "citrinet_asr"; cargo build --features custom-models
+cargo build --features model-qwen3-asr        # 只编译 Qwen3 ASR + 内置 VAD
+cargo run -p audio-cpp --features model-citrinet-asr --example asr_offline   # ASR 示例
+```
+
+已内置的常用族 feature（完整列表见各 crate 的 Cargo.toml）：
+
+| Feature | 模型族（上游 target/alias） | 用途 |
+|---|---|---|
+| `model-qwen3-asr` | qwen3_asr | ASR（已验证） |
+| `model-citrinet-asr` | citrinet_asr | ASR（已验证） |
+| `model-fun-asr-nano` | fun_asr_nano | ASR |
+| `model-hviske-asr` / `model-kroko-asr` / `model-nemotron-asr` / `model-parakeet-tdt` / `model-vibevoice-asr` | 对应 asr 族 | ASR |
+| `model-moss` | moss（moss_tts_nano / moss_tts_local） | TTS（已验证） |
+| `model-qwen3-tts` / `model-irodori-tts` | qwen3_tts / irodori_tts | TTS |
+| `model-fish-audio` | fish_audio | TTS / 声音克隆 |
+| `model-demucs` | demucs（htdemucs） | 音频分离 |
+| `model-rockro` | roformer（mel_band_roformer） | 音频分离 |
+
+- build.rs 会自动收集所有启用的 `model-<族>` feature（经 `CARGO_FEATURE_MODEL_*`
+  环境变量），并把它们与 `AUDIOCPP_MODELS` 环境变量取**并集**——两者可混用；
+  新增族 feature 只要在 Cargo.toml 声明名字与上游 target/alias 一致即可，无需改 build.rs。
+- 其余未列出的模型族（roformer、htdemucs、outetts、glm_tts、pocket_tts、
+  sortformer_diar 等约 30 个）仍用 `custom-models` + `AUDIOCPP_MODELS`：
+
+```powershell
 $env:AUDIOCPP_MODELS = "citrinet_asr,qwen3_asr,moss_tts_nano"; cargo build --features custom-models
 ```
 
-> 常用 target 名：`citrinet_asr`、`moss_tts_nano`、`qwen3_asr`、`sortformer_diar`、`htdemucs`、`whisper_large_v3` 等（完整列表见上游 `CMakeLists.txt` 的 `AUDIOCPP_TARGET`）。
-> build.rs 对 custom-models 强制 re-configure，切换 `AUDIOCPP_MODELS` 后直接重新构建即生效，无需 clean。
+> `AUDIOCPP_MODELS` 接受上游 CMake 的 **alias/target 名**（逗号分隔），引擎核心与
+> 内置 VAD 始终编入。build.rs 对 custom-models 强制 re-configure，切换组合后直接
+> 重新构建即生效，无需 clean。
 
 ### 计算后端（可叠加，不启用任何 GPU 后端时即 CPU 推理）
 
@@ -136,14 +162,13 @@ cargo run -p audio-cpp --example vad_offline -- `
   audio-cpp-sys/audio.cpp/assets/framework/models/marblenet_vad/marblenet_vad.safetensors `
   audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav marblenet_vad
 
-# 5) 离线 ASR（须先 custom-models 构建并下载 Citrinet GGUF，见 asr_offline.rs 头注）
-$env:AUDIOCPP_MODELS="citrinet_asr"
-cargo run -p audio-cpp --features custom-models --example asr_offline -- `
+# 5) 离线 ASR（Citrinet GGUF 需自行下载，见 asr_offline.rs 头注）
+#   用 feature 方式按需编译（推荐，无需环境变量）：
+cargo run -p audio-cpp --features model-citrinet-asr --example asr_offline -- `
   ./citrinet-asr-q8_0.gguf audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav
 
-# 6) 离线 TTS（须先 custom-models 构建并下载 MOSS-TTS-Nano GGUF，见 tts_offline.rs 头注）
-$env:AUDIOCPP_MODELS="moss_tts_nano"
-cargo run -p audio-cpp --features custom-models --example tts_offline -- `
+# 6) 离线 TTS（MOSS-TTS-Nano GGUF 需自行下载，见 tts_offline.rs 头注）
+cargo run -p audio-cpp --features model-moss --example tts_offline -- `
   ./moss-tts-nano-100m-q8_0.gguf out.wav "Hello from Rust and audio.cpp!"
 
 # 4) 流式 VAD（事件回调 + 分块 process_audio）

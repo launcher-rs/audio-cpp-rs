@@ -26,8 +26,25 @@ default = ["core-models"]
 # 转发给 audio-cpp-sys 的模型组合 / 后端 feature。
 core-models = ["audio-cpp-sys/core-models"]   # 引擎核心 + 内置 VAD（默认，最小编译集）
 full-models = ["audio-cpp-sys/full-models"]   # 全量 44+ 模型族（编译慢）
-# 按需编译：需设置 $env:AUDIOCPP_MODELS="citrinet_asr,..."（逗号分隔）
-custom-models = ["audio-cpp-sys/custom-models"]  # 引擎核心 + 内置 VAD + 指定模型族
+# 按需编译：可直接启用 `model-<族>` feature（推荐），或设置环境变量
+# `$env:AUDIOCPP_MODELS="qwen3_asr,citrinet_asr"` 后用本开关。
+# 示例：cargo run --features model-qwen3-asr
+custom-models = ["audio-cpp-sys/custom-models"]
+# 常用模型族（转发给 audio-cpp-sys；完整解释见其 Cargo.toml）
+model-citrinet-asr = ["audio-cpp-sys/model-citrinet-asr"]   # ASR：Citrinet
+model-fun-asr-nano = ["audio-cpp-sys/model-fun-asr-nano"]   # ASR：FunASR
+model-hviske-asr = ["audio-cpp-sys/model-hviske-asr"]       # ASR：Hviske
+model-kroko-asr = ["audio-cpp-sys/model-kroko-asr"]         # ASR：Kroko
+model-nemotron-asr = ["audio-cpp-sys/model-nemotron-asr"]   # ASR：Nemotron
+model-parakeet-tdt = ["audio-cpp-sys/model-parakeet-tdt"]   # ASR：Parakeet TDT
+model-qwen3-asr = ["audio-cpp-sys/model-qwen3-asr"]         # ASR：Qwen3
+model-vibevoice-asr = ["audio-cpp-sys/model-vibevoice-asr"] # ASR：VibeVoice
+model-moss = ["audio-cpp-sys/model-moss"]                   # TTS：MOSS
+model-qwen3-tts = ["audio-cpp-sys/model-qwen3-tts"]         # TTS：Qwen3
+model-irodori-tts = ["audio-cpp-sys/model-irodori-tts"]     # TTS：Irodori
+model-fish-audio = ["audio-cpp-sys/model-fish-audio"]       # TTS/声音克隆：Fish
+model-demucs = ["audio-cpp-sys/model-demucs"]               # 音频分离：Demucs
+model-roformer = ["audio-cpp-sys/model-roformer"]           # 音频分离：RoFormer
 cuda = ["audio-cpp-sys/cuda"]     # NVIDIA CUDA（需 CUDA Toolkit）
 hip = ["audio-cpp-sys/hip"]       # AMD HIP/ROCm（与 cuda 互斥）
 vulkan = ["audio-cpp-sys/vulkan"] # Vulkan 通用后端（需 Vulkan SDK）
