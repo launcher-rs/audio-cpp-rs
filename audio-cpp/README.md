@@ -14,10 +14,10 @@ C++ `engine_runtime`，**不重写 audio.cpp**。
 audio-cpp = { path = "../audio-cpp" }   # 或版本号
 ```
 
-首次构建前需先拉取 vendored 上游源码（见工作区 README）：
+首次构建前需先补齐 git submodule（见工作区 README）：
 
 ```bash
-git clone https://github.com/0xShug0/audio.cpp.git audio-cpp-sys/audio.cpp
+git submodule update --init --recursive
 cargo build   # 默认 core-models + CPU
 ```
 

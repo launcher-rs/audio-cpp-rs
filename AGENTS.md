@@ -9,7 +9,7 @@
 工作区（resolver = 2）：
 
 - **`audio-cpp-sys/`** — 底层 FFI crate。`build.rs` 负责全部本地构建：
-  1. CMake + **Ninja** 构建上游 `engine_runtime` 静态库（vendored at `audio-cpp-sys/audio.cpp`）；
+  1. CMake + **Ninja** 构建上游 `engine_runtime` 静态库（submodule at `audio-cpp-sys/audio.cpp`）；
   2. `cc` 编译 C shim（`capi.h` / `capi.cpp`）；
   3. `bindgen` 生成绑定，输出到 `OUT_DIR/bindings.rs`，由 `src/lib.rs` 用 `include!` 引入。
 - **`audio-cpp/`** — 高层安全封装 crate（当前为骨架，仅有模块占位）。
@@ -18,8 +18,11 @@
 
 ## 关键约束
 
-### 1. vendored 上游源码不入库
-`audio-cpp-sys/audio.cpp` 是上游的普通目录拷贝（约 200MB），**已被 `.gitignore` 排除**。任何操作都不应假定该目录存在且保持内容；不要在编辑 `git` 版本历史时删除/改动它。`build.rs` 会在启动时断言其存在（`audio.cpp/CMakeLists.txt`），缺失时报错提示。
+### 1. 上游源码以 git submodule 引入
+`audio-cpp-sys/audio.cpp` 是 git submodule（`.gitmodules` → `https://github.com/0xShug0/audio.cpp.git`），
+**内容不入库**。克隆本项目后必须执行 `git submodule update --init --recursive` 补齐。
+任何操作都不应假定该目录存在且保持内容；不要在编辑 `git` 版本历史时删除/改动它。
+`build.rs` 会在启动时断言其存在（`audio.cpp/CMakeLists.txt`），缺失时报错提示。
 
 ### 2. C ABI 边界不可破坏
 跨 C/Rust 的契约全部定义在 `audio-cpp-sys/capi.h`。修改结构或语义时，必须**同步修改**：
@@ -108,7 +111,8 @@
 
 ## 常用命令速查
 ```bash
-git clone https://github.com/0xShug0/audio.cpp.git audio-cpp-sys/audio.cpp   # 补 vendored 源码
-cargo build -p audio-cpp-sys                                                  # 单独构建底层
-BUILD_DEBUG=1 cargo build                                                      # 调试构建脚本
+git submodule update --init --recursive                                  # 补齐 audio-cpp-sys/audio.cpp（克隆后必需）
+git -C audio-cpp-sys/audio.cpp pull --ff-only                             # 单独更新 submodule 到上游最新
+cargo build -p audio-cpp-sys                                              # 单独构建底层
+BUILD_DEBUG=1 cargo build                                                 # 调试构建脚本
 ```

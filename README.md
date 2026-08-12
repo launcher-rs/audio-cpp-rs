@@ -19,17 +19,17 @@ C:\code\audio-cpp-rs\
 │   ├── build.rs          # CMake(Ninja) 构建 engine_runtime + cc 编译 shim + bindgen
 │   ├── capi.h            # C ABI 头文件（跨边界契约的全部内容）
 │   ├── capi.cpp          # C++ shim：把 audio.cpp 的异常转换为 C 错误码
-│   └── audio.cpp\        # ⚠️ vendored 上游源码（约 200MB，.gitignore 排除，不入库）
+│   └── audio.cpp\        # ⚠️ git submodule 引入的上游源码（内容不入库）
 ├── audio-cpp\            # 高层安全封装 crate（骨架）
 └── docs\research_report.md  # 调研报告
 ```
 
-### 关于 vendored 上游源码
+### 关于上游源码（git submodule）
 
-上游仓库通过普通目录拷贝引入：`audio.cpp/` → `audio-cpp-sys/audio.cpp`，由 `.gitignore` 排除，**不提交进 git**（参考 llama-cpp-rs 用 git submodule 引入 llama.cpp 的做法，本仓库先采用拷贝方式，后续可平滑切换为 submodule）。克隆本项目后需自行获取音频工具链：
+上游 `audio.cpp` 以 **git submodule** 引入：`.gitmodules` → `https://github.com/0xShug0/audio.cpp.git`，内容**不提交进本仓库**。克隆本项目后需先补齐子模块：
 
 ```bash
-git clone https://github.com/0xShug0/audio.cpp.git audio-cpp-sys/audio.cpp
+git submodule update --init --recursive
 ```
 
 ## 设计约定（C ABI）

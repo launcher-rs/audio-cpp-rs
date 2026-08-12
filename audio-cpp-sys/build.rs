@@ -15,8 +15,9 @@ macro_rules! debug_log {
 
 /// audio.cpp 上游源码树位于 `$CARGO_MANIFEST_DIR/audio.cpp`。
 ///
-/// 与 llama-cpp-rs（用 submodule 引入 llama.cpp）不同，本项目按用户选择
-/// 保留 vendored 拷贝（`gitignore` 已排除该目录，不提交进仓库）。
+/// 该目录现在是 git submodule（`.gitmodules` 指向
+/// `https://github.com/0xShug0/audio.cpp.git`），内容不提交进本仓库；
+/// 克隆本项目后需先 `git submodule update --init --recursive`。
 fn audio_src_dir() -> PathBuf {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR 未设置");
     Path::new(&manifest_dir).join("audio.cpp")
