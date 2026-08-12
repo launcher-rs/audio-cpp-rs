@@ -37,6 +37,9 @@ default = ["core-models"]
 # 模型组合选择（映射 audio.cpp 的 AUDIOCPP_MODEL_SET）
 core-models = []   # 仅引擎核心 + 内置 VAD 模型（silero_vad / marblenet_vad）
 full-models = []   # 全部已支持模型族
+# 仅编译指定模型族：需同时设置环境变量 AUDIOCPP_MODELS（逗号分隔的目标名），
+# 例如 AUDIOCPP_MODELS=citrinet_asr cargo build --features custom-models
+custom-models = [] # 引擎核心 + 内置 VAD + AUDIOCPP_MODELS 指定的模型族
 # 计算后端
 cuda = []    # NVIDIA CUDA
 hip = []     # AMD HIP/ROCm

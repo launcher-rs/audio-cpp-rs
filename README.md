@@ -67,6 +67,7 @@ cargo build --release
 | Feature | audio.cpp 映射 | 说明 |
 |---|---|---|
 | `core-models`（默认） | `AUDIOCPP_MODEL_SET=core` | 引擎核心 + 内置 VAD（silero/marblenet） |
+| `custom-models` | `AUDIOCPP_MODEL_SET=custom` | 只编译指定模型族（设 `AUDIOCPP_MODELS`，见下） |
 | `full-models` | `AUDIOCPP_MODEL_SET=full` | 全部 44+ 模型族 |
 | `cuda` | `ENGINE_ENABLE_CUDA=ON` | 需要 CUDA 工具链 |
 | `hip` | `ENGINE_ENABLE_HIP=ON` | 需要 HIP/ROCm |
@@ -75,6 +76,8 @@ cargo build --release
 | `openmp` | `ENGINE_ENABLE_OPENMP=ON` | OpenMP 并行 |
 | `native` | `ENGINE_ENABLE_NATIVE_CPU=ON` | 为本地 CPU 生成优化指令 |
 
+> `custom-models` 按需编译指定模型族，避免 `full-models` 全量 44+ 的编译成本；
+> 引擎核心与内置 VAD 始终编入。用法：`$env:AUDIOCPP_MODELS="citrinet_asr"; cargo build --features custom-models`（逗号分隔多个族）。
 > `cuda` 与 `hip` 互斥（audio.cpp 的 CMake 会校验）；二者可用环境变量精确控制（见 `build.rs` 中透传的 `GGML_*` / `CMAKE_*`）。
 
 ## 环境变量
@@ -111,6 +114,11 @@ cargo run -p audio-cpp --example vad_offline -- `
   audio-cpp-sys/audio.cpp/assets/framework/models/marblenet_vad/marblenet_vad.safetensors `
   audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav marblenet_vad
 
+# 5) 离线 ASR（须先 custom-models 构建并下载 Citrinet GGUF，见 asr_offline.rs 头注）
+$env:AUDIOCPP_MODELS="citrinet_asr"
+cargo run -p audio-cpp --features custom-models --example asr_offline -- `
+  ./citrinet-asr-q8_0.gguf audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav
+
 # 4) 流式 VAD（事件回调 + 分块 process_audio）
 cargo run -p audio-cpp --example vad_streaming -- `
   audio-cpp-sys/audio.cpp/assets/framework/models/silero_vad/silero_vad_16k.safetensors `
@@ -128,7 +136,9 @@ cargo run -p audio-cpp --example vad_streaming -- `
 - [x] 示例（inspect、vad_offline_ffi、高层 vad_offline / vad_streaming，均在本机运行验证）
 - [x] 高层安全 API（Registry / Model / Session，离线 + 流式）
 - [x] 内置 VAD 两种模型端到端验证：silero_vad（离线+流式）、marblenet_vad（离线）
-- [ ] 更多模型族端到端验证（ASR / TTS 等，需外部权重）
+- [x] ASR 端到端验证：Citrinet ASR Q8_0 GGUF 离线转录（sample_16k.wav → Nature 台词）
+- [x] `custom-models` feature：按需编译指定模型族，避免 full 全量成本
+- [ ] 更多模型族端到端验证（TTS 等）
 
 ## 参考
 

@@ -17,3 +17,16 @@ audio-cpp-sys = { path = "../audio-cpp-sys" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+
+[features]
+default = ["core-models"]
+# 转发给 audio-cpp-sys 的模型组合 / 后端 feature。
+core-models = ["audio-cpp-sys/core-models"]
+full-models = ["audio-cpp-sys/full-models"]
+custom-models = ["audio-cpp-sys/custom-models"]
+cuda = ["audio-cpp-sys/cuda"]
+hip = ["audio-cpp-sys/hip"]
+vulkan = ["audio-cpp-sys/vulkan"]
+metal = ["audio-cpp-sys/metal"]
+openmp = ["audio-cpp-sys/openmp"]
+native = ["audio-cpp-sys/native"]

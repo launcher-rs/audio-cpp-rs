@@ -144,9 +144,23 @@ fn main() {
         out_dir.join("lib").to_string_lossy().into_owned(),
     );
 
-    // 模型组合选择（映射 AUDIOCPP_MODEL_SET：full / core）。
+    // 模型组合选择（映射 AUDIOCPP_MODEL_SET：full / core / custom）。
     let model_set = if cfg!(feature = "full-models") {
         "full"
+    } else if cfg!(feature = "custom-models") {
+        // custom：只编译指定模型族（逗号分隔，如 "citrinet_asr,qwen3_asr"）。
+        // 引擎核心 + 内置 VAD 始终编入，见上游 CMakeLists 的 AUDIOCPP_RUNTIME_OBJECTS。
+        let requested = env::var("AUDIOCPP_MODELS")
+            .unwrap_or_default();
+        if requested.trim().is_empty() {
+            panic!(
+                "feature `custom-models` 需要设置环境变量 AUDIOCPP_MODELS \
+                 （逗号分隔的模型族目标，如 AUDIOCPP_MODELS=citrinet_asr）"
+            );
+        }
+        println!("cargo:rerun-if-env-changed=AUDIOCPP_MODELS");
+        config.define("AUDIOCPP_MODELS", &requested);
+        "custom"
     } else {
         "core"
     };

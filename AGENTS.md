@@ -67,6 +67,14 @@
   marblenet_vad 是 NeMo checkpoint，引擎自动探测会误判成 silero_vad（报
   "missing tensor: stft_conv.weight"），必须显式传 `family_hint="marblenet_vad"`；
   其阈值选项键是 `threshold`（silero 用 `vad_threshold`）。
+- ASR 已用 Citrinet ASR Q8_0 GGUF 验证（`audio-cpp/examples/asr_offline` 跑通，
+  sample_16k.wav 转录为 Nature 台词）。Citrinet 不在默认 core-models 集，需
+  `custom-models` 或 `full-models`；custom 只需 `$env:AUDIOCPP_MODELS="citrinet_asr"`。
+  **GGUF 同样无法自动探测族别**，须显式 `family_hint="citrinet_asr"`（否则误判
+  silero_vad 报 missing tensor）。
+- 上游 CMake 支持 `AUDIOCPP_MODEL_SET=custom` + `AUDIOCPP_MODELS`（逗号分隔
+  model targets）按需编译，避免 full 全量 44+ 模型族的编译成本；引擎核心 +
+  内置 VAD 始终编入。build.rs 的 `custom-models` feature 透传该机制。
 - 请求 JSON 里的 `audio_path` 若为 Windows 路径，反斜杠必须转义（`\\`），
   `\a` 等非法转义会导致 shim 解析失败（"failed to parse json"），改用正斜杠最省事。
 
