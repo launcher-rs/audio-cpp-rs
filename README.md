@@ -64,21 +64,43 @@ cargo build --release
 
 可选的 Cargo features：
 
-| Feature | audio.cpp 映射 | 说明 |
-|---|---|---|
-| `core-models`（默认） | `AUDIOCPP_MODEL_SET=core` | 引擎核心 + 内置 VAD（silero/marblenet） |
-| `custom-models` | `AUDIOCPP_MODEL_SET=custom` | 只编译指定模型族（设 `AUDIOCPP_MODELS`，见下） |
-| `full-models` | `AUDIOCPP_MODEL_SET=full` | 全部 44+ 模型族 |
-| `cuda` | `ENGINE_ENABLE_CUDA=ON` | 需要 CUDA 工具链 |
-| `hip` | `ENGINE_ENABLE_HIP=ON` | 需要 HIP/ROCm |
-| `vulkan` | `ENGINE_ENABLE_VULKAN=ON` | Vulkan SDK |
-| `metal` | `ENGINE_ENABLE_METAL=ON` | Apple 平台默认开启 |
-| `openmp` | `ENGINE_ENABLE_OPENMP=ON` | OpenMP 并行 |
-| `native` | `ENGINE_ENABLE_NATIVE_CPU=ON` | 为本地 CPU 生成优化指令 |
+> 所有 feature 在两个 crate 上均可使用（`audio-cpp` 会原样转发给 `audio-cpp-sys`）。
 
-> `custom-models` 按需编译指定模型族，避免 `full-models` 全量 44+ 的编译成本；
-> 引擎核心与内置 VAD 始终编入。用法：`$env:AUDIOCPP_MODELS="citrinet_asr"; cargo build --features custom-models`（逗号分隔多个族）。
-> `cuda` 与 `hip` 互斥（audio.cpp 的 CMake 会校验）；二者可用环境变量精确控制（见 `build.rs` 中透传的 `GGML_*` / `CMAKE_*`）。
+### 模型组合（互斥，决定编译哪些模型族）
+
+| Feature | audio.cpp 映射 | 作用 |
+|---|---|---|
+| `core-models`（默认） | `AUDIOCPP_MODEL_SET=core` | **最小编译集**：引擎核心 + 内置 VAD（silero_vad / marblenet_vad）。内置 VAD 权重随上游 vendored，开箱即用 |
+| `custom-models` | `AUDIOCPP_MODEL_SET=custom` | **按需编译**：引擎核心 + 内置 VAD + `AUDIOCPP_MODELS` 指定的模型族，避免 full 全量成本 |
+| `full-models` | `AUDIOCPP_MODEL_SET=full` | **全量**：audio.cpp 全部 44+ 模型族（编译极慢、产物很大，权重仍需自行下载） |
+
+`custom-models` 用法（逗号分隔多个族）：
+
+```powershell
+$env:AUDIOCPP_MODELS = "citrinet_asr"; cargo build --features custom-models
+$env:AUDIOCPP_MODELS = "citrinet_asr,qwen3_asr,moss_tts_nano"; cargo build --features custom-models
+```
+
+> 常用 target 名：`citrinet_asr`、`moss_tts_nano`、`qwen3_asr`、`sortformer_diar`、`htdemucs`、`whisper_large_v3` 等（完整列表见上游 `CMakeLists.txt` 的 `AUDIOCPP_TARGET`）。
+> build.rs 对 custom-models 强制 re-configure，切换 `AUDIOCPP_MODELS` 后直接重新构建即生效，无需 clean。
+
+### 计算后端（可叠加，不启用任何 GPU 后端时即 CPU 推理）
+
+| Feature | audio.cpp 映射 | 作用 | 前提条件 |
+|---|---|---|---|
+| `cuda` | `ENGINE_ENABLE_CUDA=ON` | NVIDIA GPU 加速 | 已装 CUDA Toolkit（nvcc/cudart） |
+| `hip` | `ENGINE_ENABLE_HIP=ON` | AMD GPU 加速（HIP/ROCm） | 已装 ROCm 工具链；**与 `cuda` 互斥** |
+| `vulkan` | `ENGINE_ENABLE_VULKAN=ON` | Vulkan 通用计算后端 | Vulkan SDK 与驱动；跨厂商通用，性能/算子覆盖通常不如专属后端 |
+| `metal` | `ENGINE_ENABLE_METAL=ON` | Apple Metal | **macOS 默认即开启**；win32 上默认关闭，需设 `AUDIOCPP_FORCE_METAL` 才强制开启 |
+| `openmp` | `ENGINE_ENABLE_OPENMP=ON` | 多线程并行加速 | OpenMP 运行时（MSVC `/openmp`、GCC/Clang `libgomp`）；未装则链接期报错，此时应关掉而非忽略 |
+| `native` | `ENGINE_ENABLE_NATIVE_CPU=ON` | 针对本机 CPU 生成优化指令（AVX2/FMA 等） | 产物不可移植到旧 CPU；目标机与构建机不同时勿开 |
+
+```powershell
+cargo build                                     # 默认 core-models + CPU
+cargo build --features core-models,openmp       # CPU 多线程
+cargo build --features full-models,cuda         # 全量模型 + NVIDIA GPU
+cargo build --features custom-models,vulkan,openmp
+```
 
 ## 环境变量
 

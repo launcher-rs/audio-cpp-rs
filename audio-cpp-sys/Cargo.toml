@@ -32,18 +32,45 @@ cmake.workspace = true   # 用 CMake 构建 engine_runtime
 cc.workspace = true      # 编译 capi.cpp 并把 C 链接系统库交给它处理
 glob.workspace = true    # 收集 OUT_DIR 下的静态库文件
 
+# ------------------------------------------------------------------------
+# 模型组合 feature（互斥，映射 audio.cpp 的 AUDIOCPP_MODEL_SET）。
+# ------------------------------------------------------------------------
 [features]
 default = ["core-models"]
-# 模型组合选择（映射 audio.cpp 的 AUDIOCPP_MODEL_SET）
-core-models = []   # 仅引擎核心 + 内置 VAD 模型（silero_vad / marblenet_vad）
-full-models = []   # 全部已支持模型族
-# 仅编译指定模型族：需同时设置环境变量 AUDIOCPP_MODELS（逗号分隔的目标名），
-# 例如 AUDIOCPP_MODELS=citrinet_asr cargo build --features custom-models
-custom-models = [] # 引擎核心 + 内置 VAD + AUDIOCPP_MODELS 指定的模型族
-# 计算后端
-cuda = []    # NVIDIA CUDA
-hip = []     # AMD HIP/ROCm
-vulkan = []  # Vulkan
-metal = []   # Apple Metal（macOS/iOS 默认开启）
-openmp = []  # OpenMP 并行
-native = []  # 为本地 CPU 生成优化指令（GGML_NATIVE）
+# 引擎核心 + 内置 VAD 模型（silero_vad / marblenet_vad），已随上游源码
+# vendored 在 audio.cpp/assets/framework/models/，无需下载任何权重。
+# 这也是编译最快、开箱即用的最小编译集，适合仅用 VAD 或验证绑定链路的场景。
+core-models = []
+# 全量编译 audio.cpp 支持的 44+ 模型族。注意：全量编译耗时很长且生成
+# 的静态库很大；并不等于"能运行任意模型"，权重文件仍需自行下载。
+# 日常建议优先用 custom-models 按需编译，只有需要一次备齐全部能力时才用本项。
+full-models = []
+# 只编译 AUDIOCPP_MODELS 环境变量列出的模型族（逗号分隔 CMake target 名），
+# 引擎核心与内置 VAD 始终编入。用法示例：
+#   $env:AUDIOCPP_MODELS="citrinet_asr"; cargo build --features custom-models
+#   $env:AUDIOCPP_MODELS="moss_tts_nano"; cargo build --features custom-models
+# 构建脚本对 custom-models 强制 re-configure（always_configure(true)），
+# 因此同一目标目录切换 AUDIOCPP_MODELS 后重新构建即生效，无需 clean。
+# 常见 target 名：citrinet_asr、moss_tts_nano、qwen3_asr、sortformer_diar、
+# htdemucs、whisper_large_v3 等（完整列表见上游 CMakeLists 的 AUDIOCPP_TARGET）。
+custom-models = []
+
+# ------------------------------------------------------------------------
+# 计算后端 feature（可叠加，映射 engine 的 ENGINE_ENABLE_*_CPU 选项）。
+# 不启用任何 GPU 后端时使用 CPU 推理（ggml 默认）。
+# ------------------------------------------------------------------------
+cuda = []    # NVIDIA CUDA。需要已安装 CUDA Toolkit（nvcc、cudart）且手工
+             # 配置好构建环境；开启后 ggml 的 CUDA 算子参与推理。
+hip = []     # AMD HIP/ROCm（针对 Radeon/Instinct GPU）。需要 ROCm 工具链。
+             # 与 cuda 互斥：上游 CMake 同时启用会报错，勿同时开启。
+vulkan = []  # Vulkan 通用计算后端。需要 Vulkan SDK 与驱动；跨厂商（NVIDIA/
+             # AMD/Intel）通用，但算子覆盖/性能通常不如专属后端。
+metal = []   # Apple Metal。注意：macOS 上默认即开启，无需手动启用；
+             # 在非 Apple 平台（如 win32）默认关闭，需设环境变量
+             # AUDIOCPP_FORCE_METAL 才会强制开启（一般用于交叉实验）。
+openmp = []  # OpenMP 并行加速。依赖 OpenMP 运行时：MSVC 需 /openmp 运行时
+             # 库、GCC/Clang 需 libgomp；未安装对应运行时则链接期报错，
+             # 此时应关掉本 feature 而非忽略错误。
+native = []  # 针对本机 CPU 生成优化指令（对应 GGML_NATIVE，如 AVX2/
+             # FMA/AVX512）。能提升推理速度，但产出的二进制不再移植到旧 CPU，
+             # 若二进制的目标机与构建机不同，请不要开启。

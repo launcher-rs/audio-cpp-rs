@@ -1,8 +1,11 @@
 # ----------------------------------------------------------------
 # audio-cpp — audio.cpp 的高层、安全 Rust 封装。
 #
-# 目前为骨架：对外依赖唯一的 audio-cpp-sys FFI crate。
-# 后续在此之上提供类型安全的注册表 / 模型 / 会话 API。
+# 提供类型安全的 Registry / Model / Session API（离线 + 流式），
+# 内部依赖唯一的 audio-cpp-sys FFI crate。
+#
+# 下列 feature 全部转发给 audio-cpp-sys，含义与用法见该 crate 的
+# Cargo.toml 中对应注释（模型组合互斥；计算后端可叠加）。
 # ----------------------------------------------------------------
 
 [package]
@@ -21,12 +24,13 @@ thiserror.workspace = true
 [features]
 default = ["core-models"]
 # 转发给 audio-cpp-sys 的模型组合 / 后端 feature。
-core-models = ["audio-cpp-sys/core-models"]
-full-models = ["audio-cpp-sys/full-models"]
-custom-models = ["audio-cpp-sys/custom-models"]
-cuda = ["audio-cpp-sys/cuda"]
-hip = ["audio-cpp-sys/hip"]
-vulkan = ["audio-cpp-sys/vulkan"]
-metal = ["audio-cpp-sys/metal"]
-openmp = ["audio-cpp-sys/openmp"]
-native = ["audio-cpp-sys/native"]
+core-models = ["audio-cpp-sys/core-models"]   # 引擎核心 + 内置 VAD（默认，最小编译集）
+full-models = ["audio-cpp-sys/full-models"]   # 全量 44+ 模型族（编译慢）
+# 按需编译：需设置 $env:AUDIOCPP_MODELS="citrinet_asr,..."（逗号分隔）
+custom-models = ["audio-cpp-sys/custom-models"]  # 引擎核心 + 内置 VAD + 指定模型族
+cuda = ["audio-cpp-sys/cuda"]     # NVIDIA CUDA（需 CUDA Toolkit）
+hip = ["audio-cpp-sys/hip"]       # AMD HIP/ROCm（与 cuda 互斥）
+vulkan = ["audio-cpp-sys/vulkan"] # Vulkan 通用后端（需 Vulkan SDK）
+metal = ["audio-cpp-sys/metal"]   # Apple Metal（macOS 默认开启；win32 需 AUDIOCPP_FORCE_METAL）
+openmp = ["audio-cpp-sys/openmp"] # OpenMP 并行（依赖 OpenMP 运行时）
+native = ["audio-cpp-sys/native"] # 针对本机 CPU 优化（不移植）
