@@ -101,10 +101,15 @@ cargo run -p audio-cpp-sys --example vad_offline_ffi -- `
   audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav
 
 # 高层 API（类型安全，无需手动管理 C 句柄）：
-# 3) 离线 VAD
+# 3) 离线 VAD（silero_vad；marblenet_vad 需传第 3 个 family_hint）
 cargo run -p audio-cpp --example vad_offline -- `
   audio-cpp-sys/audio.cpp/assets/framework/models/silero_vad/silero_vad_16k.safetensors `
   audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav
+
+# marblenet_vad（NeMo 格式，引擎自动探测易误判，须显式指定模型族）
+cargo run -p audio-cpp --example vad_offline -- `
+  audio-cpp-sys/audio.cpp/assets/framework/models/marblenet_vad/marblenet_vad.safetensors `
+  audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav marblenet_vad
 
 # 4) 流式 VAD（事件回调 + 分块 process_audio）
 cargo run -p audio-cpp --example vad_streaming -- `
@@ -122,7 +127,8 @@ cargo run -p audio-cpp --example vad_streaming -- `
 - [x] 首次端到端构建验证（win32/MSVC，`cargo build --workspace` 通过）
 - [x] 示例（inspect、vad_offline_ffi、高层 vad_offline / vad_streaming，均在本机运行验证）
 - [x] 高层安全 API（Registry / Model / Session，离线 + 流式）
-- [ ] 更多模型族端到端验证（ASR / TTS 等）
+- [x] 内置 VAD 两种模型端到端验证：silero_vad（离线+流式）、marblenet_vad（离线）
+- [ ] 更多模型族端到端验证（ASR / TTS 等，需外部权重）
 
 ## 参考
 

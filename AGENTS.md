@@ -63,6 +63,12 @@
   `target/debug/examples` 冲突，不要给不同 crate 的示例取同名。
 - 流式会话（silero_vad）每块必须恰好 `preferred_audio_chunk_samples`（512）个采样，
   末尾不足块需补零；其流式事件经 `is_final` 汇总，single-chunk 调试时无逐块事件也正常。
+- 内置 VAD 已双模型验证：silero_vad（离线+流式）与 marblenet_vad（仅离线）。
+  marblenet_vad 是 NeMo checkpoint，引擎自动探测会误判成 silero_vad（报
+  "missing tensor: stft_conv.weight"），必须显式传 `family_hint="marblenet_vad"`；
+  其阈值选项键是 `threshold`（silero 用 `vad_threshold`）。
+- 请求 JSON 里的 `audio_path` 若为 Windows 路径，反斜杠必须转义（`\\`），
+  `\a` 等非法转义会导致 shim 解析失败（"failed to parse json"），改用正斜杠最省事。
 
 ## 常用命令速查
 ```bash
