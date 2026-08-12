@@ -88,6 +88,15 @@
 - **模型组合切换需重配置**：build.rs 用 `always_configure(true)`，切换
   `AUDIOCPP_MODELS` 后重新 configure 以更新 registry loader 集合；否则会沿用旧的
   model 组合（如刚才 citrinet 组合不含 moss）。
+- 说话人分离已用 SortFormer Diar 4spk Q8_0 GGUF 验证（`audio-cpp/examples/diar_offline`
+  跑通，four_speaker_short.wav 正确分出 SPEAKER_00..03 各约 4-5 秒发言）。
+  SortFormer 由 CMake target `sortformer_diar` 提供，feature 为 `model-sortformer-diar`
+  （无需 env）；GGUF 须显式 `family_hint="sortformer_diar"`；**采样率以 GGUF 内嵌
+  `processor_config.json` 为准（16000Hz）**，与 GGUF 顶层 feature KV（24000）可能不一致，
+  引擎用前者校验、不重采样，24kHz 的 four_speaker_short.wav 需先重采样到 16kHz；
+  输出在 `TaskResult.speaker_turns: Vec<SpeakerTurn>`（speaker_id/span/confidence），
+  上游 postprocess 恒填 confidence=0.0（SortFormer 无逐段置信度），属正常。
+  C ABI `dump_task_result` 已导出 speaker_turns。
 
 ## 常用命令速查
 ```bash

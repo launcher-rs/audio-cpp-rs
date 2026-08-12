@@ -102,6 +102,14 @@ static json::Value dump_speech_segment(const engine::runtime::SpeechSegment & se
     return json::Value::make_object(std::move(obj));
 }
 
+static json::Value dump_speaker_turn(const engine::runtime::SpeakerTurn & turn) {
+    json::Value::Object obj;
+    obj.emplace("speaker_id", json::Value::make_string(turn.speaker_id));
+    obj.emplace("span", dump_time_span(turn.span));
+    obj.emplace("confidence", json::Value::make_number(turn.confidence));
+    return json::Value::make_object(std::move(obj));
+}
+
 static json::Value dump_audio_buffer(const engine::runtime::AudioBuffer & audio) {
     json::Value::Object obj;
     obj.emplace("sample_rate", json::Value::make_number(audio.sample_rate));
@@ -127,6 +135,13 @@ static json::Value dump_task_result(const TaskResult & result) {
         segments.push_back(dump_speech_segment(seg));
     }
     obj.emplace("speech_segments", json::Value::make_array(std::move(segments)));
+
+    json::Value::Array turns;
+    turns.reserve(result.speaker_turns.size());
+    for (const auto & turn : result.speaker_turns) {
+        turns.push_back(dump_speaker_turn(turn));
+    }
+    obj.emplace("speaker_turns", json::Value::make_array(std::move(turns)));
 
     if (result.text_output.has_value()) {
         json::Value::Object text;

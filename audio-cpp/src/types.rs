@@ -15,6 +15,8 @@ pub enum TaskKind {
     Vad,
     /// 语音识别（ASR）
     Asr,
+    /// 说话人分离（Diarization）
+    Diar,
     /// 语音合成（TTS）
     Tts,
 }
@@ -25,6 +27,7 @@ impl TaskKind {
         match self {
             TaskKind::Vad => "vad",
             TaskKind::Asr => "asr",
+            TaskKind::Diar => "diar",
             TaskKind::Tts => "tts",
         }
     }
@@ -167,6 +170,17 @@ pub struct SpeechSegment {
     pub text: String,
 }
 
+/// 说话人分离中的一段发言（谁在什么时间说话）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SpeakerTurn {
+    /// 说话人 id，如 `"speaker_0"`。
+    pub speaker_id: String,
+    /// 发言时间范围。
+    pub span: TimeSpan,
+    /// 置信度（0..1）。
+    pub confidence: f32,
+}
+
 /// 文本输出（如 ASR / TTS 的文本）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TextOutput {
@@ -207,6 +221,8 @@ pub struct NamedAudioOutput {
 pub struct TaskResult {
     /// 检测到的语音片段。
     pub speech_segments: Vec<SpeechSegment>,
+    /// 说话人分离的发言分段（存在时）。
+    pub speaker_turns: Vec<SpeakerTurn>,
     /// 文本输出（存在时）。
     pub text_output: Option<TextOutput>,
     /// 音频输出（存在时）。

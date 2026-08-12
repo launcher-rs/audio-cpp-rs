@@ -197,6 +197,7 @@ impl Session {
         if out.is_null() {
             return Ok(TaskResult {
                 speech_segments: Vec::new(),
+                speaker_turns: Vec::new(),
                 text_output: None,
                 audio_output: None,
                 named_audio_outputs: Vec::new(),

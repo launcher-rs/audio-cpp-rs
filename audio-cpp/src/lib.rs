@@ -56,8 +56,8 @@ mod ffi;
 mod types;
 pub use types::{
     AudioBufferInfo, Backend, Capabilities, Device, LoaderInfo, ModelMetadata, NamedAudioOutput,
-    RunMode, SpeechSegment, StreamEvent, StreamingPolicy, SupportedTask, TaskKind, TaskResult,
-    TextOutput, TimeSpan, VoiceActivityEvent,
+    RunMode, SpeakerTurn, SpeechSegment, StreamEvent, StreamingPolicy, SupportedTask, TaskKind,
+    TaskResult, TextOutput, TimeSpan, VoiceActivityEvent,
 };
 
 mod registry;
