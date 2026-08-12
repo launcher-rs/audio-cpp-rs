@@ -1,0 +1,46 @@
+# ----------------------------------------------------------------
+# audio-cpp-sys — audio.cpp (ggml 音频推理框架) 的底层 FFI 绑定。
+#
+# 构建流程（见 build.rs）：
+#   1. 用 CMake + Ninja 构建 audio.cpp 的 engine_runtime 静态库（vendored 于 ./audio.cpp）；
+#   2. 用 cc 编译 C shim（capi.cpp）为独立静态库；
+#   3. 用 bindgen 为 capi.h 生成 Rust 绑定（bindings.rs）。
+# ----------------------------------------------------------------
+
+[package]
+name = "audio-cpp-sys"
+description = "audio.cpp（ggml 音频推理框架）的底层绑定"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+# 声明本 crate 链接的本地库名；任何同时声明 links="audio-cpp" 的 crate 会被 Cargo 拒绝，
+# 防止一个程序里出现两份 ggml/audio.cpp 导致重复符号。
+links = "audio-cpp"
+build = "build.rs"
+# 发布到 crates.io 时需要包含的文件（audio.cpp 上游源码体积过大，由 gitignore 排除，
+# 通过其余方式提供，见 README）。
+include = [
+    "build.rs",
+    "capi.h",
+    "capi.cpp",
+    "/src",
+]
+
+[build-dependencies]
+bindgen.workspace = true # 从 capi.h 生成 Rust FFI 绑定
+cmake.workspace = true   # 用 CMake 构建 engine_runtime
+cc.workspace = true      # 编译 capi.cpp 并把 C 链接系统库交给它处理
+glob.workspace = true    # 收集 OUT_DIR 下的静态库文件
+
+[features]
+default = ["core-models"]
+# 模型组合选择（映射 audio.cpp 的 AUDIOCPP_MODEL_SET）
+core-models = []   # 仅引擎核心 + 内置 VAD 模型（silero_vad / marblenet_vad）
+full-models = []   # 全部已支持模型族
+# 计算后端
+cuda = []    # NVIDIA CUDA
+hip = []     # AMD HIP/ROCm
+vulkan = []  # Vulkan
+metal = []   # Apple Metal（macOS/iOS 默认开启）
+openmp = []  # OpenMP 并行
+native = []  # 为本地 CPU 生成优化指令（GGML_NATIVE）

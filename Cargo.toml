@@ -1,0 +1,32 @@
+# =====================================================================
+# audio-cpp-rs — 用 Rust 封装 audio.cpp（基于 ggml 的本地音频推理引擎）。
+#
+# 仓库结构：
+#   audio-cpp-sys/  —— 底层 FFI：CMake 构建 engine_runtime + bindgen 生成 C ABI 绑定
+#   audio-cpp/      —— 高层安全封装（待创建）
+#
+# 上游源码以 vendored 拷贝存放在 audio-cpp-sys/audio.cpp（由 .gitignore 排除，
+# 不入库）；参考 llama-cpp-rs 使用 git submodule 的做法见 docs/research_report.md。
+# =====================================================================
+
+[workspace]
+resolver = "2"
+members = ["audio-cpp-sys", "audio-cpp"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/example/audio-cpp-rs"
+
+[workspace.dependencies]
+# 构建脚本依赖
+bindgen = "0.71" # C ABI -> Rust 绑定生成
+cmake = "0.1"    # 调用 CMake 构建上游 C++ 库
+cc = { version = "1", features = ["parallel"] } # 编译 C/C++ shim
+glob = "0.3"     # 静态库发现
+
+# 运行期依赖（高层 crate 使用）
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"

@@ -1,0 +1,19 @@
+# ----------------------------------------------------------------
+# audio-cpp — audio.cpp 的高层、安全 Rust 封装。
+#
+# 目前为骨架：对外依赖唯一的 audio-cpp-sys FFI crate。
+# 后续在此之上提供类型安全的注册表 / 模型 / 会话 API。
+# ----------------------------------------------------------------
+
+[package]
+name = "audio-cpp"
+description = "audio.cpp（ggml 音频推理引擎）的高层安全 Rust 封装"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+audio-cpp-sys = { path = "../audio-cpp-sys" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

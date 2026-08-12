@@ -1,0 +1,17 @@
+# 构建产物
+/target
+
+# IDE 配置
+.idea
+.vscode
+
+# 临时目录（含 llama-cpp-rs / audio.cpp 参考克隆）
+temp
+
+# vendored 上游源码（audio-cpp-sys/audio.cpp 是 200MB 的上游拷贝，不进版本库）
+# 参考 llama-cpp-rs：上游源码作为 git submodule 引入，而非提交进仓库。
+/audio-cpp-sys/audio.cpp
+
+# 零散的编译中间文件
+*.obj
+*.o
