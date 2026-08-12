@@ -17,6 +17,8 @@ pub enum TaskKind {
     Asr,
     /// 说话人分离（Diarization）
     Diar,
+    /// 音频源分离（Source Separation，如 Demucs 分离人声/鼓/贝斯/其他）
+    SourceSeparation,
     /// 语音合成（TTS）
     Tts,
 }
@@ -28,6 +30,7 @@ impl TaskKind {
             TaskKind::Vad => "vad",
             TaskKind::Asr => "asr",
             TaskKind::Diar => "diar",
+            TaskKind::SourceSeparation => "sep",
             TaskKind::Tts => "tts",
         }
     }

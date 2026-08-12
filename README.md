@@ -171,6 +171,14 @@ cargo run -p audio-cpp --features model-citrinet-asr --example asr_offline -- `
 cargo run -p audio-cpp --features model-moss --example tts_offline -- `
   ./moss-tts-nano-100m-q8_0.gguf out.wav "Hello from Rust and audio.cpp!"
 
+# 7) 离线说话人分离（SortFormer GGUF 需自行下载并重采样到 16kHz，见 diar_offline.rs 头注）
+cargo run -p audio-cpp --features model-sortformer-diar --example diar_offline -- `
+  ./sortformer-diar-4spk-v1-q8_0.gguf ./four_speaker_16k.wav
+
+# 8) 离线音乐源分离（HTDemucs GGUF 需自行下载，输入须 44.1kHz 立体声，见 sep_offline.rs 头注）
+cargo run -p audio-cpp --features model-demucs --example sep_offline -- `
+  ./htdemucs-q8_0.gguf ./song.wav ./sep_out
+
 # 4) 流式 VAD（事件回调 + 分块 process_audio）
 cargo run -p audio-cpp --example vad_streaming -- `
   audio-cpp-sys/audio.cpp/assets/framework/models/silero_vad/silero_vad_16k.safetensors `
@@ -187,12 +195,14 @@ cargo run -p audio-cpp --example vad_streaming -- `
 - [x] 首次端到端构建验证（win32/MSVC，`cargo build --workspace` 通过）
 - [x] 示例（inspect、vad_offline_ffi、高层 vad_offline / vad_streaming，均在本机运行验证）
 - [x] 高层安全 API（Registry / Model / Session，离线 + 流式）
+- [x] 模型族端到端验证（VAD、ASR、TTS、说话人分离、音乐源分离，见 AGENTS.md）
 - [x] 内置 VAD 两种模型端到端验证：silero_vad（离线+流式）、marblenet_vad（离线）
 - [x] ASR 端到端验证：Citrinet ASR Q8_0 GGUF 离线转录（sample_16k.wav → Nature 台词）
 - [x] TTS 端到端验证：MOSS-TTS-Nano-100M Q8_0 GGUF 离线合成（~8s 语音写入 WAV）
 - [x] C ABI 音频回传：`audio_output.samples` 携带生成音频的 f32 采样
 - [x] `custom-models` feature：按需编译指定模型族，避免 full 全量成本
-- [ ] 更多模型族端到端验证（说话人分离 / 音源分离等）
+- [x] 说话人分离端到端验证：SortFormer Diar 4spk Q8_0 GGUF（four_speaker_short.wav 重采样到 16kHz）
+- [x] 音乐源分离端到端验证：HTDemucs Q8_0 GGUF（44.1kHz 立体声 → drums/bass/other/vocals）
 
 ## 参考
 

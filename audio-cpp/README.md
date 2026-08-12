@@ -193,4 +193,4 @@ println!("{}Hz {}ch {} 采样", audio.sample_rate, audio.channels, samples.len()
   `audiocpp_last_error()` 透传，为类型化枚举，可用 `?` 传播。
 
 完整可运行示例见 [`examples/`](examples/)（vad_offline / vad_streaming /
-asr_offline / tts_offline，均在本机 win32/MSVC 验证运行）。
+asr_offline / tts_offline / diar_offline / sep_offline，均在本机 win32/MSVC 验证运行）。

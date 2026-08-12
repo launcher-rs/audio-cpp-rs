@@ -97,6 +97,14 @@
   输出在 `TaskResult.speaker_turns: Vec<SpeakerTurn>`（speaker_id/span/confidence），
   上游 postprocess 恒填 confidence=0.0（SortFormer 无逐段置信度），属正常。
   C ABI `dump_task_result` 已导出 speaker_turns。
+- 音乐源分离已用 HTDemucs Q8_0 GGUF 验证（`audio-cpp/examples/sep_offline` 跑通，
+  6s 合成立体声混音正确分离出 drums/bass/other/vocals 四轨，能量分布合理）。
+  HTDemucs 由 CMake target `demucs`（alias `htdemucs`）提供，feature 为 `model-demucs`
+  （无需 env）；GGUF 须显式 `family_hint="htdemucs"`；**输入须 44100Hz 立体声**
+  （不隐式重采样，mono 会自动复制为双声道）；task 字符串为 `sep`（C ABI 透传，
+  Rust `TaskKind::SourceSeparation`，**不是** `source_separation`）；输出在
+  `TaskResult.named_audio_outputs`（id 为 drums/bass/other/vocals，f32 交错）；
+  输出时长会比输入略长（htdemucs 的 overlap-add chunk 对齐扩展）。
 
 ## 常用命令速查
 ```bash
