@@ -13,6 +13,7 @@ description = "audio.cpp（ggml 音频推理框架）的底层绑定"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 # 声明本 crate 链接的本地库名；任何同时声明 links="audio-cpp" 的 crate 会被 Cargo 拒绝，
 # 防止一个程序里出现两份 ggml/audio.cpp 导致重复符号。
 links = "audio-cpp"
@@ -24,6 +25,7 @@ include = [
     "capi.h",
     "capi.cpp",
     "/src",
+    "/examples",
 ]
 
 [build-dependencies]

@@ -14,9 +14,10 @@ description = "audio.cpp（ggml 音频推理引擎）的高层安全 Rust 封装
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 
 [dependencies]
-audio-cpp-sys = { path = "../audio-cpp-sys" }
+audio-cpp-sys = { version = "0.1.0", path = "../audio-cpp-sys" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

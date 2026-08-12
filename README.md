@@ -207,9 +207,10 @@ cargo run -p audio-cpp --example vad_streaming -- `
 ## 参考
 
 - [audio.cpp 官方仓库](https://github.com/0xShug0/audio.cpp)
-- [`temp/llama-cpp-rs`](temp/llama-cpp-rs) —— llama-cpp-sys-2 / llama-cpp-2 参考实现（submodule 方式引入上游）
+- [llama-cpp-rs（utilityai，v2：llama-cpp-sys-2 / llama-cpp-2）](https://github.com/utilityai/llama-cpp-rs) —— 本地参考实现（submodule 方式引入上游），另见本地 [`temp/llama-cpp-rs`](temp/llama-cpp-rs)
+- [llama-cpp-rs（eugenehp，v4）](https://github.com/eugenehp/llama-cpp-rs) —— 新一代 llama-cpp-rs（llama-cpp-rs4）
 - [docs/research_report.md](docs/research_report.md) —— 调研报告
 
 ## 许可
 
-MIT OR Apache-2.0
+Apache-2.0

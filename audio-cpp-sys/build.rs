@@ -15,12 +15,77 @@ macro_rules! debug_log {
 
 /// audio.cpp 上游源码树位于 `$CARGO_MANIFEST_DIR/audio.cpp`。
 ///
-/// 该目录现在是 git submodule（`.gitmodules` 指向
-/// `https://github.com/0xShug0/audio.cpp.git`），内容不提交进本仓库；
+/// 该目录通常是 git submodule（`.gitmodules` 指向
+/// `https://github.com/0xShug0/audio.cpp.git`），内容不提交进本仓库。
 /// 克隆本项目后需先 `git submodule update --init --recursive`。
 fn audio_src_dir() -> PathBuf {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR 未设置");
     Path::new(&manifest_dir).join("audio.cpp")
+}
+
+/// 上游源码 URL（crates.io 打包场景没有 .git 上下文，无法走 submodule，
+/// 需要用本 URL 直接 clone）。
+const AUDIO_CPP_URL: &str = "https://github.com/0xShug0/audio.cpp.git";
+
+/// 确保 `audio.cpp` 源码树存在；缺失时自动获取。
+///
+/// 返回包含源码树的路径。获取策略：
+/// 1. 源码已存在（`$CARGO_MANIFEST_DIR/audio.cpp`）→ 直接返回；
+/// 2. 处于 git 仓库内（含 `.gitmodules`）→ `git submodule update --init`;
+/// 3. 否则（如 crates.io 打包验证场景，manifest 目录只读）→ `git clone --depth 1`
+///    到 `OUT_DIR/audio.cpp`（build.rs 只允许写 OUT_DIR）。
+fn ensure_audio_src() -> PathBuf {
+    let manifest_src = audio_src_dir();
+    if manifest_src.join("CMakeLists.txt").exists() {
+        return manifest_src;
+    }
+
+    // 从 manifest 目录向上找 .git，判断是否处于 git 仓库。
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| manifest_src.clone());
+    let mut dir = manifest_dir.clone();
+    let mut in_git_repo = false;
+    loop {
+        if dir.join(".git").exists() {
+            in_git_repo = true;
+            break;
+        }
+        if !dir.pop() {
+            break;
+        }
+    }
+
+    if in_git_repo {
+        debug_log!("audio.cpp 缺失，执行 git submodule update --init ...");
+        let status = std::process::Command::new("git")
+            .args(["submodule", "update", "--init", "--recursive"])
+            .current_dir(&manifest_dir)
+            .status()
+            .expect("failed to run git submodule update");
+        if status.success() && manifest_src.join("CMakeLists.txt").exists() {
+            return manifest_src;
+        }
+        debug_log!("submodule 更新失败，回退到 git clone");
+    }
+
+    // 不在 git 仓库（或 submodule 不可用）：clone 到 OUT_DIR。
+    let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR 未设置"));
+    let src_dir = out_dir.join("audio.cpp");
+    if !src_dir.join("CMakeLists.txt").exists() {
+        debug_log!("audio.cpp 缺失，执行 git clone --depth 1 {AUDIO_CPP_URL} 到 OUT_DIR ...");
+        let status = std::process::Command::new("git")
+            .args(["clone", "--depth", "1", AUDIO_CPP_URL])
+            .arg(&src_dir)
+            .status()
+            .expect("failed to run git clone");
+        assert!(
+            status.success() && src_dir.join("CMakeLists.txt").exists(),
+            "无法自动获取 audio.cpp 源码。请确认网络可用，或手动把源码放到 {}",
+            manifest_src.display()
+        );
+    }
+    src_dir
 }
 
 /// 从 Rust 目标三元组推断出粗粒度的操作系统类别，用于决定静态库的
@@ -126,12 +191,7 @@ fn main() {
 
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR 未设置");
     let manifest_dir = PathBuf::from(&manifest_dir);
-    let src_dir = audio_src_dir();
-    assert!(
-        src_dir.join("CMakeLists.txt").exists(),
-        "vendored audio.cpp 源码树不存在于 {}",
-        src_dir.display()
-    );
+    let src_dir = ensure_audio_src();
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let os = target_os();

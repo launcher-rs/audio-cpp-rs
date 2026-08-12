@@ -10,14 +10,14 @@
 # =====================================================================
 
 [workspace]
-resolver = "2"
+resolver = "3"
 members = ["audio-cpp-sys", "audio-cpp"]
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/example/audio-cpp-rs"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/launcher-rs/audio-cpp-rs"
 
 [workspace.dependencies]
 # 构建脚本依赖

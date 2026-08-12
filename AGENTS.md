@@ -6,7 +6,7 @@
 
 `audio-cpp-rs` 是把 C++ 音频推理框架 [audio.cpp](https://github.com/0xShug0/audio.cpp) 封装为 Rust 库的项目。目标是**共享 C++ 运行时实现**，而非重写。
 
-工作区（resolver = 2）：
+工作区（resolver = 3，edition 2024）：
 
 - **`audio-cpp-sys/`** — 底层 FFI crate。`build.rs` 负责全部本地构建：
   1. CMake + **Ninja** 构建上游 `engine_runtime` 静态库（submodule at `audio-cpp-sys/audio.cpp`）；

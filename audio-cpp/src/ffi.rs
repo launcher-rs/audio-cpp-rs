@@ -21,8 +21,10 @@ pub(crate) unsafe fn take_string(ptr: *mut c_char) -> Result<String, Error> {
     if ptr.is_null() {
         return Ok(String::new());
     }
-    let s = CStr::from_ptr(ptr).to_string_lossy().into_owned();
-    audiocpp_free_string(ptr);
+    // SAFETY: 调用方保证 ptr 是 shim 返回的、尚未释放的 char*（见函数 Safety 说明）。
+    let s = unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned();
+    // SAFETY: 同上，shim 要求返回的 char* 用 audiocpp_free_string 释放。
+    unsafe { audiocpp_free_string(ptr) };
     Ok(s)
 }
 

@@ -36,13 +36,17 @@ unsafe extern "C" fn stream_event_cb(user_data: *mut c_void, event_json: *const 
     if user_data.is_null() || event_json.is_null() {
         return;
     }
+    // SAFETY: shim 保证 user_data 是 EventSinkInner 指针、event_json 是 NUL 结尾 JSON。
     let inner = user_data.cast::<EventSinkInner>();
-    let json = std::ffi::CStr::from_ptr(event_json).to_string_lossy().into_owned();
+    let json = unsafe { std::ffi::CStr::from_ptr(event_json) }
+        .to_string_lossy()
+        .into_owned();
     let event = match serde_json::from_str::<StreamEvent>(&json) {
         Ok(e) => e,
         Err(_) => return, // 事件 JSON 契约不符：忽略
     };
-    let mut guard = match (*inner).cb.lock() {
+    // SAFETY: 同上，inner 在会话生命周期内有效（EventSink 析构前回调已解绑）。
+    let mut guard = match unsafe { (*inner).cb.lock() } {
         Ok(g) => g,
         Err(poisoned) => poisoned.into_inner(),
     };
