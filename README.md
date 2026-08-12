@@ -11,7 +11,7 @@ audio.cpp 是一个纯 C++ 音频推理框架，基于 ggml，支持 TTS、STT�
 | Crate | 说明 |
 |---|---|
 | [`audio-cpp-sys`](audio-cpp-sys/) | **底层 FFI**：用 CMake 构建 `engine_runtime` 静态库，bindgen 生成 C ABI 绑定 |
-| [`audio-cpp`](audio-cpp/) | **高层安全封装**：类型安全的注册表 / 模型 / 会话 API（离线 + 流式） |
+| [`audio-cpp`](audio-cpp/) | **高层安全封装**：类型安全的注册表 / 模型 / 会话 API（离线 + 流式）。使用指南见 [`audio-cpp/README.md`](audio-cpp/README.md) |
 
 ```
 C:\code\audio-cpp-rs\
