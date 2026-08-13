@@ -205,7 +205,7 @@ jobs:
             msvc_ver      = [int]$msvcVer
           } | ConvertTo-Json -Compress
           Set-Content -Path "$ROOT/metadata.json" -Value $json -Encoding ascii
-          tar --force-local -C "$ROOT" -czf "$env:RUNNER_TEMP/$env:ASSET_NAME" .
+          tar -C "$ROOT" -czf "$env:RUNNER_TEMP/$env:ASSET_NAME" .
 
       - name: Create or update GitHub release
         if: startsWith(github.ref, 'refs/tags/') || inputs.upload_to_release == true
