@@ -124,6 +124,7 @@ jobs:
           - { label: "x64 cpu core",    target: "x86_64-pc-windows-msvc", backend: "cpu",    modelset: "core", features: "core-models" }
           - { label: "x64 cpu full",    target: "x86_64-pc-windows-msvc", backend: "cpu",    modelset: "full", features: "full-models" }
           - { label: "x64 vulkan core", target: "x86_64-pc-windows-msvc", backend: "vulkan", modelset: "core", features: "core-models,vulkan" }
+          - { label: "x64 vulkan full", target: "x86_64-pc-windows-msvc", backend: "vulkan", modelset: "full", features: "full-models,vulkan" }
     env:
       TARGET_TRIPLE: ${{ matrix.target }}
     steps:
