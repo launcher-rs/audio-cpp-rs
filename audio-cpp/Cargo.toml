@@ -24,6 +24,8 @@ thiserror.workspace = true
 
 [features]
 default = ["core-models"]
+# 转发给 audio-cpp-sys：启用 prebuilt 自动下载（见其 Cargo.toml 说明）。
+prebuilt = ["audio-cpp-sys/prebuilt"]
 # 转发给 audio-cpp-sys 的模型组合 / 后端 feature。
 core-models = ["audio-cpp-sys/core-models"]   # 引擎核心 + 内置 VAD（默认，最小编译集）
 full-models = ["audio-cpp-sys/full-models"]   # 全量 44+ 模型族（编译慢）

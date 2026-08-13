@@ -29,6 +29,62 @@ audio-cpp-sys = "0.1"
 cargo build
 ```
 
+### 使用预编译库（跳过 CMake 构建）
+
+构建时默认会编译 `audio.cpp` 的 `engine_runtime` 及其依赖（耗时较长）。有以下两种方式
+使用预编译静态库，跳过 **整个 CMake 构建**：
+
+1. **显式指定目录**（任何情况都可用）：
+
+```bash
+# 目录内需包含 engine_runtime 及依赖库（*.lib / *.a），可放在
+#   <dir>、<dir>/lib、<dir>/lib64 或 <dir>/bin
+export AUDIOCPP_PREBUILT_DIR=/path/to/prebuilt
+
+cargo build
+```
+
+2. **自动下载**（`prebuilt` feature，需发布对应 GitHub Release 资产）：
+
+```toml
+[dependencies]
+audio-cpp-sys = { version = "0.1", features = ["prebuilt"] }
+```
+
+```bash
+cargo build --features prebuilt
+```
+
+按当前平台/后端/模型组合自动拼资产名并下载，缓存到
+`target/audio-cpp-prebuilt-cache/<tag>/`。资产命名
+`audio-cpp-prebuilt-{linux|macos|windows}-{target}-{backend}-{modelset}-static.tar.gz`。
+
+下载/缓存行为可用环境变量定制（适合内网或访问不了 GitHub 的环境）：
+
+| 环境变量 | 作用 |
+|---|---|
+| `AUDIOCPP_PREBUILT_URL` | 下载地址。可含 `{tag}` / `{asset}` 占位符（镜像站场景：`https://mirror.example.com/audio-cpp/{asset}`）；不含占位符视为完整地址；`file://` 前缀表示本地归档，直接复制不走网络 |
+| `AUDIOCPP_PREBUILT_TAG` | Release tag，默认 `v{version}` |
+| `AUDIOCPP_PREBUILT_REPO` | GitHub 仓库，默认 `launcher-rs/audio-cpp-rs` |
+| `AUDIOCPP_PREBUILT_DIR` | 显式本地库目录（不下载，直接链接） |
+| `AUDIOCPP_PREBUILT_OFF` | 设为 1/true 禁用自动下载，强制源码构建 |
+
+网络下载失败会自动重试 3 次（带退避），仍失败则回落源码构建。
+
+要点：
+
+- 目录须与当前构建的模型组合/后端匹配（如 `core-models` 预编译产物不能当
+  `model-qwen3-asr` 用）；custom 组合（`custom-<族>...`）暂不发布预编译资产，
+  会自动回落源码构建；
+- CUDA / Vulkan 仍需要本地 SDK 参与链接（静态库不传导其运行时依赖），只省编译；
+- C shim（`capi.cpp`）与 Rust 绑定仍从源码编译，因此上游 `audio.cpp` 源码树依然
+  需要（`prebuilt` 旁路会自动获取）；
+- 归档内 `metadata.json` 记录 `audio_commit`（打包时 audio.cpp submodule HEAD），
+  下载后自动校验与本地 submodule 一致，不符则回落源码构建（避免 ABI 错配）。
+
+> 资产由 CI（`.github/workflows/prebuilt-audio-cpp.yml`）在打 `v*` tag 时生成并上传；
+> 设计见 [docs/prebuilt_pattern_report.md](../../docs/prebuilt_pattern_report.md)。
+
 ### features
 
 **模型组合**（互斥，默认 `core-models`）：

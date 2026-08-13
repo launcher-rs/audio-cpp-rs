@@ -22,6 +22,7 @@ build = "build.rs"
 # 通过其余方式提供，见 README）。
 include = [
     "build.rs",
+    "prebuilt_download.rs",
     "capi.h",
     "capi.cpp",
     "/src",
@@ -33,12 +34,21 @@ bindgen.workspace = true # 从 capi.h 生成 Rust FFI 绑定
 cmake.workspace = true   # 用 CMake 构建 engine_runtime
 cc.workspace = true      # 编译 capi.cpp 并把 C 链接系统库交给它处理
 glob.workspace = true    # 收集 OUT_DIR 下的静态库文件
+flate2 = "1.0"           # prebuilt 归档解压（gzip）
+tar = "0.4"              # prebuilt 归档解压（tar）
+ureq = { version = "2.12", default-features = false, features = ["tls"] } # prebuilt 下载
+serde_json = "1"         # prebuilt 归档 metadata.json 解析
 
 # ------------------------------------------------------------------------
 # 模型组合 feature（互斥，映射 audio.cpp 的 AUDIOCPP_MODEL_SET）。
 # ------------------------------------------------------------------------
 [features]
 default = ["core-models"]
+# 启用 prebuilt 自动下载：从 GitHub Releases 拉取与当前平台/后端/模型组合匹配的
+# 预编译归档（tag 默认 v{CARGO_PKG_VERSION}，可用 AUDIOCPP_PREBUILT_TAG/REPO/URL
+# 覆盖），解压缓存到 target/audio-cpp-prebuilt-cache/；找不到/下载失败/身份不符
+# 时回落到本地源码构建。配合 AUDIOCPP_PREBUILT_DIR 则始终使用本地目录。
+prebuilt = []
 # 引擎核心 + 内置 VAD 模型（silero_vad / marblenet_vad），已随上游源码
 # vendored 在 audio.cpp/assets/framework/models/，无需下载任何权重。
 # 这也是编译最快、开箱即用的最小编译集，适合仅用 VAD 或验证绑定链路的场景。

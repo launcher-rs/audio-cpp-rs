@@ -6,6 +6,10 @@ use std::path::{Path, PathBuf};
 use cmake::Config;
 use glob::glob;
 
+/// `prebuilt` feature 启用时提供自动下载预编译库的模块。
+#[cfg(feature = "prebuilt")]
+mod prebuilt_download;
+
 /// 通过 BUILD_DEBUG 环境变量控制构建脚本调试日志输出。
 macro_rules! debug_log {
     ($($arg:tt)*) => {
@@ -156,6 +160,42 @@ fn extract_static_lib_names(search_dirs: &[PathBuf], os: &str) -> Vec<String> {
 fn link_static_libs(names: &[String]) {
     for name in names {
         println!("cargo:rustc-link-lib=static={}", name);
+    }
+}
+
+/// 解析 `AUDIOCPP_PREBUILT_DIR` 环境变量指向的预编译库目录。
+///
+/// 目录应包含 audio.cpp 的静态库归档（engine_runtime 及依赖库），可放在
+/// `<dir>`、`<dir>/lib`、`<dir>/lib64` 或 `<dir>/bin`（与 llama-cpp-rs 的
+/// `LLAMA_PREBUILT_DIR` 约定一致）。设置后跳过整个 CMake 构建，仅编译 C
+/// shim 与生成绑定，显著加快下游应用的迭代/CI 速度。
+///
+/// 若未设置该变量，且启用了 `prebuilt` feature，则尝试从 GitHub Releases
+/// 自动下载匹配当前平台/后端/模型组合的归档（见 `prebuilt_download` 模块）。
+fn resolve_prebuilt_directory(use_shared_libs: bool) -> Option<PathBuf> {
+    if let Ok(raw) = env::var("AUDIOCPP_PREBUILT_DIR") {
+        if !raw.is_empty() {
+            let dir = PathBuf::from(&raw);
+            if !dir.is_dir() {
+                panic!(
+                    "AUDIOCPP_PREBUILT_DIR 指向的目录不存在：{}",
+                    dir.display()
+                );
+            }
+            return Some(dir);
+        }
+    }
+
+    #[cfg(feature = "prebuilt")]
+    {
+        let target = env::var("TARGET").unwrap_or_default();
+        prebuilt_download::ensure_prebuilt(&target, use_shared_libs)
+    }
+
+    #[cfg(not(feature = "prebuilt"))]
+    {
+        let _ = use_shared_libs;
+        None
     }
 }
 
@@ -310,18 +350,153 @@ fn merge_custom_models(feature_names: Vec<String>) -> String {
     all.join(",")
 }
 
+/// 输出平台相关的系统库链接指令（CMake 路径与预编译路径共用）。
+///
+/// - Windows：`advapi32`（ggml-cpu 经注册表查询 CPU 特性）；
+/// - CUDA / Vulkan：静态库不传导它们 PRIVATE 的依赖，启用对应 feature 时
+///   必须显式补齐（见 `emit_cuda_links` / `emit_vulkan_links`）。
+fn emit_platform_links(os: &str) {
+    if os == "windows" {
+        println!("cargo:rustc-link-lib=advapi32");
+    }
+
+    // CUDA 运行时库：静态的 ggml-cuda/engine_runtime 不会传导它们 PRIVATE
+    // 的 CUDA 依赖，启用 cuda feature 时必须显式补齐（缺失时报明确错误）。
+    emit_cuda_links(os);
+
+    // Vulkan loader 库：同理，ggml-vulkan 是静态库，PRIVATE 的 Vulkan 依赖
+    // 不传导到最终可执行文件，启用 vulkan feature 时必须显式补齐。
+    emit_vulkan_links(os);
+}
+
+/// 编译 C shim（capi.cpp）为独立静态库 `audio_cpp_capi`。
+///
+/// 需要 audio.cpp 源码头文件（include 目录），因此 prebuilt 旁路也依赖
+/// `ensure_audio_src()` 的源码树；只是不进行 CMake 构建。
+fn compile_capi_shim(manifest_dir: &Path, src_dir: &Path, build_dir: &Path, os: &str) {
+    let mut cpp = cc::Build::new();
+    cpp.cpp(true)
+        .file(manifest_dir.join("capi.cpp"))
+        .include(src_dir.join("include"))
+        .include(src_dir.join("external/ggml/include"))
+        .include(src_dir.join("external/sentencepiece/src"))
+        .include(src_dir.join("external/llama_tokenizer"))
+        .include(src_dir.join("external/cJSON"))
+        .include(src_dir.join("external/libyaml/include"))
+        .include(build_dir.join("generated"))
+        .pic(true);
+    if os == "windows" {
+        // MSVC 使用 /std:c++17 语法；同时开启 /utf-8（capi.cpp 含中文注释）。
+        cpp.flag("/std:c++17").flag("/utf-8").flag("/EHsc");
+    } else {
+        cpp.flag_if_supported("-std=c++17");
+    }
+    if !cfg!(feature = "openmp") {
+        cpp.flag_if_supported("-fno-openmp");
+    }
+    cpp.compile("audio_cpp_capi");
+}
+
+/// 用 bindgen 为 capi.h 生成 Rust FFI 绑定，写入 OUT_DIR/bindings.rs。
+fn generate_bindings(manifest_dir: &Path, out_dir: &Path, os: &str) {
+    let mut bindings_builder = bindgen::Builder::default()
+        .header(manifest_dir.join("capi.h").to_str().unwrap())
+        .allowlist_function("audiocpp_.*")
+        .allowlist_type("audiocpp_.*")
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .derive_partialeq(true);
+
+    // MSVC 目标下，把编译器（cc crate 探测到的）INCLUDE 环境变量透传给
+    // bindgen 的 clang，否则标准头文件无法解析。
+    if os == "windows" {
+        let cc = cc::Build::new();
+        let compiler = cc.try_get_compiler().expect("探测 C 编译器失败");
+        if let Some((_, include_env)) = compiler
+            .env()
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case("INCLUDE"))
+        {
+            for inc in include_env.to_string_lossy().split(';').filter(|s| !s.is_empty()) {
+                bindings_builder = bindings_builder.clang_arg("-isystem").clang_arg(inc);
+            }
+        }
+        let target = env::var("TARGET").unwrap_or_default();
+        bindings_builder = bindings_builder
+            .clang_arg(format!("--target={}", target))
+            .clang_arg("-fms-compatibility")
+            .clang_arg("-fms-extensions");
+    }
+
+    let bindings = bindings_builder
+        .generate()
+        .expect("生成 capi 绑定失败");
+    bindings
+        .write_to_file(out_dir.join("bindings.rs"))
+        .expect("写入 bindings.rs 失败");
+}
+
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=Cargo.toml"); // feature 组合变化（model-* 增删）会重跑
     println!("cargo:rerun-if-changed=capi.h");
     println!("cargo:rerun-if-changed=capi.cpp");
+    println!("cargo:rerun-if-env-changed=AUDIOCPP_PREBUILT_DIR");
+    println!("cargo:rerun-if-env-changed=AUDIOCPP_PREBUILT_TAG");
+    println!("cargo:rerun-if-env-changed=AUDIOCPP_PREBUILT_REPO");
+    println!("cargo:rerun-if-env-changed=AUDIOCPP_PREBUILT_URL");
+    println!("cargo:rerun-if-env-changed=AUDIOCPP_PREBUILT_OFF");
 
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR 未设置");
     let manifest_dir = PathBuf::from(&manifest_dir);
-    let src_dir = ensure_audio_src();
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let os = target_os();
+
+    // ------------------------------------------------------------------
+    // 可选预编译旁路：设置 AUDIOCPP_PREBUILT_DIR 后跳过整个 CMake 构建，
+    // 直接链接外部提供的 engine_runtime 等静态库（跳过 CMake 编译）。
+    // 与 llama-cpp-rs 的 LLAMA_PREBUILT_DIR 约定一致。
+    //
+    // 目录布局灵活：库文件可在 <dir>、<dir>/lib、<dir>/lib64、<dir>/bin。
+    // 仍依赖 audio.cpp 源码头文件编译 C shim（capi.cpp），故 prebuilt 旁路
+    // 也会调用 ensure_audio_src()；只是不做 CMake 构建。
+    // ------------------------------------------------------------------
+    if let Some(prebuilt_dir) = resolve_prebuilt_directory(false) {
+        println!(
+            "cargo:warning=使用预编译 audio.cpp 静态库：{}（跳过 CMake 构建）",
+            prebuilt_dir.display()
+        );
+
+        let src_dir = ensure_audio_src();
+
+        let mut search_dirs = vec![
+            prebuilt_dir.clone(),
+            prebuilt_dir.join("lib"),
+            prebuilt_dir.join("lib64"),
+            prebuilt_dir.join("bin"),
+        ];
+        search_dirs.retain(|d| d.is_dir());
+        for d in &search_dirs {
+            println!("cargo:rustc-link-search=native={}", d.display());
+        }
+        debug_log!("prebuilt 链接搜索目录: {:?}", search_dirs);
+
+        let lib_names = extract_static_lib_names(&search_dirs, &os);
+        assert!(
+            lib_names.iter().any(|n| n == "engine_runtime"),
+            "AUDIOCPP_PREBUILT_DIR 下未找到 engine_runtime 静态库（找到: {:?}）",
+            lib_names
+        );
+        link_static_libs(&lib_names);
+        debug_log!("prebuilt 静态库: {:?}", lib_names);
+
+        emit_platform_links(&os);
+        compile_capi_shim(&manifest_dir, &src_dir, &out_dir, &os);
+        generate_bindings(&manifest_dir, &out_dir, &os);
+        return;
+    }
+
+    let src_dir = ensure_audio_src();
 
     // ------------------------------------------------------------------
     // Windows 路径长度规避：MSVC 工具链（cl.exe/rc.exe）在路径超过 ~250
@@ -508,81 +683,12 @@ fn main() {
     link_static_libs(&lib_names);
     debug_log!("发现的静态库: {:?}", lib_names);
 
-    // 平台系统库：ggml-cpu 在 Windows 上通过注册表查询 CPU 特性（advapi32），
-    // 跨进最终可执行文件链接期才需要解析，因此作为 link 指令透传给下游。
-    if os == "windows" {
-        println!("cargo:rustc-link-lib=advapi32");
-    }
+    emit_platform_links(&os);
 
-    // CUDA 运行时库：静态的 ggml-cuda/engine_runtime 不会传导它们 PRIVATE
-    // 的 CUDA 依赖，启用 cuda feature 时必须显式补齐（缺失时报明确错误）。
-    emit_cuda_links(&os);
+    // 2. 用 cc crate 编译 C shim（capi.cpp），以独立静态库形式提供 C ABI
+    //    符号。最终由 Rust 侧链接 engine_runtime 及其依赖库。
+    compile_capi_shim(&manifest_dir, &src_dir, &build_dir, &os);
 
-    // Vulkan loader 库：同理，ggml-vulkan 是静态库，PRIVATE 的 Vulkan 依赖
-    // 不传导到最终可执行文件，启用 vulkan feature 时必须显式补齐。
-    emit_vulkan_links(&os);
-
-    // ------------------------------------------------------------------
-    // 2. 用 cc crate 编译 C shim（capi.cpp），以独立静态库形式提供
-    //    C ABI 符号。最终由 Rust 侧链接 engine_runtime 及其依赖库。
-    // ------------------------------------------------------------------
-    let mut cpp = cc::Build::new();
-    cpp.cpp(true)
-        .file(manifest_dir.join("capi.cpp"))
-        .include(src_dir.join("include"))
-        .include(src_dir.join("external/ggml/include"))
-        .include(src_dir.join("external/sentencepiece/src"))
-        .include(src_dir.join("external/llama_tokenizer"))
-        .include(src_dir.join("external/cJSON"))
-        .include(src_dir.join("external/libyaml/include"))
-        .include(build_dir.join("generated"))
-        .pic(true);
-    if os == "windows" {
-        // MSVC 使用 /std:c++17 语法；同时开启 /utf-8（capi.cpp 含中文注释）。
-        cpp.flag("/std:c++17").flag("/utf-8").flag("/EHsc");
-    } else {
-        cpp.flag_if_supported("-std=c++17");
-    }
-    if !cfg!(feature = "openmp") {
-        cpp.flag_if_supported("-fno-openmp");
-    }
-    cpp.compile("audio_cpp_capi");
-
-    // ------------------------------------------------------------------
     // 3. 用 bindgen 为 C shim 生成 Rust 绑定。
-    // ------------------------------------------------------------------
-    let mut bindings_builder = bindgen::Builder::default()
-        .header(manifest_dir.join("capi.h").to_str().unwrap())
-        .allowlist_function("audiocpp_.*")
-        .allowlist_type("audiocpp_.*")
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
-        .derive_partialeq(true);
-
-    // MSVC 目标下，把编译器（cc crate 探测到的）INCLUDE 环境变量透传给
-    // bindgen 的 clang，否则标准头文件无法解析。
-    if os == "windows" {
-        let cc = cc::Build::new();
-        let compiler = cc.try_get_compiler().expect("探测 C 编译器失败");
-        if let Some((_, include_env)) = compiler
-            .env()
-            .iter()
-            .find(|(k, _)| k.eq_ignore_ascii_case("INCLUDE"))
-        {
-            for inc in include_env.to_string_lossy().split(';').filter(|s| !s.is_empty()) {
-                bindings_builder = bindings_builder.clang_arg("-isystem").clang_arg(inc);
-            }
-        }
-        let target = env::var("TARGET").unwrap_or_default();
-        bindings_builder = bindings_builder
-            .clang_arg(format!("--target={}", target))
-            .clang_arg("-fms-compatibility")
-            .clang_arg("-fms-extensions");
-    }
-
-    let bindings = bindings_builder
-        .generate()
-        .expect("生成 capi 绑定失败");
-    bindings
-        .write_to_file(out_dir.join("bindings.rs"))
-        .expect("写入 bindings.rs 失败");
+    generate_bindings(&manifest_dir, &out_dir, &os);
 }

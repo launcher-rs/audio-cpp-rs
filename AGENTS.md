@@ -160,6 +160,31 @@
 - **本地测试权重**可放在 `F:\models\`（qwen3-asr-0.6b-q8_0.gguf、
   fun-asr-nano-2512-q8_0.gguf、voxcpm2-q8_0.gguf、
   qwen3-tts-12hz-0.6b-base-q8_0.gguf 等），示例文档统一引用该目录。
+- **预编译旁路**：设置 `AUDIOCPP_PREBUILT_DIR=<目录>` 后 build.rs 跳过整个 CMake
+  构建，直接链接该目录下的 `engine_runtime` 及依赖静态库（布局 `<dir>`、`<dir>/lib`、
+  `<dir>/lib64`、`<dir>/bin` 均可，与 llama-cpp-rs 的 `LLAMA_PREBUILT_DIR` 一致）。
+  C shim 与绑定仍从源码编译，故仍需 `ensure_audio_src()` 源码树。目录须与当前
+  feature 组合（模型集 + 后端）匹配；CUDA/Vulkan 预编译仍要本地 SDK 链接。
+  capi/bindgen/平台链接逻辑已抽为 `compile_capi_shim` / `generate_bindings` /
+  `emit_platform_links` 供两路径共用。设计见 docs/prebuilt_pattern_report.md。
+- **`prebuilt` feature 自动下载**：`audio-cpp-sys/prebuilt_download.rs` 按当前
+  平台/后端/模型组合拼资产名（`audio-cpp-prebuilt-{os}-{target}-{backend}-{modelset}-static.tar.gz`），
+  从 GitHub Releases 下载并缓存到 `target/audio-cpp-prebuilt-cache/<tag>/`。
+  backend 由 feature 推导（cpu/vulkan/metal；cuda/hip 不发预编译）；modelset 由
+  模型组合推导（core/full/custom-<族>...，custom 不发资产→404 回落源码）。
+  归档 `metadata.json.audio_commit` 与本地 submodule HEAD 不符则删缓存回落源码
+  （防 ABI 错配）。env：`AUDIOCPP_PREBUILT_TAG`（tag，默认 `v{version}`）、
+  `AUDIOCPP_PREBUILT_REPO`、`AUDIOCPP_PREBUILT_URL`（完整地址覆盖，也可含
+  `{tag}`/`{asset}` 占位符供内网镜像，`file://` 前缀指本地归档直接复制）、
+  `AUDIOCPP_PREBUILT_OFF`（禁用自动下载）。网络下载重试 3 次带退避，仍失败回落
+  源码。`AUDIOCPP_PREBUILT_DIR` 显式目录优先级高于自动下载。
+- **CI 预编译资产**：`.github/workflows/prebuilt-audio-cpp.yml` 在 `v*` tag 或
+  workflow_dispatch 时构建（linux 5 / windows 3 / macos 3 矩阵，core/full ×
+  cpu/vulkan/metal），用 `.github/scripts/collect-unix-prebuilt.sh` 与
+  `collect-windows-prebuilt.sh` 从 `target/**/out`（及 Windows 长路径重定向的
+  `%TEMP%\acb*`）收集静态库打包，写 `metadata.json`，经 `gh release upload` 上传。
+  Windows vulkan 用 `.github/actions/setup-vulkan-sdk-windows`（LunarG SDK）。
+  资产命名须与 `prebuilt_download.rs::asset_name()` 保持一致。
 
 ## 常用命令速查
 ```bash
@@ -167,4 +192,5 @@ git submodule update --init --recursive                                  # 补�
 git -C audio-cpp-sys/audio.cpp pull --ff-only                             # 单独更新 submodule 到上游最新
 cargo build -p audio-cpp-sys                                              # 单独构建底层
 BUILD_DEBUG=1 cargo build                                                 # 调试构建脚本
+AUDIOCPP_PREBUILT_DIR=<预编译目录> cargo build                            # 跳过 CMake，直接用预编译静态库
 ```
