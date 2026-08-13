@@ -57,8 +57,9 @@ jobs:
       - name: Install Vulkan dependencies
         if: contains(matrix.features, 'vulkan')
         run: |
-          sudo apt-get install -y libvulkan-dev glslang-tools spirv-headers shaderc
-          # Ubuntu 24.04 的 glslc 由 shaderc 提供；glslang-tools 仅含 glslangValidator。
+          sudo apt-get install -y libvulkan-dev glslang-tools spirv-headers glslc
+          # Ubuntu 24.04 的 glslc 是独立包（source 为 shaderc）；glslang-tools 只含
+          # glslangValidator，不提供 glslc。
           command -v glslc || echo "::warning::glslc not found in PATH"
 
       - name: Setup Rust
