@@ -67,6 +67,20 @@
   `bin/cudart64_*.dll` 在 PATH。另注意：**CMake 会在 build_dir/CMakeFiles/.../
   CompilerIdCUDA 生成 `a.lib` 探测产物，递归收集静态库时须跳过 CMakeFiles
   目录**，否则报 "could not find native static library `a`"。
+- **vulkan feature 两处构建坑**（均已修复并在 win32/MSVC 端到端验证，RTX 4060 +
+  qwen3_asr 转录通过）：
+  1. **Windows 路径长度**：ggml 的 vulkan-shaders-gen ExternalProject 把构建目录
+     嵌套到 `out/build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/...`，
+     叠加 OUT_DIR 前缀后路径超 ~250 字符，MSVC `cl.exe` 报 C1083、`rc.exe` 在
+     manifest 嵌入环节报 `RC2136: missing '=' in EXSTYLE=<flags>`。build.rs 会在
+     `OUT_DIR/build` + 嵌套深度超过 240 时，用 cmake crate 的 `out_dir()` 把 CMake
+     构建目录重定向到系统临时目录的 `acb<12hex>`（按 OUT_DIR 哈希唯一），下游无需
+     手动设置 `CARGO_TARGET_DIR`；
+  2. **Vulkan loader 链接**：ggml-vulkan 是静态库，PRIVATE 的 `Vulkan::Vulkan`
+     依赖不传导到最终可执行文件（与 CUDA 同理），否则链接报 LNK2019 无法解析的
+     `vkGetInstanceProcAddr` 等符号。build.rs 在启用 `vulkan` 时用
+     `VULKAN_SDK` 环境变量或 `C:/VulkanSDK/v*` 定位 SDK `Lib`，显式输出
+     `vulkan-1`（Linux 为 `vulkan`）链接。
 - `audio-cpp` 高层安全 API 已实现（Registry / Model / Session，离线 + 流式），
   并有 3 个示例验证运行通过：`audio-cpp-sys/examples/inspect`、
   `audio-cpp-sys/examples/vad_offline_ffi`、`audio-cpp/examples/vad_offline` 与

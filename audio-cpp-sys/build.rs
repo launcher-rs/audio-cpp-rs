@@ -1,4 +1,6 @@
+use std::collections::hash_map::DefaultHasher;
 use std::env;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 use cmake::Config;
@@ -223,6 +225,58 @@ fn emit_cuda_links(os: &str) {
     debug_log!("CUDA 链接库目录: {}", lib_dir.display());
 }
 
+/// 定位 Vulkan SDK 的库目录（Windows 为 `Lib`）。
+///
+/// 搜索顺序与上游 `find_package(Vulkan)` 一致：
+///   1. `VULKAN_SDK` 环境变量（LunarG 安装器写入的规范位置）；
+///   2. Windows 常见安装目录 `C:/VulkanSDK/v*`，取版本号最高的。
+fn vulkan_sdk_lib_dir(os: &str) -> Option<PathBuf> {
+    let from_env = env::var("VULKAN_SDK").ok().map(PathBuf::from);
+    let common = || -> Option<PathBuf> {
+        let candidates: Vec<PathBuf> = match os {
+            "windows" => glob("C:/VulkanSDK/v*")
+                .ok()?
+                .filter_map(|p| p.ok())
+                .collect(),
+            _ => vec![],
+        };
+        candidates.into_iter().max()
+    };
+    let root = from_env.or_else(common)?;
+    let lib = if os == "windows" {
+        root.join("Lib")
+    } else {
+        root.join("lib")
+    };
+    lib.is_dir().then_some(lib)
+}
+
+/// vulkan feature 启用时为最终链接补上 Vulkan loader 库。
+///
+/// ggml-vulkan 以静态库参与链接，它在 CMake 里 PRIVATE 声明的
+/// `Vulkan::Vulkan` 依赖不会传导到最终可执行文件（与 CUDA 同理），
+/// 因此这里显式输出 loader 链接；SDK 缺失时链接会报 LNK2019 无法解析的
+/// `vk*` 符号，这里提前给出可读提示。
+fn emit_vulkan_links(os: &str) {
+    if !cfg!(feature = "vulkan") {
+        return;
+    }
+    println!("cargo:rerun-if-env-changed=VULKAN_SDK");
+    let lib_name = if os == "windows" { "vulkan-1" } else { "vulkan" };
+    if let Some(lib_dir) = vulkan_sdk_lib_dir(os) {
+        println!("cargo:rustc-link-search=native={}", lib_dir.display());
+        debug_log!("Vulkan loader 库目录: {}", lib_dir.display());
+    } else {
+        println!(
+            "cargo:warning=vulkan feature 已启用但未找到 Vulkan SDK。请安装 LunarG Vulkan SDK，\
+             或设置 VULKAN_SDK 环境变量（如 C:\\VulkanSDK\\1.4.328.1），否则最终链接会因缺 \
+             vk* 符号失败（LNK2019）"
+        );
+    }
+    println!("cargo:rustc-link-lib={}", lib_name);
+    debug_log!("Vulkan loader 链接: {}", lib_name);
+}
+
 /// 收集"以 feature 方式启用的模型族"。
 ///
 /// Cargo 会把每个启用的 feature 以环境变量 `CARGO_FEATURE_<名>`（名字中的
@@ -270,12 +324,45 @@ fn main() {
     let os = target_os();
 
     // ------------------------------------------------------------------
+    // Windows 路径长度规避：MSVC 工具链（cl.exe/rc.exe）在路径超过 ~250
+    // 字符时会直接失败（实测 cl.exe 报 C1083、rc.exe 在 manifest 嵌入环节报
+    // RC2136）。`vulkan` feature 会触发 ggml 的 vulkan-shaders-gen
+    // ExternalProject，其构建目录嵌套极深
+    // （out/build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/...），
+    // 叠加 OUT_DIR 前缀很容易越过 CMAKE_OBJECT_PATH_MAX(250)。此时把 CMake
+    // 构建目录重定向到系统临时目录下的短路径（按 OUT_DIR 哈希取唯一子目录，
+    // 保住跨构建的增量缓存），下游用户无需手动设置 CARGO_TARGET_DIR。
+    // ------------------------------------------------------------------
+    const MAX_SAFE_PATH: usize = 240; // 略低于 CMAKE_OBJECT_PATH_MAX(250)
+    const VULKAN_EXTRA_PATH: usize = 161; // 嵌套 ExternalProject 相对 OUT_DIR/build 的最大额外深度
+    let build_root = out_dir.join("build");
+    let projected_len = build_root.to_string_lossy().len()
+        + if cfg!(feature = "vulkan") { VULKAN_EXTRA_PATH } else { 0 };
+    let cmake_dir = if projected_len > MAX_SAFE_PATH {
+        let mut h = DefaultHasher::new();
+        out_dir.to_string_lossy().hash(&mut h);
+        let short = std::env::temp_dir().join(format!("acb{:012x}", h.finish()));
+        println!(
+            "cargo:warning=MSVC 路径过长（预计 {} 字符，上限约 250），CMake 构建目录重定向到 {}",
+            projected_len,
+            short.display()
+        );
+        short
+    } else {
+        out_dir.clone()
+    };
+
+    // ------------------------------------------------------------------
     // 1. 用 CMake 构建 audio.cpp 的 engine_runtime 静态库。
     //    强制使用 Ninja 生成器，保证单一配置（single-config）的输出布局
     //    （归档直接落在 OUT_DIR/lib 下），不受宿主机默认生成器影响。
     // ------------------------------------------------------------------
     let mut config = Config::new(&src_dir);
     config.generator("Ninja");
+    if cmake_dir != out_dir {
+        // 重定向场景下让 cmake crate 在短目录里 configure/build。
+        config.out_dir(&cmake_dir);
+    }
 
     // MSVC 目标下全局注入编译选项：
     //   - /utf-8  —— audio.cpp 源码是 UTF-8 无 BOM，MSVC 默认按 ANSI 代码页
@@ -309,7 +396,7 @@ fn main() {
     // target 的构建子目录（ggml/src、external/sentencepiece/src 等）。
     config.define(
         "CMAKE_ARCHIVE_OUTPUT_DIRECTORY",
-        out_dir.join("lib").to_string_lossy().into_owned(),
+        cmake_dir.join("lib").to_string_lossy().into_owned(),
     );
 
     // 模型组合选择（映射 AUDIOCPP_MODEL_SET：full / core / custom）。
@@ -382,17 +469,22 @@ fn main() {
 
     println!("cargo:rerun-if-env-changed=AUDIOCPP_LIB_PROFILE");
 
-    // cmake crate 会把归档放在 OUT_DIR/lib（及 lib64）；多配置生成器下
-    // 还会出现 OUT_DIR/lib/<Config> 子目录。全部加入链接搜索路径。
+    // cmake crate 会把归档放在 cmake_dir/lib（及 lib64）；多配置生成器下
+    // 还会出现 cmake_dir/lib/<Config> 子目录。全部加入链接搜索路径。
     let mut search_dirs = vec![
-        out_dir.join("lib"),
-        out_dir.join("lib64"),
+        cmake_dir.join("lib"),
+        cmake_dir.join("lib64"),
         build_dir.clone(),
     ];
-    debug_log!("out_dir={} build_dir={}", out_dir.display(), build_dir.display());
+    debug_log!(
+        "out_dir={} cmake_dir={} build_dir={}",
+        out_dir.display(),
+        cmake_dir.display(),
+        build_dir.display()
+    );
     search_dirs.retain(|d| d.is_dir());
     for cfg in ["Release", "RelWithDebInfo", "Debug"] {
-        for base in [&out_dir, &build_dir] {
+        for base in [&cmake_dir, &build_dir] {
             let d = base.join("lib").join(cfg);
             if d.is_dir() {
                 search_dirs.push(d);
@@ -425,6 +517,10 @@ fn main() {
     // CUDA 运行时库：静态的 ggml-cuda/engine_runtime 不会传导它们 PRIVATE
     // 的 CUDA 依赖，启用 cuda feature 时必须显式补齐（缺失时报明确错误）。
     emit_cuda_links(&os);
+
+    // Vulkan loader 库：同理，ggml-vulkan 是静态库，PRIVATE 的 Vulkan 依赖
+    // 不传导到最终可执行文件，启用 vulkan feature 时必须显式补齐。
+    emit_vulkan_links(&os);
 
     // ------------------------------------------------------------------
     // 2. 用 cc crate 编译 C shim（capi.cpp），以独立静态库形式提供
