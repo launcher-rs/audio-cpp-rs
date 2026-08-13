@@ -24,6 +24,7 @@ using engine::runtime::SessionOptions;
 using engine::runtime::TaskRequest;
 using engine::runtime::TaskResult;
 using engine::runtime::StreamEvent;
+using engine::runtime::NamedAudioBuffer;
 using engine::runtime::VoiceTaskKind;
 using engine::runtime::RunMode;
 
@@ -126,6 +127,23 @@ static json::Value dump_audio_buffer(const engine::runtime::AudioBuffer & audio)
     return json::Value::make_object(std::move(obj));
 }
 
+static json::Value dump_named_audio_outputs(const std::vector<NamedAudioBuffer> & outputs) {
+    json::Value::Array named_audio;
+    named_audio.reserve(outputs.size());
+    for (const auto & named : outputs) {
+        json::Value::Object item;
+        item.emplace("id", json::Value::make_string(named.id));
+        item.emplace("audio", dump_audio_buffer(named.audio));
+        json::Value::Object meta;
+        for (const auto & [k, v] : named.meta) {
+            meta.emplace(k, json::Value::make_string(v));
+        }
+        item.emplace("meta", json::Value::make_object(std::move(meta)));
+        named_audio.push_back(json::Value::make_object(std::move(item)));
+    }
+    return json::Value::make_array(std::move(named_audio));
+}
+
 static json::Value dump_task_result(const TaskResult & result) {
     json::Value::Object obj;
 
@@ -153,20 +171,7 @@ static json::Value dump_task_result(const TaskResult & result) {
         obj.emplace("audio_output", dump_audio_buffer(*result.audio_output));
     }
 
-    json::Value::Array named_audio;
-    named_audio.reserve(result.named_audio_outputs.size());
-    for (const auto & named : result.named_audio_outputs) {
-        json::Value::Object item;
-        item.emplace("id", json::Value::make_string(named.id));
-        item.emplace("audio", dump_audio_buffer(named.audio));
-        json::Value::Object meta;
-        for (const auto & [k, v] : named.meta) {
-            meta.emplace(k, json::Value::make_string(v));
-        }
-        item.emplace("meta", json::Value::make_object(std::move(meta)));
-        named_audio.push_back(json::Value::make_object(std::move(item)));
-    }
-    obj.emplace("named_audio_outputs", json::Value::make_array(std::move(named_audio)));
+    obj.emplace("named_audio_outputs", dump_named_audio_outputs(result.named_audio_outputs));
 
     return json::Value::make_object(std::move(obj));
 }
@@ -203,6 +208,9 @@ static json::Value dump_stream_event(const StreamEvent & event) {
     }
     if (event.audio_output.has_value()) {
         obj.emplace("audio_output", dump_audio_buffer(*event.audio_output));
+    }
+    if (!event.named_audio_outputs.empty()) {
+        obj.emplace("named_audio_outputs", dump_named_audio_outputs(event.named_audio_outputs));
     }
     obj.emplace("is_final", json::Value::make_bool(event.is_final));
     return json::Value::make_object(std::move(obj));

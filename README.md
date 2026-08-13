@@ -183,9 +183,22 @@ cargo run -p audio-cpp --features model-demucs --example sep_offline -- `
 cargo run -p audio-cpp --example vad_streaming -- `
   audio-cpp-sys/audio.cpp/assets/framework/models/silero_vad/silero_vad_16k.safetensors `
   audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav
+
+# 9) 流式 ASR（Qwen3 ASR：窗口部分转录 + 最终文本）
+cargo run -p audio-cpp --features model-qwen3-asr --example asr_streaming -- `
+  F:\models\qwen3-asr-0.6b-q8_0.gguf audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav
+
+# 10) 流式 TTS（VoxCPM2：逐块音频事件 + 合并输出）
+$env:AUDIOCPP_MODELS="voxcpm2"; cargo build --features custom-models
+cargo run -p audio-cpp --features custom-models --example tts_streaming -- `
+  F:\models\voxcpm2-q8_0.gguf out.wav "你好，我是流式语音合成。"
+
+# 11) 注册表内省（无需下载权重；枚举模型族/loader/设备并校验 ModelFamily 往返）
+cargo run -p audio-cpp --example registry_inspect
 ```
 
 > 内置 VAD 权重（silero / marblenet）随上游源码 vendored 在 `audio.cpp/assets/framework/models/`，无需另行下载。
+> 除 VAD 外的 GGUF 权重建议统一放到 `F:\models\` 目录。
 
 ## 状态
 
@@ -203,6 +216,10 @@ cargo run -p audio-cpp --example vad_streaming -- `
 - [x] `custom-models` feature：按需编译指定模型族，避免 full 全量成本
 - [x] 说话人分离端到端验证：SortFormer Diar 4spk Q8_0 GGUF（four_speaker_short.wav 重采样到 16kHz）
 - [x] 音乐源分离端到端验证：HTDemucs Q8_0 GGUF（44.1kHz 立体声 → drums/bass/other/vocals）
+- [x] `ModelFamily` 枚举族名替代裸字符串 hint（并给出 `Custom(String)` 兜底）
+- [x] 流式 ASR 端到端验证：Qwen3 ASR Q8_0 GGUF（sample_16k.wav → 逐窗口部分转录 + 最终文本）
+- [x] 注册表内省示例（registry_inspect）与流式 TTS 示例（tts_streaming，VoxCPM2）
+- [x] C ABI 流事件回传：`StreamEvent.named_audio_outputs`（流式 TTS 逐块音频）
 
 ## 参考
 

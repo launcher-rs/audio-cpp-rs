@@ -498,6 +498,9 @@ pub struct StreamEvent {
     pub partial_text: Option<TextOutput>,
     /// 音频输出（存在时）。
     pub audio_output: Option<AudioBufferInfo>,
+    /// 命名音频输出列表（如流式 TTS 的逐块 `chunk_N`）。
+    #[serde(default)]
+    pub named_audio_outputs: Vec<NamedAudioOutput>,
     /// 是否为最终事件。
     pub is_final: bool,
 }

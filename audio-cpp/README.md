@@ -143,7 +143,50 @@ if let Some(text) = &result.text_output {
 }
 ```
 
-### 5. 离线 TTS（MOSS-TTS-Nano，需 custom-models 构建）
+### 5. 流式 ASR（Qwen3 ASR，需按需编译）
+
+Qwen3 ASR 同时支持离线与流式。流式会话与 VAD 类似：
+`start(请求)` → 分块 `process_audio()` → `finish()`；窗口边界会经事件回调
+产出 `partial_text` 部分转录。**streaming 的 `start` 请求需带 `audio_path`（或
+`audio` 对象）以建立音频契约**，否则 `prepare` 会报错。
+
+```rust
+use std::sync::{Arc, Mutex};
+use audio_cpp::{Backend, ModelFamily, Registry, RunMode, StreamEvent, TaskKind, load_wav};
+
+let registry = Registry::new()?;
+let model = registry.load("./qwen3-asr-q8_0.gguf", Some(ModelFamily::Qwen3Asr), None)?;
+let wav = load_wav("./speech.wav")?;
+
+let mut session = model.create_task_session(
+    TaskKind::Asr, RunMode::Streaming, Backend::Cpu, 0, 4, None,
+)?;
+let policy = session.streaming_policy()?;
+
+let partial = Arc::new(Mutex::new(Vec::<String>::new()));
+let collector = Arc::clone(&partial);
+session.set_event_callback(Some(move |ev: StreamEvent| {
+    if let Some(t) = &ev.partial_text {
+        collector.lock().unwrap().push(t.text.clone());
+    }
+}));
+
+// streaming 的 start 请求须含音频契约（audio_path 或 audio 对象）。
+let request = r#"{"audio_path":"./speech.wav","options":{"audio_chunk_seconds":3.0}}"#;
+session.start(Some(request))?;
+
+let chunk = (policy.preferred_audio_chunk_seconds * wav.sample_rate as f64).round() as usize;
+for block in wav.samples.chunks(chunk) {
+    session.process_audio(block, wav.sample_rate, wav.channels, 0)?;
+}
+let result = session.finish()?;   // 最终完整文本
+session.reset();
+```
+
+> **注意**：`preferred_audio_chunk_samples` 可能为 0，Qwen3 ASR 只填
+> `preferred_audio_chunk_seconds`，分块大小按 `秒数 × 采样率` 换算即可。
+
+### 6. 离线 TTS（MOSS-TTS-Nano，需 custom-models 构建）
 
 ```rust
 use audio_cpp::{Backend, ModelFamily, Registry, RunMode, TaskKind};
@@ -175,7 +218,7 @@ println!("{}Hz {}ch {} 采样", audio.sample_rate, audio.channels, samples.len()
 | [`RunMode`](src/types.rs) | `Offline` / `Streaming` |
 | [`Backend`](src/types.rs) | `Cpu` / `Cuda` / `Hip` / `Vulkan` / `Metal` / `Best` |
 | [`TaskResult`](src/types.rs) | `speech_segments` / `text_output` / `audio_output` / `named_audio_outputs` |
-| [`StreamEvent`](src/types.rs) | 流式事件：`voice_activity` / `partial_text` / `audio_output` / `is_final` |
+| [`StreamEvent`](src/types.rs) | 流式事件：`voice_activity` / `partial_text` / `audio_output` / `named_audio_outputs` / `is_final` |
 | [`load_wav`](src/audio.rs) | 读 WAV 为 `WavAudio { sample_rate, channels, samples }` |
 
 所有枚举的 `as_str()` 返回传给 C 边界的字符串；结构化数据一律走 JSON
@@ -196,4 +239,7 @@ println!("{}Hz {}ch {} 采样", audio.sample_rate, audio.channels, samples.len()
   `audiocpp_last_error()` 透传，为类型化枚举，可用 `?` 传播。
 
 完整可运行示例见 [`examples/`](examples/)（vad_offline / vad_streaming /
-asr_offline / tts_offline / diar_offline / sep_offline，均在本机 win32/MSVC 验证运行）。
+asr_offline / asr_streaming / tts_offline / tts_streaming / diar_offline /
+sep_offline / registry_inspect）。其中 vad_streaming / asr_streaming /
+tts_streaming / registry_inspect 已在本机 win32/MSVC 验证运行；其余离线示例
+此前已验证。测试权重文件可放在 `F:\models` 下。

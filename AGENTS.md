@@ -108,6 +108,26 @@
   Rust `TaskKind::SourceSeparation`，**不是** `source_separation`）；输出在
   `TaskResult.named_audio_outputs`（id 为 drums/bass/other/vocals，f32 交错）；
   输出时长会比输入略长（htdemucs 的 overlap-add chunk 对齐扩展）。
+- **family_hint 类型化**：`Registry::load` 的 `family_hint` 参数已改为
+  `Option<ModelFamily>`（`audio-cpp/src/types.rs`），枚举收录全部上游 loader 族，
+  `as_str()` 给出传给 C 边界的字符串；未收录族用 `ModelFamily::Custom(String)`
+  兜底，`From<&str>` 自动收编已知名字。改枚举需与上游 `CMakeLists.txt` 的
+  `make_*_loader` 清单保持同步。
+- **流式 ASR 已用 Qwen3 ASR Q8_0 GGUF 验证**（`audio-cpp/examples/asr_streaming`
+  跑通，sample_16k.wav 输出逐 3s 窗口部分转录 + 最终文本）。Qwen3 ASR 由 CMake
+  target `qwen3_asr` 提供，feature 为 `model-qwen3-asr`；GGUF 须显式
+  `family_hint="qwen3_asr"`。**流式 `start` 请求必须带 `audio_path`（或 `audio`
+  对象）建立音频契约**，否则 prepare 报 "Qwen3 ASR prepare() requires an audio
+  contract"；其 `streaming_policy` 的 `preferred_audio_chunk_samples` 为 0，分块
+  大小应按 `preferred_audio_chunk_seconds × sample_rate` 换算；窗口边界经
+  `audio_chunk_seconds` 选项控制（默认 30s），短音频无逐块事件属正常。
+- **流式 TTS（VoxCPM2）示例**：`audio-cpp/examples/tts_streaming`，模型族
+  `voxcpm2`（custom 用 `AUDIOCPP_MODELS=voxcpm2`）。VoxCPM2 流式输入为 `none`
+  （不消费音频块），`start` 带 text 即整段合成，逐块音频经事件回调送出、
+  `finish()` 返回合并音频；**C ABI `dump_stream_event` 已补 `named_audio_outputs`
+  字段**（流式 TTS 逐块事件），高层 `StreamEvent.named_audio_outputs` 同步新增。
+- **本地测试权重**可放在 `F:\models\`（qwen3-asr-0.6b-q8_0.gguf、
+  fun-asr-nano-2512-q8_0.gguf 等），示例文档统一引用该目录。
 
 ## 常用命令速查
 ```bash
