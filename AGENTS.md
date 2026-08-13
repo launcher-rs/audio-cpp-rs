@@ -126,8 +126,18 @@
   （不消费音频块），`start` 带 text 即整段合成，逐块音频经事件回调送出、
   `finish()` 返回合并音频；**C ABI `dump_stream_event` 已补 `named_audio_outputs`
   字段**（流式 TTS 逐块事件），高层 `StreamEvent.named_audio_outputs` 同步新增。
+  **流式 `start` 请求必须带 `options.retry_badcase=false`**（上游硬约束，缺省会报
+  "VoxCPM2 streaming generation requires retry_badcase=false"）。
+- **离线 Qwen3 TTS 声音克隆示例**：`audio-cpp/examples/tts_offline_qwen3`，模型族
+  `qwen3_tts`（custom 用 `AUDIOCPP_MODELS=qwen3_tts`）。Qwen3 TTS **base 变体
+  必须做 voice-clone**——上游 `make_request` 会把请求里的 `audio_path`（或 `audio`
+  对象）读作参考人声（无需额外 C ABI），参考音频文本转写经
+  `options.reference_text` 传入，越贴合内容音色越准；GGUF 须显式
+  `family_hint="qwen3_tts"`。已验证：`qwen3-tts-12hz-0.6b-base-q8_0.gguf` + upstream
+  `sample_16k.wav`（Nature 台词做参考）合成 ~4s 语音，输出 24000Hz 1ch。
 - **本地测试权重**可放在 `F:\models\`（qwen3-asr-0.6b-q8_0.gguf、
-  fun-asr-nano-2512-q8_0.gguf 等），示例文档统一引用该目录。
+  fun-asr-nano-2512-q8_0.gguf、voxcpm2-q8_0.gguf、
+  qwen3-tts-12hz-0.6b-base-q8_0.gguf 等），示例文档统一引用该目录。
 
 ## 常用命令速查
 ```bash

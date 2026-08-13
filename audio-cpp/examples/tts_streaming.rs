@@ -96,7 +96,11 @@ fn main() -> Result<(), audio_cpp::Error> {
     }));
 
     // 4. 启动流式合成。文本经请求 JSON 的 text 字段送入；合成在 start 内整段跑完。
-    let request = format!(r#"{{"text":"{}"}}"#, text.replace('"', "\\\""));
+    //    流式要求 retry_badcase=false（上游限制），其余参数可选。
+    let request = format!(
+        r#"{{"text":"{}","options":{{"retry_badcase":false}}}}"#,
+        text.replace('"', "\\\"")
+    );
     println!("请求文本: {text}");
     session.start(Some(&request))?;
 
