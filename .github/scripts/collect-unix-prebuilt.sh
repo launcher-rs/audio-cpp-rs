@@ -44,7 +44,7 @@ collect_static target
 
 # 兜底：Windows MAX_PATH 规避会把 CMake 构建树重定向到系统临时目录
 # （acb<hash>），Unix 上不会发生；此处仅为未来兼容，扫描可用的几个位置。
-for extra in "$TMPDIR" "/tmp"; do
+for extra in "${TMPDIR:-}" "/tmp"; do
   [[ -d "$extra" ]] || continue
   while IFS= read -r -d '' d; do
     collect_static "$d"
