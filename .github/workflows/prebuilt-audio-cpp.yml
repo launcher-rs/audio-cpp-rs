@@ -70,7 +70,7 @@ jobs:
         uses: Swatinem/rust-cache@v2.9.1
         with:
           workspaces: ". -> target"
-          shared-key: prebuilt-linux-${{ env.TARGET_TRIPLE }}-${{ matrix.modelset }}-${{ matrix.features }}-v1
+          shared-key: prebuilt-linux-${{ env.TARGET_TRIPLE }}-${{ matrix.backend }}-${{ matrix.modelset }}-v2
           cache-targets: false
           cache-on-failure: false
 
@@ -140,7 +140,7 @@ jobs:
         uses: Swatinem/rust-cache@v2.9.1
         with:
           workspaces: ". -> target"
-          shared-key: prebuilt-windows-${{ env.TARGET_TRIPLE }}-${{ matrix.modelset }}-${{ matrix.features }}-v1
+          shared-key: prebuilt-windows-${{ env.TARGET_TRIPLE }}-${{ matrix.backend }}-${{ matrix.modelset }}-v2
           cache-targets: false
           cache-on-failure: false
 
@@ -213,7 +213,7 @@ jobs:
         uses: Swatinem/rust-cache@v2.9.1
         with:
           workspaces: ". -> target"
-          shared-key: prebuilt-macos-${{ env.TARGET_TRIPLE }}-${{ matrix.modelset }}-${{ matrix.features }}-v1
+          shared-key: prebuilt-macos-${{ env.TARGET_TRIPLE }}-${{ matrix.backend }}-${{ matrix.modelset }}-v2
           cache-targets: false
           cache-on-failure: false
 
