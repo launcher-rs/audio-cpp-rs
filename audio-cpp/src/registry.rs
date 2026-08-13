@@ -12,7 +12,7 @@ use audio_cpp_sys::*;
 use crate::error::Error;
 use crate::ffi;
 use crate::model::Model;
-use crate::types::{Device, LoaderInfo};
+use crate::types::{Device, LoaderInfo, ModelFamily};
 
 /// 模型注册表。
 pub struct Registry {
@@ -62,16 +62,20 @@ impl Registry {
     /// 加载一个模型。
     ///
     /// `model_path` 为权重文件路径（如 `.safetensors` / `.gguf`）；
-    /// `family_hint` 可选，用于指定模型族；`load_options` 可选，例如
-    /// `{"weight_id":"..."}`。
+    /// `family_hint` 可选，用于指定模型族（GGUF / NeMo safetensors 无法
+    /// 自动探测族别，须显式指定，见 [`crate::ModelFamily`]）；`load_options`
+    /// 可选，例如 `{"weight_id":"..."}`。
     pub fn load(
         &self,
         model_path: &str,
-        family_hint: Option<&str>,
+        family_hint: Option<ModelFamily>,
         load_options: Option<&str>,
     ) -> Result<Model, Error> {
         let path_c = ffi::cstring(model_path)?;
-        let hint_c = family_hint.map(ffi::cstring).transpose()?;
+        let hint_c = family_hint
+            .as_ref()
+            .map(|f| ffi::cstring(f.as_str()))
+            .transpose()?;
         let options_c = load_options.map(ffi::cstring).transpose()?;
 
         let raw = unsafe {

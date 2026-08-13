@@ -18,7 +18,7 @@
 //! （24kHz mono 四说话人），需先重采样到 16kHz。输出中的 confidence 恒为 0
 //! （上游 postprocess 未填充，SortFormer 本身不输出逐段置信度）。
 
-use audio_cpp::{Backend, Registry, RunMode, TaskKind};
+use audio_cpp::{Backend, ModelFamily, Registry, RunMode, TaskKind};
 
 fn main() -> Result<(), audio_cpp::Error> {
     let args: Vec<String> = std::env::args().collect();
@@ -33,14 +33,14 @@ fn main() -> Result<(), audio_cpp::Error> {
     let registry = Registry::new()?;
     let families = registry.families()?;
     println!("模型族: {families:?}");
-    if !families.iter().any(|f| f == "sortformer_diar") {
+    if !families.iter().any(|f| f == ModelFamily::SortformerDiar.as_str()) {
         eprintln!(
             "警告: sortformer_diar 未编译进引擎。请用 `--features model-sortformer-diar` 重新构建。"
         );
     }
 
     // 2. 加载 SortFormer Diar 模型（GGUF 无法自动探测，须显式指定家族）。
-    let model = registry.load(model_path, Some("sortformer_diar"), None)?;
+    let model = registry.load(model_path, Some(ModelFamily::SortformerDiar), None)?;
     println!("模型加载成功: {model_path}");
     println!("元数据: {:?}", model.metadata()?);
 

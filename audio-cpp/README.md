@@ -127,11 +127,11 @@ session.reset();                  // 复用会话重新开始
 ### 4. 离线 ASR（Citrinet，需按需编译）
 
 ```rust
-use audio_cpp::{Backend, Registry, RunMode, TaskKind};
+use audio_cpp::{Backend, ModelFamily, Registry, RunMode, TaskKind};
 
 let registry = Registry::new()?;
 // GGUF 无法自动探测族别（会误判为 silero_vad），必须显式 family_hint。
-let model = registry.load("./citrinet-asr-q8_0.gguf", Some("citrinet_asr"), None)?;
+let model = registry.load("./citrinet-asr-q8_0.gguf", Some(ModelFamily::CitrinetAsr), None)?;
 let session = model.create_task_session(
     TaskKind::Asr, RunMode::Offline, Backend::Cpu, 0, 4, None,
 )?;
@@ -146,10 +146,10 @@ if let Some(text) = &result.text_output {
 ### 5. 离线 TTS（MOSS-TTS-Nano，需 custom-models 构建）
 
 ```rust
-use audio_cpp::{Backend, Registry, RunMode, TaskKind};
+use audio_cpp::{Backend, ModelFamily, Registry, RunMode, TaskKind};
 
 let registry = Registry::new()?;
-let model = registry.load("./moss-tts-nano-100m-q8_0.gguf", Some("moss_tts_nano"), None)?;
+let model = registry.load("./moss-tts-nano-100m-q8_0.gguf", Some(ModelFamily::MossTtsNano), None)?;
 let session = model.create_task_session(
     TaskKind::Tts, RunMode::Offline, Backend::Cpu, 0, 4, None,
 )?;
@@ -170,7 +170,8 @@ println!("{}Hz {}ch {} 采样", audio.sample_rate, audio.channels, samples.len()
 | [`Registry`](src/registry.rs) | 枚举模型族 / loader / 设备；`load()` 加载模型 |
 | [`Model`](src/model.rs) | 已加载模型：`metadata()` / `capabilities()` / `create_task_session()` |
 | [`Session`](src/session.rs) | 任务会话：离线 `run_offline()`；流式 `start`/`process_audio`/`finish`/`reset` |
-| [`TaskKind`](src/types.rs) | `Vad` / `Asr` / `Tts` |
+| [`TaskKind`](src/types.rs) | `Vad` / `Asr` / `Tts` / `Diar` / `SourceSeparation` |
+| [`ModelFamily`](src/types.rs) | 模型族枚举（`Qwen3Asr` / `CitrinetAsr` / `Htdemucs` / …；未收录族用 `Custom(String)`） |
 | [`RunMode`](src/types.rs) | `Offline` / `Streaming` |
 | [`Backend`](src/types.rs) | `Cpu` / `Cuda` / `Hip` / `Vulkan` / `Metal` / `Best` |
 | [`TaskResult`](src/types.rs) | `speech_segments` / `text_output` / `audio_output` / `named_audio_outputs` |
@@ -183,8 +184,10 @@ println!("{}Hz {}ch {} 采样", audio.sample_rate, audio.channels, samples.len()
 ## 注意事项
 
 - **family_hint 必填场景**：NeMo safetensors（如 marblenet_vad）与 GGUF
-  （如 citrinet_asr / moss_tts_nano）无法被引擎自动探测族别，会误判为
-  silero_vad，必须显式传 `family_hint`。内置 silero_vad 可省略。
+  （如 citrinet_asr / moss_tts_nano / htdemucs / sortformer_diar / qwen3_asr）
+  无法被引擎自动探测族别，会误判为 silero_vad，必须显式传 `family_hint`。
+  用 [`ModelFamily`](src/types.rs) 枚举代替裸字符串（如
+  `Some(ModelFamily::Qwen3Asr)`）可避免拼写错误；内置 silero_vad 可省略。
 - **阈值选项键**：silero_vad 用 `vad_threshold`，marblenet_vad 用 `threshold`。
 - **Windows 路径**：请求 JSON 中的反斜杠必须转义（`\\`），建议改用正斜杠；
   `\a` 等非法转义会让 shim 解析失败。

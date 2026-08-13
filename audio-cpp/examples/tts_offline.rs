@@ -18,7 +18,7 @@
 
 use std::io::Write;
 
-use audio_cpp::{Backend, Registry, RunMode, TaskKind};
+use audio_cpp::{Backend, ModelFamily, Registry, RunMode, TaskKind};
 
 /// 把 (-1..1) 的 f32 采样写入 16-bit PCM WAV 文件。
 ///
@@ -66,7 +66,7 @@ fn main() -> Result<(), audio_cpp::Error> {
     let registry = Registry::new()?;
     let families = registry.families()?;
     println!("模型族: {families:?}");
-    if !families.iter().any(|f| f == "moss_tts_nano") {
+    if !families.iter().any(|f| f == ModelFamily::MossTtsNano.as_str()) {
         eprintln!(
             "警告: moss_tts_nano 未编译进引擎。请用 `--features custom-models`，\
              并设置 AUDIOCPP_MODELS=moss_tts_nano 重新构建。"
@@ -74,7 +74,7 @@ fn main() -> Result<(), audio_cpp::Error> {
     }
 
     // 2. 加载 TTS 模型（GGUF 文件，须显式指定模型族）。
-    let model = registry.load(model_path, Some("moss_tts_nano"), None)?;
+    let model = registry.load(model_path, Some(ModelFamily::MossTtsNano), None)?;
     println!("模型加载成功: {model_path}");
 
     // 3. 创建离线 TTS 会话。

@@ -18,7 +18,7 @@
 
 use std::io::Write;
 
-use audio_cpp::{Backend, Registry, RunMode, TaskKind};
+use audio_cpp::{Backend, ModelFamily, Registry, RunMode, TaskKind};
 
 /// 把交错 f32 采样写入 16-bit PCM WAV 文件。
 fn write_wav_pcm16(path: &str, samples: &[f32], sample_rate: i32, channels: u16) -> std::io::Result<()> {
@@ -63,14 +63,14 @@ fn main() -> Result<(), audio_cpp::Error> {
     let registry = Registry::new()?;
     let families = registry.families()?;
     println!("模型族: {families:?}");
-    if !families.iter().any(|f| f == "htdemucs") {
+    if !families.iter().any(|f| f == ModelFamily::Htdemucs.as_str()) {
         eprintln!(
             "警告: htdemucs 未编译进引擎。请用 `--features model-demucs` 重新构建。"
         );
     }
 
     // 2. 加载 HTDemucs 模型（GGUF 无法自动探测，须显式指定家族）。
-    let model = registry.load(model_path, Some("htdemucs"), None)?;
+    let model = registry.load(model_path, Some(ModelFamily::Htdemucs), None)?;
     println!("模型加载成功: {model_path}");
     println!("元数据: {:?}", model.metadata()?);
 

@@ -24,7 +24,7 @@
 //!     marblenet_vad
 //! ```
 
-use audio_cpp::{Backend, Registry, RunMode, TaskKind};
+use audio_cpp::{Backend, ModelFamily, Registry, RunMode, TaskKind};
 
 fn main() -> Result<(), audio_cpp::Error> {
     let args: Vec<String> = std::env::args().collect();
@@ -34,7 +34,7 @@ fn main() -> Result<(), audio_cpp::Error> {
     }
     let model_path = &args[1];
     let wav_path = &args[2];
-    let family_hint = args.get(3).map(String::as_str);
+    let family_hint = args.get(3).map(String::as_str).map(ModelFamily::from);
 
     // 1. 创建默认注册表，枚举模型族与设备（验证 FFI 链路）。
     let registry = Registry::new()?;
@@ -42,7 +42,7 @@ fn main() -> Result<(), audio_cpp::Error> {
     println!("设备: {:?}", Registry::devices()?);
 
     // 2. 加载模型（所有权由 Model 的 Drop 管理，无需手动释放）。
-    let model = registry.load(model_path, family_hint, None)?;
+    let model = registry.load(model_path, family_hint.clone(), None)?;
     println!("模型加载成功: {model_path} family_hint={family_hint:?}");
 
     // 3. 创建离线 VAD 会话。
