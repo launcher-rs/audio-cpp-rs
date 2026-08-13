@@ -275,28 +275,19 @@ fn local_msvc_ver() -> Option<i64> {
     let banner = std::process::Command::new(cl).arg("/Bv").output().ok()?;
     let text = String::from_utf8_lossy(&banner.stdout);
     let text = format!("{}{}", text, String::from_utf8_lossy(&banner.stderr));
-    // 版本行形如 "Optimizing Compiler Version 19.44.35222 ..."（Bv 输出的首个版本号）。
-    let mut first = 0i64;
-    let mut second = 0i64;
-    let mut seen = 0usize;
-    for tok in text.split(|c: char| !c.is_ascii_digit()) {
-        if tok.is_empty() {
-            continue;
+    // banner 形如 "... Compiler Version 19.44.35222 ..."（可能含 "x64" 等干扰数字，
+    // 因此锚定 19.xx 模式：第一个形如 19.<40..99> 的二元组即版本）。
+    let nums: Vec<i64> = text
+        .split(|c: char| !c.is_ascii_digit())
+        .filter_map(|tok| tok.parse().ok())
+        .collect();
+    for w in nums.windows(2) {
+        if w[0] == 19 && (40..=99).contains(&w[1]) {
+            // _MSC_VER = 19xx（版本 19.44 → 1944）。
+            return Some(1900 + w[1]);
         }
-        if seen == 0 {
-            first = tok.parse().unwrap_or(0);
-        } else if seen == 1 {
-            second = tok.parse().unwrap_or(0);
-            break;
-        }
-        seen += 1;
     }
-    // _MSC_VER = 19xx（版本 19.44 → 1944）。first 通常即 19。
-    if first == 19 {
-        Some(1900 + second)
-    } else {
-        None
-    }
+    None
 }
 
 /// 读取本地 audio.cpp submodule 的 HEAD commit（短 8 位）。
