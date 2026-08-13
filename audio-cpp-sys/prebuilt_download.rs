@@ -233,8 +233,69 @@ fn identity_matches(root: &Path) -> bool {
         return true;
     };
     match json.get("audio_commit").and_then(|v| v.as_str()) {
-        Some(recorded) => recorded == local_commit.as_deref().unwrap_or(""),
-        None => true,
+        Some(recorded) => {
+            if recorded != local_commit.as_deref().unwrap_or("") {
+                return false;
+            }
+        }
+        None => {}
+    }
+    // MSVC 静态库与工具集版本强绑定：新版编译器编译的库无法被旧版链接器
+    // 使用（STL/CRT 内部符号如 __std_unique_8 随版本新增）。归档记录了生产者
+    // 的 _MSC_VER（如 1944），本地 MSVC 版本不足则不可用，回落到源码构建。
+    if let Some(recorded_msvc) = json.get("msvc_ver").and_then(|v| v.as_i64()) {
+        if recorded_msvc > 0 {
+            if let Some(local_msvc) = local_msvc_ver() {
+                if local_msvc < recorded_msvc {
+                    println!(
+                        "cargo:warning=预编译归档由 MSVC {} 构建，本地为 MSVC {}（偏低），\
+                         可能导致链接失败，回落到源码构建",
+                        recorded_msvc, local_msvc
+                    );
+                    return false;
+                }
+            }
+        }
+    }
+    true
+}
+
+/// 探测本地 MSVC 编译器版本（`_MSC_VER`，如 14.44 → 1944）。
+fn local_msvc_ver() -> Option<i64> {
+    if std::env::consts::OS != "windows" {
+        return None;
+    }
+    let cc = cc::Build::new();
+    let compiler = cc.try_get_compiler().ok()?;
+    if !compiler.is_like_msvc() {
+        return None;
+    }
+    let cl = compiler.path();
+    // cl /Bv 只打印版本 banner，无需 INCLUDE 环境即可运行。
+    let banner = std::process::Command::new(cl).arg("/Bv").output().ok()?;
+    let text = String::from_utf8_lossy(&banner.stdout);
+    let text = format!("{}{}", text, String::from_utf8_lossy(&banner.stderr));
+    // 版本行形如 "Optimizing Compiler Version 19.44.35222 ..."（Bv 输出的首个版本号）。
+    let mut first = 0i64;
+    let mut second = 0i64;
+    let mut seen = 0usize;
+    for tok in text.split(|c: char| !c.is_ascii_digit()) {
+        if tok.is_empty() {
+            continue;
+        }
+        if seen == 0 {
+            first = tok.parse().unwrap_or(0);
+        } else if seen == 1 {
+            second = tok.parse().unwrap_or(0);
+            break;
+        }
+        seen += 1;
+    }
+    // _MSC_VER = 19xx（版本 19.44 → 1944）。first 通常即 19。
+    if first == 19 {
+        Some(1900 + second)
+    } else {
+        None
     }
 }
 
