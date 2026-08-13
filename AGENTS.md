@@ -59,6 +59,14 @@
   - CMake 使用 Ninja 生成器，`CMAKE_ARCHIVE_OUTPUT_DIRECTORY=OUT_DIR/lib` 把归档统一收集；
   - MSVC 需注入 INCLUDE/LIB（build.rs 用 cc 探测）+ `/utf-8` `/EHsc` 编译选项（audio.cpp 部分含中文源码，缺 `/utf-8` 会报 C2001）；
   - shim 编译需 `/std:c++17`（MSVC）而非 `-std=c++17`。
+- **cuda feature 链接**：engine_runtime/ggml-cuda 是静态库，它们 PRIVATE 的 CUDA
+  依赖不会传导到最终可执行文件。build.rs 在启用 `cuda` 时会用
+  `CUDA_PATH`/`nvcc`/常见安装目录定位 Toolkit 的 `lib/x64`（或 `lib64`），显式输出
+  `cudart/cublas/cublasLt/cufft/cuda` 链接。`cuda.lib`（驱动 import lib，11+ 的
+  Toolkit 自带；旧版叫 `nvcuda.lib`，本机 12.4 用 `cuda`）。运行 CUDA 程序需
+  `bin/cudart64_*.dll` 在 PATH。另注意：**CMake 会在 build_dir/CMakeFiles/.../
+  CompilerIdCUDA 生成 `a.lib` 探测产物，递归收集静态库时须跳过 CMakeFiles
+  目录**，否则报 "could not find native static library `a`"。
 - `audio-cpp` 高层安全 API 已实现（Registry / Model / Session，离线 + 流式），
   并有 3 个示例验证运行通过：`audio-cpp-sys/examples/inspect`、
   `audio-cpp-sys/examples/vad_offline_ffi`、`audio-cpp/examples/vad_offline` 与

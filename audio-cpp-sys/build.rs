@@ -124,6 +124,13 @@ fn extract_static_lib_names(search_dirs: &[PathBuf], os: &str) -> Vec<String> {
         let pattern = dir.join("**").join(ext).to_string_lossy().into_owned();
         for entry in glob(&pattern).expect("构建 lib glob 失败") {
             let Ok(path) = entry else { continue };
+            // 跳过 CMake 内部产物：CUDA 构建会在 build_dir/CMakeFiles/.../
+            // CompilerIdCUDA/ 生成编译器探测归档 `a.lib`，其 stem 为 `a`，
+            // 若收集会产出 `cargo:rustc-link-lib=static=a`，链接时报
+            // "could not find native static library `a`"。
+            if path.components().any(|c| c.as_os_str() == "CMakeFiles") {
+                continue;
+            }
             let Some(stem) = path.file_stem() else { continue };
             let mut name = stem.to_string_lossy().into_owned();
             if !name.starts_with("lib") && path.extension().map(|e| e == "a").unwrap_or(false) {
@@ -148,6 +155,72 @@ fn link_static_libs(names: &[String]) {
     for name in names {
         println!("cargo:rustc-link-lib=static={}", name);
     }
+}
+
+/// 定位 CUDA Toolkit 的库目录（`lib/x64` 或 `lib64`）。
+///
+/// 搜索顺序与上游 `find_package(CUDAToolkit)` 一致：
+///   1. `CUDA_PATH` 环境变量（NVIDIA 安装器写入的规范位置），
+///      其次 `CUDA_PATH_V12_4` 这类版本化变量；
+///   2. PATH 里的 `nvcc`，其父目录的父目录即 Toolkit 根；
+///   3. 常见安装目录（Windows 的 "NVIDIA GPU Computing Toolkit" 与
+///      Linux 的 /usr/local/cuda），取版本号最高的。
+fn cuda_toolkit_lib_dir(os: &str) -> Option<PathBuf> {
+    let env_root: Option<PathBuf> = env::var("CUDA_PATH").ok().or_else(|| {
+        let mut versions: Vec<String> = env::vars()
+            .filter_map(|(k, v)| k.strip_prefix("CUDA_PATH_V").map(|_| v))
+            .collect();
+        versions.sort();
+        versions.pop()
+    }).map(PathBuf::from);
+    let from_nvcc = env::var("PATH").ok().and_then(|path| {
+        let nvcc_name = if os == "windows" { "nvcc.exe" } else { "nvcc" };
+        env::split_paths(&path)
+            .map(|d| d.join(nvcc_name))
+            .find(|p| p.is_file())
+            .and_then(|p| p.parent().and_then(|d| d.parent()).map(|r| r.to_path_buf()))
+    });
+    let common = || -> Option<PathBuf> {
+        let candidates: Vec<PathBuf> = match os {
+            "windows" => glob("C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v*")
+                .ok()?
+                .filter_map(|p| p.ok())
+                .collect(),
+            "linux" => vec![PathBuf::from("/usr/local/cuda")],
+            _ => vec![],
+        };
+        candidates.into_iter().max()
+    };
+    let root = env_root.or(from_nvcc).or_else(common)?;
+    let lib = if os == "windows" {
+        PathBuf::from(root).join("lib").join("x64")
+    } else {
+        PathBuf::from(root).join("lib64")
+    };
+    lib.is_dir().then_some(lib)
+}
+
+/// CUDA feature 启用时为最终链接补上 CUDA 运行时库。
+///
+/// engine_runtime / ggml-cuda 以静态库参与链接，它们在 CMake 里 PRIVATE
+/// 声明的 CUDA 依赖（cudart/cublas/cublasLt/cufft/驱动）不会传导到最终
+/// 可执行文件，因此这里按上游链接清单显式输出。Toolkit 缺失时给出明确报错。
+fn emit_cuda_links(os: &str) {
+    if !cfg!(feature = "cuda") {
+        return;
+    }
+    let lib_dir = cuda_toolkit_lib_dir(os).unwrap_or_else(|| {
+        panic!(
+            "cuda feature 已启用但未找到 CUDA Toolkit。请安装 CUDA Toolkit >= 12.0，\
+             并确保 CUDA_PATH 环境变量可用（如 C:\\Program Files\\NVIDIA GPU \
+             Computing Toolkit\\CUDA\\v12.4）"
+        )
+    });
+    println!("cargo:rustc-link-search=native={}", lib_dir.display());
+    for lib in ["cudart", "cublas", "cublasLt", "cufft", "cuda"] {
+        println!("cargo:rustc-link-lib={}", lib);
+    }
+    debug_log!("CUDA 链接库目录: {}", lib_dir.display());
 }
 
 /// 收集"以 feature 方式启用的模型族"。
@@ -348,6 +421,10 @@ fn main() {
     if os == "windows" {
         println!("cargo:rustc-link-lib=advapi32");
     }
+
+    // CUDA 运行时库：静态的 ggml-cuda/engine_runtime 不会传导它们 PRIVATE
+    // 的 CUDA 依赖，启用 cuda feature 时必须显式补齐（缺失时报明确错误）。
+    emit_cuda_links(&os);
 
     // ------------------------------------------------------------------
     // 2. 用 cc crate 编译 C shim（capi.cpp），以独立静态库形式提供
