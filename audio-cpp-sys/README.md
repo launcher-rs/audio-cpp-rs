@@ -59,6 +59,10 @@ cargo build --features prebuilt
 `target/audio-cpp-prebuilt-cache/<tag>/`。资产命名
 `audio-cpp-prebuilt-{linux|macos|windows}-{target}-{backend}-{modelset}-static.tar.gz`。
 
+> **只发布 `full` 全模型资产**（full 是任何 model 组合的超集，见下）。core /
+> `custom-<族>` 组合会自动回退下载 full 资产（体积较大但保证可用），仍失败才
+> 回落源码构建。
+
 下载/缓存行为可用环境变量定制（适合内网或访问不了 GitHub 的环境）：
 
 | 环境变量 | 作用 |
@@ -69,18 +73,22 @@ cargo build --features prebuilt
 | `AUDIOCPP_PREBUILT_DIR` | 显式本地库目录（不下载，直接链接） |
 | `AUDIOCPP_PREBUILT_OFF` | 设为 1/true 禁用自动下载，强制源码构建 |
 
-网络下载失败会自动重试 3 次（带退避），仍失败则回落源码构建。
+网络下载失败会自动重试 3 次（带退避）；HTTP 4xx（资源不存在等）为确定性
+失败不重试，直接回落源码构建。
 
 要点：
 
-- 目录须与当前构建的模型组合/后端匹配（如 `core-models` 预编译产物不能当
-  `model-qwen3-asr` 用）；custom 组合（`custom-<族>...`）暂不发布预编译资产，
-  会自动回落源码构建；
+- **`full` 资产是任何模型组合的超集**：无论开启哪些 `model-*` feature（或
+  `AUDIOCPP_MODELS` 指定多族），下载端都会先尝试精确资产名（`core` /
+  `custom-<族1>-<族2>...`），404 时自动回退下载 `full` 资产，仍失败才回落
+  源码构建；
 - CUDA / Vulkan 仍需要本地 SDK 参与链接（静态库不传导其运行时依赖），只省编译；
 - C shim（`capi.cpp`）与 Rust 绑定仍从源码编译，因此上游 `audio.cpp` 源码树依然
   需要（`prebuilt` 旁路会自动获取）；
-- 归档内 `metadata.json` 记录 `audio_commit`（打包时 audio.cpp submodule HEAD），
-  下载后自动校验与本地 submodule 一致，不符则回落源码构建（避免 ABI 错配）。
+- 归档内 `metadata.json` 记录 `audio_commit`（打包时 audio.cpp submodule HEAD）与
+  `msvc_ver`（打包工具链的 `_MSC_VER`）。下载后自动校验：`audio_commit` 与本地
+  submodule 不一致，或本地 MSVC 版本低于归档的 `msvc_ver`，则删缓存回落源码构建
+  （避免 ABI 错配；MSVC 静态库绑定工具集版本）。
 
 > 资产由 CI（`.github/workflows/prebuilt-audio-cpp.yml`）在打 `v*` tag 时生成并上传；
 > 设计见 [docs/prebuilt_pattern_report.md](../../docs/prebuilt_pattern_report.md)。

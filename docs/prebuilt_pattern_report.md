@@ -152,6 +152,13 @@ audio-cpp-prebuilt-{os}-{target}-{backend}-{modelset}-static.tar.gz
 - 下载模块据启用的 `model-*` feature 与 `AUDIOCPP_MODELS` env 拼 `modelset`，未收录组合 → 源码回落；
 - 保留 `AUDIOCPP_PREBUILT_URL` 整包覆盖，配合 `AUDIOCPP_MODELS` 即可让任何人自产自用任意组合。
 
+> **最终采用（2026-08-13 落地）**：上面"逐族发布 custom-<族>"的方案最终**未采用**。
+> 逐族发布会组合爆炸，且开启多个 `model-*` feature 时无法用一个族资产覆盖。
+> 实际落地为**只发布 `full` 全模型资产** + 下载端 superset 回退：
+> 无论开启哪些模型组合 feature，先尝试精确资产名（`core` / `custom-<族1>-<族2>...`），
+> 404 时自动回退下载 `full` 资产（它是任何组合的超集，功能全可用，仅体积较大），
+> 仍失败才回落源码。CI 矩阵因此精简为 full × cpu/vulkan/metal。
+
 **C. CUDA 预编译的边界**：`emit_cuda_links` 依赖本地 Toolkit（cudart/cublas/... import lib 需在消费机上存在），
 所以 **CUDA 预编译只省编译、不省 SDK**。同理 Vulkan 仍需 `vulkan-1.lib` 链接。文档须写明；
 这也是 llama-cpp-rs 把 cuda 归档标成"experimental/不发布"的原因。
@@ -189,6 +196,14 @@ audio-cpp-prebuilt-{os}-{target}-{backend}-{modelset}-static.tar.gz
 **阶段 3（可选）—— 动态链接**
 如需 DLL/.so 化，需给 `engine_runtime` 设计 C ABI 导出（capi 已具备），再在 CI 增 `dynamic` cell；
 或保持 static-only（对 release 收益有限，llama 数据亦显示 dynamic 更慢）。
+
+> **落地状态（2026-08-13）**：阶段 0–2 均已完成并验证：
+> - 阶段 1：`AUDIOCPP_PREBUILT_DIR` 手动目录旁路 + CI 资产（见 `.github/workflows/prebuilt-audio-cpp.yml`）；
+> - 阶段 2：`prebuilt` feature 自动下载 + superset 回退（只发布 full 资产，见上）；
+> - 资产 `metadata.json` 记录 `audio_commit` 与 `msvc_ver`（MSVC 工具集版本），下载端
+>   双向校验不符即回落源码，规避 ABI 错配；
+> - 实测 win32/MSVC：full-models+vulkan 冷构建普通编译约 274s，预编译约 54s（约 5 倍加速），
+>   二次构建 1s。
 
 ---
 
