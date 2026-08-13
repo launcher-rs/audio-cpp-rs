@@ -42,6 +42,7 @@ jobs:
           - { label: "x64 cpu full",     runner: "ubuntu-24.04",     target: "x86_64-unknown-linux-gnu",   backend: "cpu",    modelset: "full", features: "full-models" }
           - { label: "x64 vulkan full",  runner: "ubuntu-24.04",     target: "x86_64-unknown-linux-gnu",   backend: "vulkan", modelset: "full", features: "full-models,vulkan" }
           - { label: "arm64 cpu full",   runner: "ubuntu-24.04-arm", target: "aarch64-unknown-linux-gnu",  backend: "cpu",    modelset: "full", features: "full-models" }
+          - { label: "arm64 vulkan full", runner: "ubuntu-24.04-arm", target: "aarch64-unknown-linux-gnu",  backend: "vulkan", modelset: "full", features: "full-models,vulkan" }
     env:
       TARGET_TRIPLE: ${{ matrix.target }}
     steps:
