@@ -170,21 +170,26 @@
 - **`prebuilt` feature 自动下载**：`audio-cpp-sys/prebuilt_download.rs` 按当前
   平台/后端/模型组合拼资产名（`audio-cpp-prebuilt-{os}-{target}-{backend}-{modelset}-static.tar.gz`），
   从 GitHub Releases 下载并缓存到 `target/audio-cpp-prebuilt-cache/<tag>/`。
-  backend 由 feature 推导（cpu/vulkan/metal；cuda/hip 不发预编译）；modelset 由
-  模型组合推导（core/full/custom-<族>...，custom 不发资产→404 回落源码）。
-  归档 `metadata.json.audio_commit` 与本地 submodule HEAD 不符则删缓存回落源码
-  （防 ABI 错配）。env：`AUDIOCPP_PREBUILT_TAG`（tag，默认 `v{version}`）、
+  backend 由 feature 推导（cpu/vulkan/metal；cuda/hip 不发预编译）。**只发布
+  `full` 全模型资产**（full 是任何 model 组合的超集）：core / custom-<族> 资产
+  404 时自动回退下载 full 资产（`ensure_prebuilt` 的 superset 回退），仍失败才
+  回落源码。归档 `metadata.json.audio_commit` 与本地 submodule HEAD 不符则删
+  缓存回落源码（防 ABI 错配）；`metadata.json.msvc_ver` 为 CI 构建时的
+  `_MSC_VER`，本地工具集版本偏低则回落源码（MSVC 静态库绑定工具集版本）。
+  env：`AUDIOCPP_PREBUILT_TAG`（tag，默认 `v{version}`）、
   `AUDIOCPP_PREBUILT_REPO`、`AUDIOCPP_PREBUILT_URL`（完整地址覆盖，也可含
   `{tag}`/`{asset}` 占位符供内网镜像，`file://` 前缀指本地归档直接复制）、
-  `AUDIOCPP_PREBUILT_OFF`（禁用自动下载）。网络下载重试 3 次带退避，仍失败回落
-  源码。`AUDIOCPP_PREBUILT_DIR` 显式目录优先级高于自动下载。
+  `AUDIOCPP_PREBUILT_OFF`（禁用自动下载）。网络抖动重试 3 次带退避（404 等
+  4xx 为确定性失败不重试），仍失败回落源码。`AUDIOCPP_PREBUILT_DIR` 显式目录
+  优先级高于自动下载。
 - **CI 预编译资产**：`.github/workflows/prebuilt-audio-cpp.yml` 在 `v*` tag 或
-  workflow_dispatch 时构建（linux 5 / windows 3 / macos 3 矩阵，core/full ×
+  workflow_dispatch 时构建（linux 3 / windows 2 / macos 1 矩阵，full ×
   cpu/vulkan/metal），用 `.github/scripts/collect-unix-prebuilt.sh` 与
   `collect-windows-prebuilt.sh` 从 `target/**/out`（及 Windows 长路径重定向的
-  `%TEMP%\acb*`）收集静态库打包，写 `metadata.json`，经 `gh release upload` 上传。
-  Windows vulkan 用 `.github/actions/setup-vulkan-sdk-windows`（LunarG SDK）。
-  资产命名须与 `prebuilt_download.rs::asset_name()` 保持一致。
+  `%TEMP%\acb*`）收集静态库打包，写 `metadata.json`（含 `msvc_ver`），经
+  `gh release upload` 上传。Windows vulkan 用
+  `.github/actions/setup-vulkan-sdk-windows`（LunarG SDK）。资产命名须与
+  `prebuilt_download.rs::asset_name()` 保持一致。
 
 ## 常用命令速查
 ```bash

@@ -40,11 +40,15 @@ pub fn asset_name(target: &str, use_shared_libs: bool) -> Option<String> {
     ))
 }
 
-/// 确保预编译库可用；缺失时下载并解压。
+/// 尝试按指定 modelset 后缀获取预编译库。
 ///
-/// 返回 `None` 表示应走源码构建：自动下载被禁用、平台/后端/模型组合无对应
-/// 资产、下载失败，或归档身份（audio.cpp commit）与本地 submodule 不符。
-pub fn ensure_prebuilt(target: &str, use_shared_libs: bool) -> Option<PathBuf> {
+/// 返回 `None` 表示该资产不可用（下载失败 / 身份校验未过）或应走源码构建。
+/// 若 modelset 为 `None`，则使用当前 feature 推导的默认 modelset 后缀。
+fn fetch_prebuilt(
+    target: &str,
+    use_shared_libs: bool,
+    modelset_override: Option<&str>,
+) -> Option<PathBuf> {
     if is_disabled() {
         return None;
     }
@@ -54,7 +58,15 @@ pub fn ensure_prebuilt(target: &str, use_shared_libs: bool) -> Option<PathBuf> {
         return None;
     }
 
-    let asset = asset_name(target, use_shared_libs)?;
+    let modelset = modelset_override
+        .map(|s| s.to_string())
+        .or_else(modelset_suffix)?;
+    let os = platform_os(target)?;
+    let backend = backend_suffix()?;
+    let library_type = if use_shared_libs { "dynamic" } else { "static" };
+    let asset = format!(
+        "audio-cpp-prebuilt-{os}-{target}-{backend}-{modelset}-{library_type}.tar.gz"
+    );
     let tag = release_tag();
     let cache_root = cache_root()?;
     let extract_dir = cache_root
@@ -98,11 +110,34 @@ pub fn ensure_prebuilt(target: &str, use_shared_libs: bool) -> Option<PathBuf> {
         }
         Err(err) => {
             println!(
-                "cargo:warning=预编译库下载失败（{err}），回落到源码构建"
+                "cargo:warning=预编译库下载失败（{err}），该资产不可用"
             );
             let _ = fs::remove_dir_all(&extract_dir);
             None
         }
+    }
+}
+
+/// 确保预编译库可用；缺失时下载并解压。
+///
+/// 返回 `None` 表示应走源码构建：自动下载被禁用、平台/后端/模型组合无对应
+/// 资产、下载失败，或归档身份（audio.cpp commit）与本地 submodule 不符。
+///
+/// 只发布 full 全模型资产（full 是任何 model 组合的超集）。因此先尝试精确
+/// 匹配当前 feature 的资产（core / custom-<族>），404 时回退到 full 资产；
+/// 两者都失败才回落到源码构建。full 资产下载体积较大，但保证任何 feature
+/// 组合都能用上预编译加速。
+pub fn ensure_prebuilt(target: &str, use_shared_libs: bool) -> Option<PathBuf> {
+    let exact = modelset_suffix();
+    // 精确资产（core / custom-*）与 full 回退资产。
+    match exact.as_deref() {
+        Some("full") => fetch_prebuilt(target, use_shared_libs, Some("full")),
+        Some(mset) => fetch_prebuilt(target, use_shared_libs, Some(mset))
+            .or_else(|| {
+                println!("cargo:warning=custom/core 资产不可用，回退到 full 全模型资产");
+                fetch_prebuilt(target, use_shared_libs, Some("full"))
+            }),
+        None => fetch_prebuilt(target, use_shared_libs, None),
     }
 }
 
@@ -413,6 +448,11 @@ fn download_with_retry(url: &str, partial: &Path) -> Result<(), String> {
         match try_download(url, partial) {
             Ok(()) => return Ok(()),
             Err(err) => {
+                if is_non_retryable(&err) {
+                    // 4xx（资源不存在 / 权限问题等）为确定性失败，重试无意义，立即返回。
+                    println!("cargo:warning=预编译下载失败（{err}）");
+                    return Err(err);
+                }
                 println!("cargo:warning=预编译下载第 {attempt}/{MAX_ATTEMPTS} 次失败：{err}");
                 last_err = err;
                 std::thread::sleep(std::time::Duration::from_secs(attempt as u64));
@@ -420,6 +460,19 @@ fn download_with_retry(url: &str, partial: &Path) -> Result<(), String> {
         }
     }
     Err(last_err)
+}
+
+/// 判断下载错误是否不可重试：HTTP 4xx（除 429 限流外）为确定性失败。
+fn is_non_retryable(err: &str) -> bool {
+    // 错误串形如 "HTTP GET {url}: https://...: status code 404"。
+    if let Some(pos) = err.rfind("status code ") {
+        if let Some(code) = err[pos + "status code ".len()..].split_whitespace().next() {
+            if let Ok(n) = code.parse::<u16>() {
+                return (400..500).contains(&n) && n != 429;
+            }
+        }
+    }
+    false
 }
 
 fn try_download(url: &str, partial: &Path) -> Result<(), String> {

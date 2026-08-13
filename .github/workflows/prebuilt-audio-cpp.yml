@@ -39,10 +39,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { label: "x64 cpu core",     runner: "ubuntu-24.04",     target: "x86_64-unknown-linux-gnu",   backend: "cpu",    modelset: "core", features: "core-models" }
           - { label: "x64 cpu full",     runner: "ubuntu-24.04",     target: "x86_64-unknown-linux-gnu",   backend: "cpu",    modelset: "full", features: "full-models" }
-          - { label: "x64 vulkan core",  runner: "ubuntu-24.04",     target: "x86_64-unknown-linux-gnu",   backend: "vulkan", modelset: "core", features: "core-models,vulkan" }
-          - { label: "arm64 cpu core",   runner: "ubuntu-24.04-arm", target: "aarch64-unknown-linux-gnu",  backend: "cpu",    modelset: "core", features: "core-models" }
+          - { label: "x64 vulkan full",  runner: "ubuntu-24.04",     target: "x86_64-unknown-linux-gnu",   backend: "vulkan", modelset: "full", features: "full-models,vulkan" }
           - { label: "arm64 cpu full",   runner: "ubuntu-24.04-arm", target: "aarch64-unknown-linux-gnu",  backend: "cpu",    modelset: "full", features: "full-models" }
     env:
       TARGET_TRIPLE: ${{ matrix.target }}
@@ -121,9 +119,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { label: "x64 cpu core",    target: "x86_64-pc-windows-msvc", backend: "cpu",    modelset: "core", features: "core-models" }
           - { label: "x64 cpu full",    target: "x86_64-pc-windows-msvc", backend: "cpu",    modelset: "full", features: "full-models" }
-          - { label: "x64 vulkan core", target: "x86_64-pc-windows-msvc", backend: "vulkan", modelset: "core", features: "core-models,vulkan" }
           - { label: "x64 vulkan full", target: "x86_64-pc-windows-msvc", backend: "vulkan", modelset: "full", features: "full-models,vulkan" }
     env:
       TARGET_TRIPLE: ${{ matrix.target }}
@@ -216,8 +212,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { label: "arm64 cpu core",   target: "aarch64-apple-darwin", backend: "cpu",    modelset: "core", features: "core-models" }
-          - { label: "arm64 metal core", target: "aarch64-apple-darwin", backend: "metal",  modelset: "core", features: "core-models,metal" }
           - { label: "arm64 metal full", target: "aarch64-apple-darwin", backend: "metal",  modelset: "full", features: "full-models,metal" }
     env:
       TARGET_TRIPLE: ${{ matrix.target }}
