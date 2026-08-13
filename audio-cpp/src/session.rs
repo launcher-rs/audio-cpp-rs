@@ -12,7 +12,7 @@
 //! shim 会在每个流事件发生时回传给该闭包（详见 `capi.h` 的
 //! `audiocpp_stream_event_cb`）。回调数据经 `Mutex` 保护，可从 C++ 侧线程调用。
 
-use std::ffi::{c_char, c_void, CString};
+use std::ffi::{c_char, c_void};
 use std::os::raw::{c_int, c_long};
 use std::ptr;
 use std::sync::Mutex;
@@ -21,6 +21,7 @@ use audio_cpp_sys::*;
 
 use crate::error::Error;
 use crate::ffi;
+use crate::request::IntoRequest;
 use crate::types::{StreamEvent, StreamingPolicy, TaskResult};
 
 /// 事件回调的底层存储（box 在堆上，地址稳定，可跨线程）。
@@ -116,13 +117,13 @@ impl Session {
 
     /// 为一次请求做准备（离线与流式共用）。
     ///
-    /// `request_json` 为 JSON 对象，携带 `audio` / `text` / `voice` 等输入，
-    /// 或用 `audio_path` 指向本地 WAV 文件。若为 `None` 则传入空 JSON `{}`。
-    pub fn prepare(&self, request_json: Option<&str>) -> Result<(), Error> {
-        let req_c = match request_json {
-            Some(s) => ffi::cstring(s)?,
-            None => CString::new("{}").expect("'{}' 不含 NUL"),
-        };
+    /// `request` 为 [`crate::request::IntoRequest`]，可用类型化的
+    /// [`crate::request::Request`] 枚举（推荐，每个任务一种变体），或任意
+    /// JSON 字符串。携带 `audio` / `text` / `voice` 等输入，或用 `audio_path`
+    /// 指向本地 WAV 文件。空请求可传 `()`。
+    pub fn prepare<R: IntoRequest>(&self, request: R) -> Result<(), Error> {
+        let json = request.into_request()?.to_json()?;
+        let req_c = ffi::cstring(&json)?;
         ffi::check_rc(unsafe { audiocpp_session_prepare(self.raw, req_c.as_ptr() as *const c_char) })
     }
 
@@ -155,11 +156,12 @@ impl Session {
     }
 
     /// 开始一次流式任务（先 `prepare` 再进入流式读取循环）。
-    pub fn start(&self, request_json: Option<&str>) -> Result<(), Error> {
-        let req_c = match request_json {
-            Some(s) => ffi::cstring(s)?,
-            None => CString::new("{}").expect("'{}' 不含 NUL"),
-        };
+    ///
+    /// `request` 同 [`Session::prepare`]，类型化枚举或 JSON 字符串均可；
+    /// 空请求传 `()`。
+    pub fn start<R: IntoRequest>(&self, request: R) -> Result<(), Error> {
+        let json = request.into_request()?.to_json()?;
+        let req_c = ffi::cstring(&json)?;
         ffi::check_rc(unsafe { audiocpp_session_start(self.raw, req_c.as_ptr() as *const c_char) })
     }
 
@@ -213,9 +215,11 @@ impl Session {
 
     /// 离线执行一次请求，返回 TaskResult。
     ///
-    /// 相当于 `prepare` + 一次完整执行（shim 内部已做 prepare）。
-    pub fn run_offline(&self, request_json: &str) -> Result<TaskResult, Error> {
-        let req_c = ffi::cstring(request_json)?;
+    /// 相当于 `prepare` + 一次完整执行（shim 内部已做 prepare）。`request`
+    /// 同 [`Session::prepare`]，类型化枚举或 JSON 字符串均可。
+    pub fn run_offline<R: IntoRequest>(&self, request: R) -> Result<TaskResult, Error> {
+        let json = request.into_request()?.to_json()?;
+        let req_c = ffi::cstring(&json)?;
         let mut out: *mut c_char = ptr::null_mut();
         ffi::check_rc(unsafe { audiocpp_session_run_offline(self.raw, req_c.as_ptr() as *const c_char, &mut out) })?;
         if out.is_null() {

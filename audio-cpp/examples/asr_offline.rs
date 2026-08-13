@@ -17,7 +17,7 @@
 //! ```
 //! 音频建议 16k 单声道 WAV（英文）。
 
-use audio_cpp::{Backend, ModelFamily, Registry, RunMode, TaskKind};
+use audio_cpp::{Backend, ModelFamily, Registry, Request, RunMode, TaskKind};
 
 fn main() -> Result<(), audio_cpp::Error> {
     let args: Vec<String> = std::env::args().collect();
@@ -57,12 +57,8 @@ fn main() -> Result<(), audio_cpp::Error> {
     )?;
     println!("会话: family={} task={} mode={}", session.family(), session.task_kind(), session.run_mode());
 
-    // 4. 离线转录：请求里直接用 audio_path 指向 WAV 文件。
-    let request = format!(
-        r#"{{"audio_path":"{}"}}"#,
-        wav_path.replace('\\', "\\\\").replace('"', "\\\"")
-    );
-    let result = session.run_offline(&request)?;
+    // 4. 离线转录：请求里用 audio_path 指向 WAV 文件（路径由序列化自动转义）。
+    let result = session.run_offline(Request::asr(wav_path))?;
 
     // 5. 打印转录文本。
     match &result.text_output {

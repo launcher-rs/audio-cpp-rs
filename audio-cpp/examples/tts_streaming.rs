@@ -27,7 +27,7 @@
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
-use audio_cpp::{Backend, ModelFamily, Registry, RunMode, StreamEvent, TaskKind};
+use audio_cpp::{Backend, ModelFamily, Registry, Request, RunMode, StreamEvent, TaskKind};
 
 /// 把交错 f32 采样写入 16-bit PCM WAV 文件。
 fn write_wav_pcm16(path: &str, samples: &[f32], sample_rate: i32, channels: u16) -> std::io::Result<()> {
@@ -95,14 +95,10 @@ fn main() -> Result<(), audio_cpp::Error> {
         }
     }));
 
-    // 4. 启动流式合成。文本经请求 JSON 的 text 字段送入；合成在 start 内整段跑完。
+    // 4. 启动流式合成。文本经 text 字段送入；合成在 start 内整段跑完。
     //    流式要求 retry_badcase=false（上游限制），其余参数可选。
-    let request = format!(
-        r#"{{"text":"{}","options":{{"retry_badcase":false}}}}"#,
-        text.replace('"', "\\\"")
-    );
+    session.start(Request::tts(text).option("retry_badcase", false))?;
     println!("请求文本: {text}");
-    session.start(Some(&request))?;
 
     // 5. 聚合最终结果。
     let result = session.finish()?;

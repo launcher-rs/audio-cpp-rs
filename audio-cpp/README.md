@@ -42,14 +42,37 @@ cargo build --features full-models,cuda       # 全量 + GPU 后端
 Registry::new()                # 枚举已编译的模型族/loader/设备
  └─ registry.load(path, family_hint, options) → Model
      └─ model.create_task_session(task, mode, backend, device, threads, opts) → Session
-         ├─ 离线:     session.run_offline(request_json) → TaskResult
+         ├─ 离线:     session.run_offline(Request) → TaskResult
          └─ 流式:     session.set_event_callback(cb)
-                      session.start(json) → process_audio(&[f32], ...) → ... → finish() → TaskResult
+                      session.start(Request) → process_audio(&[f32], ...) → ... → finish() → TaskResult
                       session.reset()     # 复用会话开始新一轮
 ```
 
 各对象持有 C 句柄并在 `Drop` 中释放；`Model` 不管理 `Registry` 的生命周期，
 注册表应存活于所有派生模型的使用期之内。
+
+所有请求都用类型化的 [`Request`](src/request.rs) 枚举构造（也可直接传 JSON
+字符串透传）：每个任务一种变体、携带各自参数，无需手工拼接或转义 JSON，
+Windows 路径也不需要转义反斜杠。
+
+```rust
+use audio_cpp::Request;
+
+let r1 = Request::vad(".\\speech.wav").option("vad_threshold", 0.5); // VAD：音频 + 阈值
+let r2 = Request::asr(".\\speech.wav");                              // ASR / 分离等：音频
+let r3 = Request::asr(".\\speech.wav").option("audio_chunk_seconds", 3.0); // 流式窗口
+let r4 = Request::tts("Hello!");                                     // TTS：文本
+let r5 = Request::tts("Hello!").reference(".\\ref.wav")              // TTS 声音克隆
+                                  .reference_text("参考文本转写");
+let r6 = Request::diar(".\\speech.wav");       // 说话人分离
+let r7 = Request::source_separation(".\\song.wav"); // 音乐源分离
+let r8 = Request::json(r#"{"audio_path":"x.wav"}"#); // 原始 JSON 透传
+
+let json = r1.to_json()?;   // 序列化为 JSON 字符串
+```
+
+常用链式方法：`option(key, value)` / `options([...])`（任意任务）、
+`reference(audio)` / `reference_text(text)` / `language(lang)`（TTS）。
 
 ## 基本用法
 
@@ -69,7 +92,7 @@ for loader in registry.loaders()? {
 ### 2. 离线 VAD（silero_vad，内置权重开箱即用）
 
 ```rust
-use audio_cpp::{Backend, Registry, RunMode, TaskKind};
+use audio_cpp::{Backend, Registry, Request, RunMode, TaskKind};
 
 let registry = Registry::new()?;
 let model = registry.load("./silero_vad_16k.safetensors", None, None)?;
@@ -77,8 +100,9 @@ let model = registry.load("./silero_vad_16k.safetensors", None, None)?;
 let session = model.create_task_session(
     TaskKind::Vad, RunMode::Offline, Backend::Cpu, 0, 4, None,
 )?;
-let request = r#"{"audio_path":"./sample.wav","options":{"vad_threshold":0.5}}"#;
-let result = session.run_offline(request)?;
+let result = session.run_offline(
+    Request::vad("./sample.wav").option("vad_threshold", 0.5),
+)?;
 
 for seg in &result.speech_segments {
     println!("语音 {}..{} 置信度={}", seg.span.start_sample, seg.span.end_sample, seg.confidence);
@@ -109,7 +133,7 @@ session.set_event_callback(Some(move |ev: StreamEvent| {
     }
 }));
 
-session.start(None)?;
+session.start(())?;   // VAD 流式无需请求参数
 for block in wav.samples.chunks(chunk) {
     // 流式会话要求每块恰好 chunk 个采样：末尾不足补零。
     let mut padded = vec![0f32; chunk];
@@ -127,7 +151,7 @@ session.reset();                  // 复用会话重新开始
 ### 4. 离线 ASR（Citrinet，需按需编译）
 
 ```rust
-use audio_cpp::{Backend, ModelFamily, Registry, RunMode, TaskKind};
+use audio_cpp::{Backend, ModelFamily, Registry, Request, RunMode, TaskKind};
 
 let registry = Registry::new()?;
 // GGUF 无法自动探测族别（会误判为 silero_vad），必须显式 family_hint。
@@ -136,8 +160,7 @@ let session = model.create_task_session(
     TaskKind::Asr, RunMode::Offline, Backend::Cpu, 0, 4, None,
 )?;
 
-let request = r#"{"audio_path":"./speech.wav"}"#;
-let result = session.run_offline(request)?;
+let result = session.run_offline(Request::asr("./speech.wav"))?;
 if let Some(text) = &result.text_output {
     println!("转录: {}", text.text);
 }
@@ -152,7 +175,7 @@ Qwen3 ASR 同时支持离线与流式。流式会话与 VAD 类似：
 
 ```rust
 use std::sync::{Arc, Mutex};
-use audio_cpp::{Backend, ModelFamily, Registry, RunMode, StreamEvent, TaskKind, load_wav};
+use audio_cpp::{Backend, ModelFamily, Registry, Request, RunMode, StreamEvent, TaskKind, load_wav};
 
 let registry = Registry::new()?;
 let model = registry.load("./qwen3-asr-q8_0.gguf", Some(ModelFamily::Qwen3Asr), None)?;
@@ -172,8 +195,8 @@ session.set_event_callback(Some(move |ev: StreamEvent| {
 }));
 
 // streaming 的 start 请求须含音频契约（audio_path 或 audio 对象）。
-let request = r#"{"audio_path":"./speech.wav","options":{"audio_chunk_seconds":3.0}}"#;
-session.start(Some(request))?;
+let request = Request::asr("./speech.wav").option("audio_chunk_seconds", 3.0);
+session.start(request)?;
 
 let chunk = (policy.preferred_audio_chunk_seconds * wav.sample_rate as f64).round() as usize;
 for block in wav.samples.chunks(chunk) {
@@ -189,7 +212,7 @@ session.reset();
 ### 6. 离线 TTS（MOSS-TTS-Nano，需 custom-models 构建）
 
 ```rust
-use audio_cpp::{Backend, ModelFamily, Registry, RunMode, TaskKind};
+use audio_cpp::{Backend, ModelFamily, Registry, Request, RunMode, TaskKind};
 
 let registry = Registry::new()?;
 let model = registry.load("./moss-tts-nano-100m-q8_0.gguf", Some(ModelFamily::MossTtsNano), None)?;
@@ -197,8 +220,7 @@ let session = model.create_task_session(
     TaskKind::Tts, RunMode::Offline, Backend::Cpu, 0, 4, None,
 )?;
 
-let request = r#"{"text":"Hello from Rust and audio.cpp!"}"#;
-let result = session.run_offline(request)?;
+let result = session.run_offline(Request::tts("Hello from Rust and audio.cpp!"))?;
 
 // 合成音频在 audio_output.samples（f32，交错存放），值域 -1..1。
 let audio = result.audio_output.expect("TTS 应返回音频");
@@ -213,6 +235,7 @@ println!("{}Hz {}ch {} 采样", audio.sample_rate, audio.channels, samples.len()
 | [`Registry`](src/registry.rs) | 枚举模型族 / loader / 设备；`load()` 加载模型 |
 | [`Model`](src/model.rs) | 已加载模型：`metadata()` / `capabilities()` / `create_task_session()` |
 | [`Session`](src/session.rs) | 任务会话：离线 `run_offline()`；流式 `start`/`process_audio`/`finish`/`reset` |
+| [`Request`](src/request.rs) | 类型化请求枚举：`Request::vad` / `asr` / `diar` / `source_separation` / `tts` / `json`；`option(...)` / `reference(...)` |
 | [`TaskKind`](src/types.rs) | `Vad` / `Asr` / `Tts` / `Diar` / `SourceSeparation` |
 | [`ModelFamily`](src/types.rs) | 模型族枚举（`Qwen3Asr` / `CitrinetAsr` / `Htdemucs` / …；未收录族用 `Custom(String)`） |
 | [`RunMode`](src/types.rs) | `Offline` / `Streaming` |
@@ -221,8 +244,9 @@ println!("{}Hz {}ch {} 采样", audio.sample_rate, audio.channels, samples.len()
 | [`StreamEvent`](src/types.rs) | 流式事件：`voice_activity` / `partial_text` / `audio_output` / `named_audio_outputs` / `is_final` |
 | [`load_wav`](src/audio.rs) | 读 WAV 为 `WavAudio { sample_rate, channels, samples }` |
 
-所有枚举的 `as_str()` 返回传给 C 边界的字符串；结构化数据一律走 JSON
-（`request_json` 为任意 JSON 对象，如 `{"audio_path":...,"options":{...}}`）。
+所有枚举的 `as_str()` 返回传给 C 边界的字符串；结构化数据一律走 JSON。请求用
+类型化 [`Request`](src/request.rs) 构造（也可传任意 JSON 字符串透传，如
+`session.run_offline(r#"{"audio_path":...}"#)`）。
 
 ## 注意事项
 
@@ -232,8 +256,9 @@ println!("{}Hz {}ch {} 采样", audio.sample_rate, audio.channels, samples.len()
   用 [`ModelFamily`](src/types.rs) 枚举代替裸字符串（如
   `Some(ModelFamily::Qwen3Asr)`）可避免拼写错误；内置 silero_vad 可省略。
 - **阈值选项键**：silero_vad 用 `vad_threshold`，marblenet_vad 用 `threshold`。
-- **Windows 路径**：请求 JSON 中的反斜杠必须转义（`\\`），建议改用正斜杠；
-  `\a` 等非法转义会让 shim 解析失败。
+- **Windows 路径**：用 [`Request`](src/request.rs) 构造器时反斜杠无需转义；
+  若直接传 JSON 字符串，则反斜杠必须转义（`\\`），`\a` 等非法转义会让 shim
+  解析失败。
 - **线程**：`Session` 为 `Send`；事件回调要求 `Send` 闭包，可能从 C++ 线程调用。
 - **错误**：所有方法返回 [`Error`](src/error.rs)，底层错误信息经
   `audiocpp_last_error()` 透传，为类型化枚举，可用 `?` 传播。

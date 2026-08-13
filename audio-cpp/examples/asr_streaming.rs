@@ -28,7 +28,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use audio_cpp::{load_wav, Backend, ModelFamily, Registry, RunMode, StreamEvent, TaskKind};
+use audio_cpp::{load_wav, Backend, ModelFamily, Registry, Request, RunMode, StreamEvent, TaskKind};
 
 fn main() -> Result<(), audio_cpp::Error> {
     let args: Vec<String> = std::env::args().collect();
@@ -71,13 +71,10 @@ fn main() -> Result<(), audio_cpp::Error> {
     // 4. 开流，按窗口秒数输出部分转录（窗口越短事件越频繁，单窗口计算量更小）。
     //    Qwen3 ASR 的 streaming 要求 prepare 时拿到音频契约：start 请求传
     //    audio_path（或 audio 对象）即可，示例里引擎用它建立契约、随后我们再
-    //    逐块 process_audio 送入同样的音频。Windows 路径需转义反斜杠。
-    let request = format!(
-        r#"{{"audio_path":"{}","options":{{"audio_chunk_seconds":3.0}}}}"#,
-        wav_path.replace('\\', "\\\\").replace('"', "\\\"")
-    );
-    println!("请求: {request}");
-    session.start(Some(&request))?;
+    //    逐块 process_audio 送入同样的音频。Windows 路径由序列化自动转义。
+    let request = Request::asr(wav_path).option("audio_chunk_seconds", 3.0);
+    println!("请求: {}", request.to_json()?);
+    session.start(request)?;
 
     // 5. 分块送入音频。策略给出推荐块大小（qwen3_asr 只给秒数不给采样数，
     //    此时按 sample_rate × 秒数换算）；引擎内部会缓冲合并，分块大小不敏感。

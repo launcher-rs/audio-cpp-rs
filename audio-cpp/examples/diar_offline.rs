@@ -18,7 +18,7 @@
 //! （24kHz mono 四说话人），需先重采样到 16kHz。输出中的 confidence 恒为 0
 //! （上游 postprocess 未填充，SortFormer 本身不输出逐段置信度）。
 
-use audio_cpp::{Backend, ModelFamily, Registry, RunMode, TaskKind};
+use audio_cpp::{Backend, ModelFamily, Registry, Request, RunMode, TaskKind};
 
 fn main() -> Result<(), audio_cpp::Error> {
     let args: Vec<String> = std::env::args().collect();
@@ -56,11 +56,7 @@ fn main() -> Result<(), audio_cpp::Error> {
     println!("会话: family={} task={} mode={}", session.family(), session.task_kind(), session.run_mode());
 
     // 4. 离线执行：请求里用 audio_path 指向 WAV 文件（须 16kHz mono）。
-    let request = format!(
-        r#"{{"audio_path":"{}"}}"#,
-        wav_path.replace('\\', "\\\\").replace('"', "\\\"")
-    );
-    let result = session.run_offline(&request)?;
+    let result = session.run_offline(Request::diar(wav_path))?;
 
     // 5. 打印每个说话人的发言时间段。
     println!("=== 说话人分离结果 ===");

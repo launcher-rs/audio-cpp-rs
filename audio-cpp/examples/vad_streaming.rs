@@ -62,7 +62,7 @@ fn main() -> Result<(), audio_cpp::Error> {
         512
     };
 
-    session.start(None)?;
+    session.start(())?;
     let mut pos = 0usize;
     let mut start_sample = 0i64;
     while pos < wav.samples.len() {

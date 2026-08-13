@@ -19,7 +19,7 @@
 //!
 //! 加载模型并做一次离线 VAD（需 silero 权重与 wav 文件）：
 //! ```no_run
-//! use audio_cpp::{Backend, Registry, RunMode, TaskKind};
+//! use audio_cpp::{Backend, Registry, Request, RunMode, TaskKind};
 //!
 //! let registry = Registry::new()?;
 //! let model = registry.load("./silero_vad_16k.safetensors", None, None)?;
@@ -31,8 +31,9 @@
 //!     4,
 //!     None,
 //! )?;
-//! let request = r#"{"audio_path":"./sample.wav","options":{"vad_threshold":0.5}}"#;
-//! let result = session.run_offline(request)?;
+//! let result = session.run_offline(
+//!     Request::vad("./sample.wav").option("vad_threshold", 0.5),
+//! )?;
 //! for seg in &result.speech_segments {
 //!     println!("语音: {:?}..{:?} 置信度={}", seg.span.start_sample, seg.span.end_sample, seg.confidence);
 //! }
@@ -52,6 +53,9 @@ mod error;
 pub use error::Error;
 
 mod ffi;
+
+mod request;
+pub use request::{AudioInput, AudioRequest, IntoRequest, Request, TtsRequest};
 
 mod types;
 pub use types::{

@@ -31,7 +31,7 @@
 
 use std::io::Write;
 
-use audio_cpp::{Backend, ModelFamily, Registry, RunMode, TaskKind};
+use audio_cpp::{Backend, ModelFamily, Registry, Request, RunMode, TaskKind};
 
 /// 把交错 f32 采样写入 16-bit PCM WAV 文件。
 fn write_wav_pcm16(path: &str, samples: &[f32], sample_rate: i32, channels: u16) -> std::io::Result<()> {
@@ -93,18 +93,16 @@ fn main() -> Result<(), audio_cpp::Error> {
     )?;
     println!("会话: family={} task={} mode={}", session.family(), session.task_kind(), session.run_mode());
 
-    // 3. 构造请求：text 为待合成文本；audio_path 指向参考人声；
-    //    options.reference_text 为参考音频文本转写。
-    let request = format!(
-        r#"{{"text":"{}","audio_path":"{}","options":{{"reference_text":"{}"}}}}"#,
-        text.replace('"', "\\\""),
-        reference_path.replace('\\', "\\\\").replace('"', "\\\""),
-        reference_text.replace('"', "\\\"")
-    );
+    // 3. 构造请求：text 为待合成文本；reference 指向参考人声（声音克隆）；
+    //    reference_text 为参考音频文本转写（Windows 路径无需手动转义）。
+    let result = session.run_offline(
+        Request::tts(&text)
+            .reference(reference_path)
+            .reference_text(reference_text),
+    )?;
     println!("参考音频: {reference_path}");
     println!("参考文本: {reference_text}");
     println!("合成文本: {text}");
-    let result = session.run_offline(&request)?;
 
     // 4. 取出合成的音频并写入 WAV 文件。
     let audio = result

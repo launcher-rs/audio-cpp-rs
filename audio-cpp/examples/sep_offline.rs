@@ -18,7 +18,7 @@
 
 use std::io::Write;
 
-use audio_cpp::{Backend, ModelFamily, Registry, RunMode, TaskKind};
+use audio_cpp::{Backend, ModelFamily, Registry, Request, RunMode, TaskKind};
 
 /// 把交错 f32 采样写入 16-bit PCM WAV 文件。
 fn write_wav_pcm16(path: &str, samples: &[f32], sample_rate: i32, channels: u16) -> std::io::Result<()> {
@@ -86,12 +86,7 @@ fn main() -> Result<(), audio_cpp::Error> {
     println!("会话: family={} task={} mode={}", session.family(), session.task_kind(), session.run_mode());
 
     // 4. 离线执行：请求里用 audio_path 指向 WAV 文件（须 44100Hz stereo）。
-    let request = format!(
-        r#"{{"audio_path":"{}"}}"#,
-        wav_path.replace('\\', "\\\\").replace('"', "\\\"")
-    );
-    println!("请求: {request}");
-    let result = session.run_offline(&request)?;
+    let result = session.run_offline(Request::source_separation(wav_path))?;
 
     // 5. 把每个分离源写入独立 WAV。
     println!("=== 分离结果 ===");

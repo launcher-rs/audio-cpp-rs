@@ -24,7 +24,7 @@
 //!     marblenet_vad
 //! ```
 
-use audio_cpp::{Backend, ModelFamily, Registry, RunMode, TaskKind};
+use audio_cpp::{Backend, ModelFamily, Registry, Request, RunMode, TaskKind};
 
 fn main() -> Result<(), audio_cpp::Error> {
     let args: Vec<String> = std::env::args().collect();
@@ -59,12 +59,9 @@ fn main() -> Result<(), audio_cpp::Error> {
     // 4. 构造请求并离线执行。
     //    不同 VAD 的阈值选项键不同：silero_vad 用 vad_threshold，marblenet 用 threshold。
     let threshold_key = if session.family() == "marblenet_vad" { "threshold" } else { "vad_threshold" };
-    let request = format!(
-        r#"{{"audio_path":"{}","options":{{"{}":0.5}}}}"#,
-        wav_path,
-        threshold_key
-    );
-    let result = session.run_offline(&request)?;
+    let result = session.run_offline(
+        Request::vad(wav_path).option(threshold_key, 0.5),
+    )?;
 
     // 5. 打印语音片段。
     println!("=== 语音片段 ===");

@@ -18,7 +18,7 @@
 
 use std::io::Write;
 
-use audio_cpp::{Backend, ModelFamily, Registry, RunMode, TaskKind};
+use audio_cpp::{Backend, ModelFamily, Registry, Request, RunMode, TaskKind};
 
 /// 把 (-1..1) 的 f32 采样写入 16-bit PCM WAV 文件。
 ///
@@ -89,9 +89,7 @@ fn main() -> Result<(), audio_cpp::Error> {
     println!("会话: family={} task={} mode={}", session.family(), session.task_kind(), session.run_mode());
 
     // 4. 合成：请求带 text 输入（当前 C ABI 对 voice 参考支持有限，用默认音色）。
-    let request = format!(r#"{{"text":"{}"}}"#, text.replace('"', "\\\""));
-    println!("请求文本: {text}");
-    let result = session.run_offline(&request)?;
+    let result = session.run_offline(Request::tts(&text))?;
 
     // 5. 取出合成的音频并写入 WAV 文件。
     let audio = result
