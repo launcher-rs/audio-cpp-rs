@@ -19,7 +19,7 @@ dependencies = [
 
 [[package]]
 name = "audio-cpp"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "audio-cpp-sys",
  "serde",
@@ -29,7 +29,7 @@ dependencies = [
 
 [[package]]
 name = "audio-cpp-sys"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "bindgen",
  "cc",
