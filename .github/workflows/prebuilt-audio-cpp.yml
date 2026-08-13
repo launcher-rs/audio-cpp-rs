@@ -115,7 +115,7 @@ jobs:
   windows-prebuilt:
     name: Windows prebuilt (${{ matrix.label }})
     if: ${{ inputs.platform == '' || inputs.platform == 'all' || inputs.platform == 'windows' }}
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 150
     strategy:
       fail-fast: false
