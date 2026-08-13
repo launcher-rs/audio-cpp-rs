@@ -86,6 +86,7 @@ jobs:
 
       - name: Compute asset name
         id: asset
+        shell: bash
         run: echo "ASSET_NAME=audio-cpp-prebuilt-linux-${TARGET_TRIPLE}-${{ matrix.backend }}-${{ matrix.modelset }}-static.tar.gz" >> "$GITHUB_ENV"
 
       - name: Collect prebuilt libraries
@@ -159,6 +160,7 @@ jobs:
 
       - name: Compute asset name
         id: asset
+        shell: bash
         run: echo "ASSET_NAME=audio-cpp-prebuilt-windows-${TARGET_TRIPLE}-${{ matrix.backend }}-${{ matrix.modelset }}-static.tar.gz" >> "$GITHUB_ENV"
 
       - name: Collect prebuilt libraries
@@ -226,6 +228,7 @@ jobs:
             --features "${{ matrix.features }}"
 
       - name: Compute asset name
+        shell: bash
         run: echo "ASSET_NAME=audio-cpp-prebuilt-macos-${TARGET_TRIPLE}-${{ matrix.backend }}-${{ matrix.modelset }}-static.tar.gz" >> "$GITHUB_ENV"
 
       - name: Collect prebuilt libraries
