@@ -177,24 +177,12 @@ jobs:
               $msvcDir = Get-ChildItem "$vs\VC\Tools\MSVC" -Directory -ErrorAction SilentlyContinue |
                 Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
               if ($msvcDir) {
-                $msvcVer = ($msvcDir.Name -split '\.')[0..1] -join ''
+                # 目录名如 "14.44.35207"：MSVC 14.4x 的 _MSC_VER = 1900 + 次版本（14.44 → 1944）。
+                $parts = ($msvcDir.Name -split '\.')
+                if ($parts[0] -eq '14' -and $parts.Count -ge 2) {
+                  $msvcVer = 1900 + [int]$parts[1]
+                }
               }
-            }
-          }
-          $probe = @'
-          #include <stdio.h>
-          int main(void) { printf("%d", _MSC_VER); return 0; }
-          '@
-          $msvc = Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Visual Studio" -Recurse -Filter cl.exe -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -match 'Hostx64\\x64' } | Select-Object -First 1
-          if ($msvc) {
-            $probeFile = Join-Path $env:RUNNER_TEMP 'probe.c'
-            Set-Content -Path $probeFile -Value $probe -Encoding ascii
-            $probeExe = Join-Path $env:RUNNER_TEMP 'probe.exe'
-            & $msvc.FullName /nologo /W0 $probeFile /Fe:$probeExe /link 2>$null | Out-Null
-            if (Test-Path $probeExe) {
-              $msvcVer = & $probeExe
-              Remove-Item $probeExe, $probeFile, (Join-Path $env:RUNNER_TEMP 'probe.obj') -ErrorAction SilentlyContinue
             }
           }
           $json = @{
