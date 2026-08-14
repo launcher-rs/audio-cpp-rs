@@ -78,6 +78,8 @@ pub enum ModelFamily {
     Qwen3Asr,
     /// Citrinet ASR
     CitrinetAsr,
+    /// SenseVoice ASR（阿里，社区模型）
+    SenseAsr,
     /// Fun ASR Nano
     FunAsrNano,
     /// Higgs Audio STT
@@ -187,6 +189,7 @@ impl ModelFamily {
             ModelFamily::MarblenetVad => "marblenet_vad",
             ModelFamily::Qwen3Asr => "qwen3_asr",
             ModelFamily::CitrinetAsr => "citrinet_asr",
+            ModelFamily::SenseAsr => "sense_asr",
             ModelFamily::FunAsrNano => "fun_asr_nano",
             ModelFamily::HiggsAudioStt => "higgs_audio_stt",
             ModelFamily::HviskeAsr => "hviske_asr",
@@ -244,6 +247,7 @@ impl From<&str> for ModelFamily {
             "marblenet_vad" => ModelFamily::MarblenetVad,
             "qwen3_asr" => ModelFamily::Qwen3Asr,
             "citrinet_asr" => ModelFamily::CitrinetAsr,
+            "sense_asr" => ModelFamily::SenseAsr,
             "fun_asr_nano" => ModelFamily::FunAsrNano,
             "higgs_audio_stt" => ModelFamily::HiggsAudioStt,
             "hviske_asr" => ModelFamily::HviskeAsr,

@@ -41,6 +41,7 @@ model-kroko-asr = ["audio-cpp-sys/model-kroko-asr"]         # ASR：Kroko
 model-nemotron-asr = ["audio-cpp-sys/model-nemotron-asr"]   # ASR：Nemotron
 model-parakeet-tdt = ["audio-cpp-sys/model-parakeet-tdt"]   # ASR：Parakeet TDT
 model-qwen3-asr = ["audio-cpp-sys/model-qwen3-asr"]         # ASR：Qwen3
+model-sense-asr = ["audio-cpp-sys/model-sense-asr"]         # ASR：SenseVoice
 model-vibevoice-asr = ["audio-cpp-sys/model-vibevoice-asr"] # ASR：VibeVoice
 model-moss = ["audio-cpp-sys/model-moss"]                   # TTS：MOSS
 model-qwen3-tts = ["audio-cpp-sys/model-qwen3-tts"]         # TTS：Qwen3

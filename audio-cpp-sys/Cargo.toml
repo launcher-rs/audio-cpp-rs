@@ -76,6 +76,7 @@ model-kroko-asr = ["custom-models"]      # ASR：Kroko 识别
 model-nemotron-asr = ["custom-models"]   # ASR：NVIDIA Nemotron 识别
 model-parakeet-tdt = ["custom-models"]   # ASR：NVIDIA Parakeet TDT
 model-qwen3-asr = ["custom-models"]      # ASR：Qwen3 ASR（已验证）
+model-sense-asr = ["custom-models"]      # ASR：SenseVoice（阿里）
 model-vibevoice-asr = ["custom-models"]  # ASR：VibeVoice 语音
 model-moss = ["custom-models"]           # TTS：MOSS（moss_tts_nano / moss_tts_local，已验证）
 model-qwen3-tts = ["custom-models"]      # TTS：Qwen3 TTS
