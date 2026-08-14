@@ -111,6 +111,22 @@ fn target_os() -> String {
     }
 }
 
+/// 是否启用了 Rust 目标的 `crt-static`（静态 CRT 链接）。
+///
+/// 通过 cargo 注入的 `CARGO_CFG_TARGET_FEATURE` 环境变量检测（如
+/// `-C target-feature=+crt-static` 会令其含 `crt-static`）。MSVC 下开启后：
+/// - cc crate 编译的 C shim（capi.o）会自动加 `/MT`（静态 CRT）；
+/// - Rust 自身 std 也按静态 CRT 链接；
+/// - 但 CMake 构建的 engine_runtime 默认 `/MD`（动态 CRT），预编译资产同样
+///   是 `/MD`，混链接会报 LNK2038（RuntimeLibrary 不匹配）与 LNK2019
+///   （`__imp_*` 符号无法解析）。
+/// 因此 build.rs 需据此强制 CMake 全目标 `/MT`，且跳过 `/MD` 的预编译资产。
+fn crt_static_enabled() -> bool {
+    env::var("CARGO_CFG_TARGET_FEATURE")
+        .map(|f| f.split(',').any(|s| s.trim() == "crt-static"))
+        .unwrap_or(false)
+}
+
 /// 收集 audio.cpp CMake 构建产出的静态库文件名（去掉前缀/后缀）。
 ///
 /// audio.cpp 产出：`engine_runtime`、`ggml`、`ggml-cpu`、`ggml-base`、
@@ -441,6 +457,7 @@ fn main() {
     println!("cargo:rerun-if-changed=capi.h");
     println!("cargo:rerun-if-changed=capi.cpp");
     println!("cargo:rerun-if-env-changed=AUDIOCPP_PREBUILT_DIR");
+    println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_FEATURE"); // crt-static 切换会重跑
     println!("cargo:rerun-if-env-changed=AUDIOCPP_PREBUILT_TAG");
     println!("cargo:rerun-if-env-changed=AUDIOCPP_PREBUILT_REPO");
     println!("cargo:rerun-if-env-changed=AUDIOCPP_PREBUILT_URL");
@@ -451,6 +468,7 @@ fn main() {
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let os = target_os();
+    let crt_static = crt_static_enabled();
 
     // ------------------------------------------------------------------
     // 可选预编译旁路：设置 AUDIOCPP_PREBUILT_DIR 后跳过整个 CMake 构建，
@@ -460,7 +478,14 @@ fn main() {
     // 目录布局灵活：库文件可在 <dir>、<dir>/lib、<dir>/lib64、<dir>/bin。
     // 仍依赖 audio.cpp 源码头文件编译 C shim（capi.cpp），故 prebuilt 旁路
     // 也会调用 ensure_audio_src()；只是不做 CMake 构建。
+    //
+    // CRT 变体：Windows 预编译资产区分 `/MD`（动态 CRT，资产名 `-md`）与
+    // `/MT`（静态 CRT，`crt-static` 开启，资产名 `-mt`）。crt-static 时下载端
+    // 自动选 `-mt` 资产，无匹配资产（如旧 release 只发过 md）才回退源码构建，
+    // 源码构建仍会走下方 CMake 的 /MT 强制逻辑。Linux/macOS 无此维度。
     // ------------------------------------------------------------------
+    // 预编译是否会被尝试：显式 AUDIOCPP_PREBUILT_DIR 或启用了 `prebuilt`
+    // feature（自动下载）。两者都没有时走纯源码构建。
     if let Some(prebuilt_dir) = resolve_prebuilt_directory(false) {
         println!(
             "cargo:warning=使用预编译 audio.cpp 静态库：{}（跳过 CMake 构建）",
@@ -544,9 +569,30 @@ fn main() {
     //                解析，含中文文本的源（如 chinese_normalization.cpp）会报
     //                C2001；上游只给个别文件加了此选项，这里对所有目标生效。
     //   - /EHsc   —— 启用 C++ 异常展开语义，避免 C4530 警告。
+    //   - crt-static：强制 CMake 全目标 `/MT`（静态 CRT）。cargo 开启
+    //     `-C target-feature=+crt-static` 后，Rust 侧 std 与 cc 编译的 C shim
+    //     都是 `/MT`，若 engine_runtime 仍是默认 `/MD` 会链接报 LNK2038 /
+    //     LNK2019（`__imp_*` 无法解析）。这里用 CMP0091 的
+    //     CMAKE_MSVC_RUNTIME_LIBRARY 统一切换；`sentencepiece` 等子目录
+    //     cmake_minimum_required 较低（3.5），需显式
+    //     CMAKE_POLICY_DEFAULT_CMP0091=NEW 强制策略，否则不会继承 `/MT`。
     if os == "windows" {
         config.cxxflag("/utf-8").cxxflag("/EHsc");
         config.cflag("/utf-8");
+        if crt_static {
+            let profile = env::var("AUDIOCPP_LIB_PROFILE").unwrap_or_else(|_| "Release".to_string());
+            let runtime = if profile.contains("Debug") {
+                "MultiThreadedDebug"
+            } else {
+                "MultiThreaded"
+            };
+            config.define("CMAKE_POLICY_DEFAULT_CMP0091", "NEW");
+            config.define("CMAKE_MSVC_RUNTIME_LIBRARY", runtime);
+            println!(
+                "cargo:warning=crt-static 已启用：CMake 全目标强制 /MT（{}）",
+                runtime
+            );
+        }
     }
 
     // 只构建库本身，关闭示例/测试/benchmark，避免无关目标进入构建图。
@@ -563,7 +609,19 @@ fn main() {
     config.define("ENGINE_ENABLE_VULKAN", if cfg!(feature = "vulkan") { "ON" } else { "OFF" });
     let metal_on = cfg!(feature = "metal") || (os == "apple");
     config.define("ENGINE_ENABLE_METAL", if metal_on { "ON" } else { "OFF" });
-    config.define("ENGINE_ENABLE_OPENMP", if cfg!(feature = "openmp") { "ON" } else { "OFF" });
+    // OpenMP：既控制 engine_runtime 自身的链接（ENGINE_ENABLE_OPENMP），
+    // 也要同步 ggml 的 GGML_OPENMP（上游 audio.cpp 未把它接到前者，默认 ON，
+    // 若不显式关闭，ggml 内部仍会 /openmp 编译并动态链接 vcomp140.dll）。
+    // MSVC 的 OpenMP 运行时只有 DLL 版（vcomp140，无静态库），因此
+    // crt-static（静态 CRT）下必须彻底关闭 OpenMP，否则产物仍依赖该 DLL。
+    let openmp_on = cfg!(feature = "openmp") && !(crt_static && os == "windows");
+    config.define("ENGINE_ENABLE_OPENMP", if openmp_on { "ON" } else { "OFF" });
+    config.define("GGML_OPENMP", if openmp_on { "ON" } else { "OFF" });
+    if crt_static && os == "windows" && cfg!(feature = "openmp") {
+        println!(
+            "cargo:warning=crt-static 已启用：MSVC OpenMP 运行时无静态版（vcomp140.dll），强制关闭 OpenMP"
+        );
+    }
     config.define("ENGINE_ENABLE_NATIVE_CPU", if cfg!(feature = "native") { "ON" } else { "OFF" });
 
     // 把所有静态归档统一输出到 OUT_DIR/lib，便于后续 glob 收集与链接。

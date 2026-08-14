@@ -2,9 +2,11 @@
 //!
 //! 资产由 CI（.github/workflows/prebuilt-audio-cpp.yml）在打 tag 时生成并上传到
 //! GitHub Releases，命名约定：
-//! `audio-cpp-prebuilt-{linux|macos|windows}-{target}-{backend}-{modelset}-{static|dynamic}.tar.gz`
+//! `audio-cpp-prebuilt-{linux|macos|windows}-{target}-{backend}[-{crt}]-{modelset}-{static|dynamic}.tar.gz`
 //! 其中：
 //!   - `backend`：cpu / vulkan / metal（cuda / hip 暂不发布预编译）；
+//!   - `crt`：**仅 Windows**。`md`（动态 CRT，默认）/ `mt`（静态 CRT，
+//!     crt-static）。其他平台无此段；
 //!   - `modelset`：core / full / custom-<族1>-<族2>...（与 feature 组合对应）。
 //!
 //! 身份校验：归档内的 `metadata.json` 记录 `audio_commit`（打包时 audio.cpp
@@ -35,9 +37,27 @@ pub fn asset_name(target: &str, use_shared_libs: bool) -> Option<String> {
     let backend = backend_suffix()?;
     let modelset = modelset_suffix()?;
     let library_type = if use_shared_libs { "dynamic" } else { "static" };
-    Some(format!(
-        "audio-cpp-prebuilt-{os}-{target}-{backend}-{modelset}-{library_type}.tar.gz"
-    ))
+    let crt = crt_suffix();
+    Some(asset_name_of(&os, target, &backend, &modelset, &library_type, crt.as_deref()))
+}
+
+/// 按各段拼资产名（crt 仅 Windows 存在，其余平台为 None）。
+fn asset_name_of(
+    os: &str,
+    target: &str,
+    backend: &str,
+    modelset: &str,
+    library_type: &str,
+    crt: Option<&str>,
+) -> String {
+    match crt {
+        Some(crt) => format!(
+            "audio-cpp-prebuilt-{os}-{target}-{backend}-{crt}-{modelset}-{library_type}.tar.gz"
+        ),
+        None => format!(
+            "audio-cpp-prebuilt-{os}-{target}-{backend}-{modelset}-{library_type}.tar.gz"
+        ),
+    }
 }
 
 /// 尝试按指定 modelset 后缀获取预编译库。
@@ -64,9 +84,7 @@ fn fetch_prebuilt(
     let os = platform_os(target)?;
     let backend = backend_suffix()?;
     let library_type = if use_shared_libs { "dynamic" } else { "static" };
-    let asset = format!(
-        "audio-cpp-prebuilt-{os}-{target}-{backend}-{modelset}-{library_type}.tar.gz"
-    );
+    let asset = asset_name_of(&os, target, &backend, &modelset, &library_type, crt_suffix().as_deref());
     let tag = release_tag();
     let cache_root = cache_root()?;
     let extract_dir = cache_root
@@ -220,6 +238,21 @@ fn backend_suffix() -> Option<String> {
         return Some("vulkan".to_string());
     }
     Some("cpu".to_string())
+}
+
+/// MSVC 目标的 CRT 变体后缀：`mt`（静态 CRT）/ `md`（动态 CRT，默认）。
+///
+/// 预编译资产区分 CRT 运行时库：`crt-static`（`-C target-feature=+crt-static`）
+/// 开启时 Rust/cc 侧用 `/MT`，须下载 `-mt` 资产；否则 `/MD` 用 `-md` 资产。
+/// 仅 Windows 有此维度，其余平台返回 `None`（资产名不含 crt 段）。
+fn crt_suffix() -> Option<String> {
+    if std::env::consts::OS != "windows" {
+        return None;
+    }
+    let static_crt = env::var("CARGO_CFG_TARGET_FEATURE")
+        .map(|f| f.split(',').any(|s| s.trim() == "crt-static"))
+        .unwrap_or(false);
+    Some(if static_crt { "mt".to_string() } else { "md".to_string() })
 }
 
 /// 把启用的模型组合 feature 映射为 CI 资产名里的 modelset 后缀。

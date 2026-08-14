@@ -123,8 +123,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { label: "x64 cpu full",    target: "x86_64-pc-windows-msvc", backend: "cpu",    modelset: "full", features: "full-models" }
-          - { label: "x64 vulkan full", target: "x86_64-pc-windows-msvc", backend: "vulkan", modelset: "full", features: "full-models,vulkan" }
+          # full × CRT 双变体：md（动态 CRT，默认）/ mt（静态 CRT，crt-static）。
+          - { label: "x64 cpu full md",    target: "x86_64-pc-windows-msvc", backend: "cpu",    modelset: "full", crt: "md", features: "full-models" }
+          - { label: "x64 cpu full mt",    target: "x86_64-pc-windows-msvc", backend: "cpu",    modelset: "full", crt: "mt", features: "full-models" }
+          - { label: "x64 vulkan full md", target: "x86_64-pc-windows-msvc", backend: "vulkan", modelset: "full", crt: "md", features: "full-models,vulkan" }
+          - { label: "x64 vulkan full mt", target: "x86_64-pc-windows-msvc", backend: "vulkan", modelset: "full", crt: "mt", features: "full-models,vulkan" }
     env:
       TARGET_TRIPLE: ${{ matrix.target }}
     steps:
@@ -141,7 +144,7 @@ jobs:
         uses: Swatinem/rust-cache@v2.9.1
         with:
           workspaces: ". -> target"
-          shared-key: prebuilt-windows-${{ env.TARGET_TRIPLE }}-${{ matrix.backend }}-${{ matrix.modelset }}-v2
+          shared-key: prebuilt-windows-${{ env.TARGET_TRIPLE }}-${{ matrix.backend }}-${{ matrix.modelset }}-${{ matrix.crt }}-v2
           cache-targets: false
           cache-on-failure: false
 
@@ -153,6 +156,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # mt 变体：crt-static 让 Rust/cc 侧用 /MT，build.rs 同步给 CMake 注入 /MT。
+          if [ "${{ matrix.crt }}" = "mt" ]; then
+            export RUSTFLAGS="-C target-feature=+crt-static"
+          fi
           cargo build -p audio-cpp-sys \
             --release \
             --target "${TARGET_TRIPLE}" \
@@ -162,7 +169,7 @@ jobs:
       - name: Compute asset name
         id: asset
         shell: bash
-        run: echo "ASSET_NAME=audio-cpp-prebuilt-windows-${TARGET_TRIPLE}-${{ matrix.backend }}-${{ matrix.modelset }}-static.tar.gz" >> "$GITHUB_ENV"
+        run: echo "ASSET_NAME=audio-cpp-prebuilt-windows-${TARGET_TRIPLE}-${{ matrix.backend }}-${{ matrix.crt }}-${{ matrix.modelset }}-static.tar.gz" >> "$GITHUB_ENV"
 
       - name: Collect prebuilt libraries
         shell: pwsh
@@ -189,6 +196,8 @@ jobs:
           $json = @{
             target        = "$env:TARGET_TRIPLE"
             features      = "${{ matrix.features }}"
+            backend       = "${{ matrix.backend }}"
+            crt           = "${{ matrix.crt }}"
             modelset      = "${{ matrix.modelset }}"
             audio_commit  = (git -C audio-cpp-sys/audio.cpp rev-parse --short=8 HEAD)
             msvc_ver      = [int]$msvcVer

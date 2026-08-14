@@ -190,6 +190,24 @@
   `gh release upload` 上传。Windows vulkan 用
   `.github/actions/setup-vulkan-sdk-windows`（LunarG SDK）。资产命名须与
   `prebuilt_download.rs::asset_name()` 保持一致。
+- **MSVC `crt-static`（静态 CRT）**：消费端开 `-C target-feature=+crt-static`
+  后，Rust 侧 std 与 cc 编译的 C shim（capi.o）均为 `/MT`，而 CMake 默认（及
+  预编译资产）是 `/MD`，混链接报 LNK2038（RuntimeLibrary 不匹配）+ LNK2019
+  （`__imp_*` 无法解析）。build.rs 检测 `CARGO_CFG_TARGET_FEATURE` 含
+  `crt-static` 时：跳过预编译（资产为 `/MD`，强制回退源码构建），并给 CMake
+  注入 `CMAKE_POLICY_DEFAULT_CMP0091=NEW` + `CMAKE_MSVC_RUNTIME_LIBRARY`
+  （`MultiThreaded`/`MultiThreadedDebug`，按 `AUDIOCPP_LIB_PROFILE` 取）全目标
+  `/MT`——注意 sentencepiece 等子目录 cmake_minimum_required 低（3.5），
+  不显式设 `CMAKE_POLICY_DEFAULT_CMP0091=NEW` 不会继承 `/MT`。已用
+  `aduio_cpp_ceshi`（`model-qwen3-asr,vulkan`）验证：源码构建 + crt-static 跑通。
+  **注意：MSVC 的 OpenMP 运行时只有 DLL 版（`vcomp140.dll`，无静态库），且
+  ggml 的 `GGML_OPENMP` 默认 ON 且未接到 `ENGINE_ENABLE_OPENMP`**——不显式设
+  `GGML_OPENMP=OFF` 时即便 cargo 未开 `openmp` feature，ggml 内部仍会 `/openmp`
+  编译并让产物依赖 vcomp140.dll（在无 MSVC 运行库的沙箱/目标机直接报
+  "vcomp140.dll 找不到"）。build.rs 已让 `GGML_OPENMP` 与 `ENGINE_ENABLE_OPENMP`
+  同步，并在 crt-static 下无条件关闭 OpenMP（开 `openmp` feature + crt-static
+  会警告并强制关闭）。crt-static + vulkan 的静态二进制仅剩 `vulkan-1.dll`（后端
+  必需）与系统 DLL。注意：crt-static 路径无预编译加速，需完整源码构建。
 
 ## 常用命令速查
 ```bash
