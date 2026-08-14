@@ -1,0 +1,195 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to run jobs on
+        type: choice
+        default: all
+        options:
+          - all
+          - linux
+          - windows
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # ---- 全链路源码构建：验证 CMake → C shim → bindgen → Rust → examples 链接 ----
+  # 用默认 core-models（引擎核心 + 内置 VAD），避免 full 的 C++ 全量编译耗时。
+  build-core-linux:
+    name: build-core (linux)
+    if: ${{ inputs.platform == '' || inputs.platform == 'all' || inputs.platform == 'linux' }}
+    runs-on: ubuntu-24.04
+    env:
+      TARGET_TRIPLE: x86_64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config cmake ninja-build git libclang-dev
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Cache Cargo registry + build artifacts
+        uses: Swatinem/rust-cache@v2.9.1
+        with:
+          workspaces: ". -> target"
+          shared-key: ci-build-core-x86_64-unknown-linux-gnu-v1
+          cache-targets: true
+          cache-on-failure: true
+
+      - name: Build workspace (core-models)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --workspace --all-targets --target "${TARGET_TRIPLE}"
+
+  build-core-windows:
+    name: build-core (windows)
+    if: ${{ inputs.platform == '' || inputs.platform == 'all' || inputs.platform == 'windows' }}
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      TARGET_TRIPLE: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Cargo registry + build artifacts
+        uses: Swatinem/rust-cache@v2.9.1
+        with:
+          workspaces: ". -> target"
+          shared-key: ci-build-core-x86_64-pc-windows-msvc-v1
+          cache-targets: true
+          cache-on-failure: true
+
+      - name: Build workspace (core-models)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --workspace --all-targets --target "${TARGET_TRIPLE}"
+
+  # ---- 用 GitHub Releases 的 full 预编译资产验证 full-models 的 Rust 侧 ----
+  # 跳过 C++ 全量构建，速度快；只验证 Rust 编译 + examples，不验证 C++ 运行时。
+  check-full-prebuilt-linux:
+    name: check-full-prebuilt (linux)
+    if: ${{ inputs.platform == '' || inputs.platform == 'all' || inputs.platform == 'linux' }}
+    runs-on: ubuntu-24.04
+    env:
+      TARGET_TRIPLE: x86_64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config cmake ninja-build git libclang-dev
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Cache Cargo registry + build artifacts
+        uses: Swatinem/rust-cache@v2.9.1
+        with:
+          workspaces: ". -> target"
+          shared-key: ci-check-full-prebuilt-x86_64-unknown-linux-gnu-v1
+          cache-targets: true
+          cache-on-failure: true
+
+      - name: Check workspace (full-models, prebuilt)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo check --workspace --all-targets --target "${TARGET_TRIPLE}" \
+            --features full-models,prebuilt
+
+  check-full-prebuilt-windows:
+    name: check-full-prebuilt (windows)
+    if: ${{ inputs.platform == '' || inputs.platform == 'all' || inputs.platform == 'windows' }}
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      TARGET_TRIPLE: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Cargo registry + build artifacts
+        uses: Swatinem/rust-cache@v2.9.1
+        with:
+          workspaces: ". -> target"
+          shared-key: ci-check-full-prebuilt-x86_64-pc-windows-msvc-v1
+          cache-targets: true
+          cache-on-failure: true
+
+      - name: Check workspace (full-models, prebuilt)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo check --workspace --all-targets --target "${TARGET_TRIPLE}" \
+            --features full-models,prebuilt
+
+  # ---- 静态检查：格式 + clippy（-D warnings 把告警升为错误）----
+  lint:
+    name: lint
+    if: ${{ inputs.platform == '' || inputs.platform == 'all' || inputs.platform == 'linux' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config cmake ninja-build git libclang-dev
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo registry + build artifacts
+        uses: Swatinem/rust-cache@v2.9.1
+        with:
+          workspaces: ". -> target"
+          shared-key: ci-lint-v1
+          cache-targets: true
+          cache-on-failure: true
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
