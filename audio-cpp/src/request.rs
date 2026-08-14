@@ -288,6 +288,10 @@ impl Request {
     }
 
     /// 序列化为 JSON 字符串（传给底层 C ABI）。[`Request::Json`] 原样返回。
+    ///
+    /// # Errors
+    ///
+    /// 当内部对象无法序列化为合法 JSON 时返回 [`Error::Json`]。
     pub fn to_json(&self) -> Result<String, Error> {
         let mut obj = serde_json::Map::new();
         match self {
@@ -297,7 +301,10 @@ impl Request {
                     write_audio(&mut obj, audio);
                 }
                 if !r.options.is_empty() {
-                    obj.insert("options".into(), Value::Object(r.options.clone().into_iter().collect()));
+                    obj.insert(
+                        "options".into(),
+                        Value::Object(r.options.clone().into_iter().collect()),
+                    );
                 }
             }
             Request::Tts(r) => {
@@ -313,7 +320,10 @@ impl Request {
                     options.insert("reference_text".into(), Value::String(rt.clone()));
                 }
                 if !options.is_empty() {
-                    obj.insert("options".into(), Value::Object(options.into_iter().collect()));
+                    obj.insert(
+                        "options".into(),
+                        Value::Object(options.into_iter().collect()),
+                    );
                 }
             }
         }
@@ -348,6 +358,10 @@ fn write_audio(obj: &mut serde_json::Map<String, Value>, input: &AudioInput) {
 /// - `()`：空请求（等价于 `{}`）。
 pub trait IntoRequest {
     /// 转换为请求对象。
+    ///
+    /// # Errors
+    ///
+    /// 永远成功（各实现均为 infallible），保留 `Result` 以便后续扩展。
     fn into_request(self) -> Result<Request, Error>;
 }
 
@@ -383,6 +397,8 @@ impl IntoRequest for String {
 
 #[cfg(test)]
 mod tests {
+    // 测试断言中的 unwrap/expect 是惯用法：失败即测试失败，展开错误链无意义。
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::*;
 
     fn json(s: &str) -> serde_json::Value {
@@ -421,7 +437,9 @@ mod tests {
             .language("zh");
         assert_eq!(
             json(&req.to_json().unwrap()),
-            json(r#"{"text":"Hi","language":"zh","audio_path":"./ref.wav","options":{"reference_text":"参考文本"}}"#)
+            json(
+                r#"{"text":"Hi","language":"zh","audio_path":"./ref.wav","options":{"reference_text":"参考文本"}}"#
+            )
         );
     }
 
@@ -453,11 +471,20 @@ mod tests {
     fn raw_json_pass_through() {
         let s = r#"{"text":"hi","options":{"a":1}}"#;
         assert_eq!(Request::json(s).to_json().unwrap(), s);
-        assert_eq!(<&str as IntoRequest>::into_request(s).unwrap().to_json().unwrap(), s);
+        assert_eq!(
+            <&str as IntoRequest>::into_request(s)
+                .unwrap()
+                .to_json()
+                .unwrap(),
+            s
+        );
     }
 
     #[test]
     fn empty_request() {
-        assert_eq!(IntoRequest::into_request(()).unwrap().to_json().unwrap(), "{}");
+        assert_eq!(
+            IntoRequest::into_request(()).unwrap().to_json().unwrap(),
+            "{}"
+        );
     }
 }

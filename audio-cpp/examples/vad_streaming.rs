@@ -1,3 +1,5 @@
+// 示例代码中的 unwrap/expect 是惯用法：失败即程序结束，无需展开错误链。
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! # vad_streaming（高层 API）— 用 silero_vad 对音频做流式语音活动检测
 //!
 //! 演示流式会话：`start()` → 分块 `process_audio()` → `finish()`，并通过
@@ -12,7 +14,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use audio_cpp::{load_wav, Backend, Registry, RunMode, TaskKind};
+use audio_cpp::{Backend, Registry, RunMode, TaskKind, load_wav};
 
 fn main() -> Result<(), audio_cpp::Error> {
     let args: Vec<String> = std::env::args().collect();
@@ -25,18 +27,22 @@ fn main() -> Result<(), audio_cpp::Error> {
     let registry = Registry::new()?;
     let model = registry.load(&args[1], None, None)?;
     let wav = load_wav(&args[2])?;
-    println!("音频: {}Hz {}ch {}采样", wav.sample_rate, wav.channels, wav.samples.len());
+    println!(
+        "音频: {}Hz {}ch {}采样",
+        wav.sample_rate,
+        wav.channels,
+        wav.samples.len()
+    );
 
     // 2. 创建流式 VAD 会话。
-    let session = model.create_task_session(
-        TaskKind::Vad,
-        RunMode::Streaming,
-        Backend::Cpu,
-        0,
-        4,
-        None,
-    )?;
-    println!("会话: family={} task={} mode={}", session.family(), session.task_kind(), session.run_mode());
+    let session =
+        model.create_task_session(TaskKind::Vad, RunMode::Streaming, Backend::Cpu, 0, 4, None)?;
+    println!(
+        "会话: family={} task={} mode={}",
+        session.family(),
+        session.task_kind(),
+        session.run_mode()
+    );
     println!("流式策略: {:?}", session.streaming_policy()?);
 
     // 3. 注册事件回调：记录 speech_start / speech_end 事件。

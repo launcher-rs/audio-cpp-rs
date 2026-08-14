@@ -1,3 +1,7 @@
+// 构建脚本中 expect/unwrap 是惯用法：环境变量缺失、git/编译命令失败等
+// 都应立即 panic 中止构建并给出明确信息，展开错误链无实际收益。
+#![allow(clippy::expect_used, clippy::unwrap_used)]
+
 use std::collections::hash_map::DefaultHasher;
 use std::env;
 use std::hash::{Hash, Hasher};
@@ -120,7 +124,7 @@ fn target_os() -> String {
 /// - 但 CMake 构建的 engine_runtime 默认 `/MD`（动态 CRT），预编译资产同样
 ///   是 `/MD`，混链接会报 LNK2038（RuntimeLibrary 不匹配）与 LNK2019
 ///   （`__imp_*` 符号无法解析）。
-/// 因此 build.rs 需据此强制 CMake 全目标 `/MT`，且跳过 `/MD` 的预编译资产。
+///   因此 build.rs 需据此强制 CMake 全目标 `/MT`，且跳过 `/MD` 的预编译资产。
 fn crt_static_enabled() -> bool {
     env::var("CARGO_CFG_TARGET_FEATURE")
         .map(|f| f.split(',').any(|s| s.trim() == "crt-static"))
@@ -153,7 +157,9 @@ fn extract_static_lib_names(search_dirs: &[PathBuf], os: &str) -> Vec<String> {
             if path.components().any(|c| c.as_os_str() == "CMakeFiles") {
                 continue;
             }
-            let Some(stem) = path.file_stem() else { continue };
+            let Some(stem) = path.file_stem() else {
+                continue;
+            };
             let mut name = stem.to_string_lossy().into_owned();
             if !name.starts_with("lib") && path.extension().map(|e| e == "a").unwrap_or(false) {
                 // MinGW 下无 lib 前缀的归档由构建过程处理，这里保留原始 stem。
@@ -189,17 +195,14 @@ fn link_static_libs(names: &[String]) {
 /// 若未设置该变量，且启用了 `prebuilt` feature，则尝试从 GitHub Releases
 /// 自动下载匹配当前平台/后端/模型组合的归档（见 `prebuilt_download` 模块）。
 fn resolve_prebuilt_directory(use_shared_libs: bool) -> Option<PathBuf> {
-    if let Ok(raw) = env::var("AUDIOCPP_PREBUILT_DIR") {
-        if !raw.is_empty() {
-            let dir = PathBuf::from(&raw);
-            if !dir.is_dir() {
-                panic!(
-                    "AUDIOCPP_PREBUILT_DIR 指向的目录不存在：{}",
-                    dir.display()
-                );
-            }
-            return Some(dir);
+    if let Ok(raw) = env::var("AUDIOCPP_PREBUILT_DIR")
+        && !raw.is_empty()
+    {
+        let dir = PathBuf::from(&raw);
+        if !dir.is_dir() {
+            panic!("AUDIOCPP_PREBUILT_DIR 指向的目录不存在：{}", dir.display());
         }
+        return Some(dir);
     }
 
     #[cfg(feature = "prebuilt")]
@@ -224,25 +227,32 @@ fn resolve_prebuilt_directory(use_shared_libs: bool) -> Option<PathBuf> {
 ///   3. 常见安装目录（Windows 的 "NVIDIA GPU Computing Toolkit" 与
 ///      Linux 的 /usr/local/cuda），取版本号最高的。
 fn cuda_toolkit_lib_dir(os: &str) -> Option<PathBuf> {
-    let env_root: Option<PathBuf> = env::var("CUDA_PATH").ok().or_else(|| {
-        let mut versions: Vec<String> = env::vars()
-            .filter_map(|(k, v)| k.strip_prefix("CUDA_PATH_V").map(|_| v))
-            .collect();
-        versions.sort();
-        versions.pop()
-    }).map(PathBuf::from);
+    let env_root: Option<PathBuf> = env::var("CUDA_PATH")
+        .ok()
+        .or_else(|| {
+            let mut versions: Vec<String> = env::vars()
+                .filter_map(|(k, v)| k.strip_prefix("CUDA_PATH_V").map(|_| v))
+                .collect();
+            versions.sort();
+            versions.pop()
+        })
+        .map(PathBuf::from);
     let from_nvcc = env::var("PATH").ok().and_then(|path| {
         let nvcc_name = if os == "windows" { "nvcc.exe" } else { "nvcc" };
         env::split_paths(&path)
             .map(|d| d.join(nvcc_name))
             .find(|p| p.is_file())
-            .and_then(|p| p.parent().and_then(|d| d.parent()).map(|r| r.to_path_buf()))
+            .and_then(|p| {
+                p.parent()
+                    .and_then(|d| d.parent())
+                    .map(std::path::Path::to_path_buf)
+            })
     });
     let common = || -> Option<PathBuf> {
         let candidates: Vec<PathBuf> = match os {
             "windows" => glob("C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v*")
                 .ok()?
-                .filter_map(|p| p.ok())
+                .filter_map(std::result::Result::ok)
                 .collect(),
             "linux" => vec![PathBuf::from("/usr/local/cuda")],
             _ => vec![],
@@ -251,9 +261,9 @@ fn cuda_toolkit_lib_dir(os: &str) -> Option<PathBuf> {
     };
     let root = env_root.or(from_nvcc).or_else(common)?;
     let lib = if os == "windows" {
-        PathBuf::from(root).join("lib").join("x64")
+        root.join("lib").join("x64")
     } else {
-        PathBuf::from(root).join("lib64")
+        root.join("lib64")
     };
     lib.is_dir().then_some(lib)
 }
@@ -292,7 +302,7 @@ fn vulkan_sdk_lib_dir(os: &str) -> Option<PathBuf> {
         let candidates: Vec<PathBuf> = match os {
             "windows" => glob("C:/VulkanSDK/v*")
                 .ok()?
-                .filter_map(|p| p.ok())
+                .filter_map(std::result::Result::ok)
                 .collect(),
             _ => vec![],
         };
@@ -318,7 +328,11 @@ fn emit_vulkan_links(os: &str) {
         return;
     }
     println!("cargo:rerun-if-env-changed=VULKAN_SDK");
-    let lib_name = if os == "windows" { "vulkan-1" } else { "vulkan" };
+    let lib_name = if os == "windows" {
+        "vulkan-1"
+    } else {
+        "vulkan"
+    };
     if let Some(lib_dir) = vulkan_sdk_lib_dir(os) {
         println!("cargo:rustc-link-search=native={}", lib_dir.display());
         debug_log!("Vulkan loader 库目录: {}", lib_dir.display());
@@ -357,7 +371,11 @@ fn enabled_model_features() -> Vec<String> {
 fn merge_custom_models(feature_names: Vec<String>) -> String {
     let mut all: Vec<String> = feature_names;
     if let Ok(env_models) = env::var("AUDIOCPP_MODELS") {
-        for m in env_models.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+        for m in env_models
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
             if !all.iter().any(|s| s == m) {
                 all.push(m.to_string());
             }
@@ -432,7 +450,11 @@ fn generate_bindings(manifest_dir: &Path, out_dir: &Path, os: &str) {
             .iter()
             .find(|(k, _)| k.eq_ignore_ascii_case("INCLUDE"))
         {
-            for inc in include_env.to_string_lossy().split(';').filter(|s| !s.is_empty()) {
+            for inc in include_env
+                .to_string_lossy()
+                .split(';')
+                .filter(|s| !s.is_empty())
+            {
                 bindings_builder = bindings_builder.clang_arg("-isystem").clang_arg(inc);
             }
         }
@@ -443,9 +465,7 @@ fn generate_bindings(manifest_dir: &Path, out_dir: &Path, os: &str) {
             .clang_arg("-fms-extensions");
     }
 
-    let bindings = bindings_builder
-        .generate()
-        .expect("生成 capi 绑定失败");
+    let bindings = bindings_builder.generate().expect("生成 capi 绑定失败");
     bindings
         .write_to_file(out_dir.join("bindings.rs"))
         .expect("写入 bindings.rs 失败");
@@ -537,7 +557,11 @@ fn main() {
     const VULKAN_EXTRA_PATH: usize = 161; // 嵌套 ExternalProject 相对 OUT_DIR/build 的最大额外深度
     let build_root = out_dir.join("build");
     let projected_len = build_root.to_string_lossy().len()
-        + if cfg!(feature = "vulkan") { VULKAN_EXTRA_PATH } else { 0 };
+        + if cfg!(feature = "vulkan") {
+            VULKAN_EXTRA_PATH
+        } else {
+            0
+        };
     let cmake_dir = if projected_len > MAX_SAFE_PATH {
         let mut h = DefaultHasher::new();
         out_dir.to_string_lossy().hash(&mut h);
@@ -580,7 +604,8 @@ fn main() {
         config.cxxflag("/utf-8").cxxflag("/EHsc");
         config.cflag("/utf-8");
         if crt_static {
-            let profile = env::var("AUDIOCPP_LIB_PROFILE").unwrap_or_else(|_| "Release".to_string());
+            let profile =
+                env::var("AUDIOCPP_LIB_PROFILE").unwrap_or_else(|_| "Release".to_string());
             let runtime = if profile.contains("Debug") {
                 "MultiThreadedDebug"
             } else {
@@ -604,9 +629,22 @@ fn main() {
     config.define("SPM_ENABLE_SHARED", "OFF");
 
     // 后端选项由 Cargo feature 映射（与工作区 feature 划分保持一致）。
-    config.define("ENGINE_ENABLE_CUDA", if cfg!(feature = "cuda") { "ON" } else { "OFF" });
-    config.define("ENGINE_ENABLE_HIP", if cfg!(feature = "hip") { "ON" } else { "OFF" });
-    config.define("ENGINE_ENABLE_VULKAN", if cfg!(feature = "vulkan") { "ON" } else { "OFF" });
+    config.define(
+        "ENGINE_ENABLE_CUDA",
+        if cfg!(feature = "cuda") { "ON" } else { "OFF" },
+    );
+    config.define(
+        "ENGINE_ENABLE_HIP",
+        if cfg!(feature = "hip") { "ON" } else { "OFF" },
+    );
+    config.define(
+        "ENGINE_ENABLE_VULKAN",
+        if cfg!(feature = "vulkan") {
+            "ON"
+        } else {
+            "OFF"
+        },
+    );
     let metal_on = cfg!(feature = "metal") || (os == "apple");
     config.define("ENGINE_ENABLE_METAL", if metal_on { "ON" } else { "OFF" });
     // OpenMP：既控制 engine_runtime 自身的链接（ENGINE_ENABLE_OPENMP），
@@ -622,7 +660,14 @@ fn main() {
             "cargo:warning=crt-static 已启用：MSVC OpenMP 运行时无静态版（vcomp140.dll），强制关闭 OpenMP"
         );
     }
-    config.define("ENGINE_ENABLE_NATIVE_CPU", if cfg!(feature = "native") { "ON" } else { "OFF" });
+    config.define(
+        "ENGINE_ENABLE_NATIVE_CPU",
+        if cfg!(feature = "native") {
+            "ON"
+        } else {
+            "OFF"
+        },
+    );
 
     // 把所有静态归档统一输出到 OUT_DIR/lib，便于后续 glob 收集与链接。
     // audio.cpp 的 CMake 未设置 archive 输出目录，归档默认散落在各

@@ -52,7 +52,7 @@ fn main() -> Result<(), audio_cpp::Error> {
 
     // 4. 用 ModelFamily 枚举替代裸字符串：枚举收录的名字应都能被引擎解析。
     println!("\n=== ModelFamily 往返校验 ===");
-    for f in families.iter().map(|s| s.as_str()) {
+    for f in families.iter().map(std::string::String::as_str) {
         let model_family = ModelFamily::from(f);
         println!("  {} → {:?} → {}", f, model_family, model_family.as_str());
     }
@@ -66,8 +66,12 @@ fn main() -> Result<(), audio_cpp::Error> {
             .iter()
             .any(|t| t.task == "asr" && t.modes.iter().any(|m| m == "streaming"));
         if streaming_asr {
-            println!("  {}（用 ModelFamily::from(\"{}\") → {:?}）",
-                l.family, l.family, ModelFamily::from(l.family.as_str()));
+            println!(
+                "  {}（用 ModelFamily::from(\"{}\") → {:?}）",
+                l.family,
+                l.family,
+                ModelFamily::from(l.family.as_str())
+            );
         }
     }
 

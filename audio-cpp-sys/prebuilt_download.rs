@@ -24,7 +24,7 @@
 
 use std::env;
 use std::fs::{self, File};
-use std::io::{copy, BufReader};
+use std::io::{BufReader, copy};
 use std::path::{Path, PathBuf};
 
 use serde_json::Value;
@@ -38,7 +38,14 @@ pub fn asset_name(target: &str, use_shared_libs: bool) -> Option<String> {
     let modelset = modelset_suffix()?;
     let library_type = if use_shared_libs { "dynamic" } else { "static" };
     let crt = crt_suffix();
-    Some(asset_name_of(&os, target, &backend, &modelset, &library_type, crt.as_deref()))
+    Some(asset_name_of(
+        &os,
+        target,
+        &backend,
+        &modelset,
+        &library_type,
+        crt.as_deref(),
+    ))
 }
 
 /// 按各段拼资产名（crt 仅 Windows 存在，其余平台为 None）。
@@ -54,9 +61,9 @@ fn asset_name_of(
         Some(crt) => format!(
             "audio-cpp-prebuilt-{os}-{target}-{backend}-{crt}-{modelset}-{library_type}.tar.gz"
         ),
-        None => format!(
-            "audio-cpp-prebuilt-{os}-{target}-{backend}-{modelset}-{library_type}.tar.gz"
-        ),
+        None => {
+            format!("audio-cpp-prebuilt-{os}-{target}-{backend}-{modelset}-{library_type}.tar.gz")
+        }
     }
 }
 
@@ -84,7 +91,14 @@ fn fetch_prebuilt(
     let os = platform_os(target)?;
     let backend = backend_suffix()?;
     let library_type = if use_shared_libs { "dynamic" } else { "static" };
-    let asset = asset_name_of(&os, target, &backend, &modelset, &library_type, crt_suffix().as_deref());
+    let asset = asset_name_of(
+        &os,
+        target,
+        &backend,
+        &modelset,
+        &library_type,
+        crt_suffix().as_deref(),
+    );
     let tag = release_tag();
     let cache_root = cache_root()?;
     let extract_dir = cache_root
@@ -120,16 +134,12 @@ fn fetch_prebuilt(
             Some(extract_dir)
         }
         Ok(()) => {
-            println!(
-                "cargo:warning=预编译归档已解压但未找到库文件，回落到源码构建"
-            );
+            println!("cargo:warning=预编译归档已解压但未找到库文件，回落到源码构建");
             let _ = fs::remove_dir_all(&extract_dir);
             None
         }
         Err(err) => {
-            println!(
-                "cargo:warning=预编译库下载失败（{err}），该资产不可用"
-            );
+            println!("cargo:warning=预编译库下载失败（{err}），该资产不可用");
             let _ = fs::remove_dir_all(&extract_dir);
             None
         }
@@ -150,11 +160,10 @@ pub fn ensure_prebuilt(target: &str, use_shared_libs: bool) -> Option<PathBuf> {
     // 精确资产（core / custom-*）与 full 回退资产。
     match exact.as_deref() {
         Some("full") => fetch_prebuilt(target, use_shared_libs, Some("full")),
-        Some(mset) => fetch_prebuilt(target, use_shared_libs, Some(mset))
-            .or_else(|| {
-                println!("cargo:warning=custom/core 资产不可用，回退到 full 全模型资产");
-                fetch_prebuilt(target, use_shared_libs, Some("full"))
-            }),
+        Some(mset) => fetch_prebuilt(target, use_shared_libs, Some(mset)).or_else(|| {
+            println!("cargo:warning=custom/core 资产不可用，回退到 full 全模型资产");
+            fetch_prebuilt(target, use_shared_libs, Some("full"))
+        }),
         None => fetch_prebuilt(target, use_shared_libs, None),
     }
 }
@@ -186,9 +195,7 @@ fn github_repo() -> String {
 /// GitHub Releases。`file://` 前缀表示本地归档，交给下载层按文件复制处理。
 fn download_url(tag: &str, asset: &str) -> String {
     if let Ok(template) = env::var("AUDIOCPP_PREBUILT_URL") {
-        return template
-            .replace("{tag}", tag)
-            .replace("{asset}", asset);
+        return template.replace("{tag}", tag).replace("{asset}", asset);
     }
     format!(
         "https://github.com/{}/releases/download/{}/{}",
@@ -252,7 +259,11 @@ fn crt_suffix() -> Option<String> {
     let static_crt = env::var("CARGO_CFG_TARGET_FEATURE")
         .map(|f| f.split(',').any(|s| s.trim() == "crt-static"))
         .unwrap_or(false);
-    Some(if static_crt { "mt".to_string() } else { "md".to_string() })
+    Some(if static_crt {
+        "mt".to_string()
+    } else {
+        "md".to_string()
+    })
 }
 
 /// 把启用的模型组合 feature 映射为 CI 资产名里的 modelset 后缀。
@@ -270,7 +281,11 @@ fn modelset_suffix() -> Option<String> {
             }
         }
         if let Ok(env_models) = env::var("AUDIOCPP_MODELS") {
-            for m in env_models.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+            for m in env_models
+                .split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
                 if !families.iter().any(|s| s == m) {
                     families.push(m.to_string());
                 }
@@ -375,11 +390,7 @@ fn local_audio_commit() -> Option<String> {
     }
     let s = String::from_utf8(output.stdout).ok()?;
     let s = s.trim().to_string();
-    if s.is_empty() {
-        None
-    } else {
-        Some(s)
-    }
+    if s.is_empty() { None } else { Some(s) }
 }
 
 fn is_valid_prebuilt_root(root: &Path) -> bool {

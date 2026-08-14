@@ -24,6 +24,10 @@ pub struct WavAudio {
 ///
 /// 底层调用 `audiocpp_audio_load_wav`；返回的缓冲由本函数负责用
 /// `audiocpp_audio_free` 释放（拷贝进 Rust `Vec` 之后）。
+///
+/// # Errors
+///
+/// 路径含 NUL / 非 UTF-8，或文件无法解析为 WAV 时返回对应 [`Error`] 变体。
 pub fn load_wav(path: &str) -> Result<WavAudio, Error> {
     let path_c = ffi::cstring(path)?;
     let mut sample_rate: c_int = 0;

@@ -32,7 +32,9 @@ fn main() -> Result<(), audio_cpp::Error> {
     let registry = Registry::new()?;
     let families = registry.families()?;
     println!("模型族: {families:?}");
-    let has_asr = families.iter().any(|f| f == ModelFamily::CitrinetAsr.as_str());
+    let has_asr = families
+        .iter()
+        .any(|f| f == ModelFamily::CitrinetAsr.as_str());
     if !has_asr {
         eprintln!(
             "警告: citrinet_asr 未编译进引擎。请用 `--features custom-models`，\
@@ -51,11 +53,16 @@ fn main() -> Result<(), audio_cpp::Error> {
         TaskKind::Asr,
         RunMode::Offline,
         Backend::Cpu,
-        0,   // device
-        4,   // threads
+        0, // device
+        4, // threads
         None,
     )?;
-    println!("会话: family={} task={} mode={}", session.family(), session.task_kind(), session.run_mode());
+    println!(
+        "会话: family={} task={} mode={}",
+        session.family(),
+        session.task_kind(),
+        session.run_mode()
+    );
 
     // 4. 离线转录：请求里用 audio_path 指向 WAV 文件（路径由序列化自动转义）。
     let result = session.run_offline(Request::asr(wav_path))?;

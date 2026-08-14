@@ -56,3 +56,7 @@ vulkan = ["audio-cpp-sys/vulkan"] # Vulkan 通用后端（需 Vulkan SDK）
 metal = ["audio-cpp-sys/metal"]   # Apple Metal（macOS 默认开启；win32 需 AUDIOCPP_FORCE_METAL）
 openmp = ["audio-cpp-sys/openmp"] # OpenMP 并行（依赖 OpenMP 运行时）
 native = ["audio-cpp-sys/native"] # 针对本机 CPU 优化（不移植）
+
+# 继承工作区 lint 规则（见仓库根 Cargo.toml [workspace.lints]）
+[lints]
+workspace = true

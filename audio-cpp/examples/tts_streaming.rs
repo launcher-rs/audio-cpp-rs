@@ -1,3 +1,5 @@
+// 示例代码中的 unwrap/expect 是惯用法：失败即程序结束，无需展开错误链。
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! # tts_streaming（高层 API）— 用 VoxCPM2 做流式语音合成
 //!
 //! 演示流式 TTS：`start()` 一次性启动合成，期间每个音频块经事件回调
@@ -30,7 +32,12 @@ use std::sync::{Arc, Mutex};
 use audio_cpp::{Backend, ModelFamily, Registry, Request, RunMode, StreamEvent, TaskKind};
 
 /// 把交错 f32 采样写入 16-bit PCM WAV 文件。
-fn write_wav_pcm16(path: &str, samples: &[f32], sample_rate: i32, channels: u16) -> std::io::Result<()> {
+fn write_wav_pcm16(
+    path: &str,
+    samples: &[f32],
+    sample_rate: i32,
+    channels: u16,
+) -> std::io::Result<()> {
     let bytes_per_sample = 2u32; // 16-bit
     let block_align = bytes_per_sample * channels as u32;
     let byte_rate = sample_rate as u32 * block_align;
@@ -78,11 +85,16 @@ fn main() -> Result<(), audio_cpp::Error> {
         TaskKind::Tts,
         RunMode::Streaming,
         Backend::Cpu,
-        0,   // device
-        4,   // threads
+        0, // device
+        4, // threads
         None,
     )?;
-    println!("会话: family={} task={} mode={}", session.family(), session.task_kind(), session.run_mode());
+    println!(
+        "会话: family={} task={} mode={}",
+        session.family(),
+        session.task_kind(),
+        session.run_mode()
+    );
     let policy = session.streaming_policy()?;
     println!("流式策略: {:?}（输入 none → 无需 process_audio）", policy);
 
@@ -110,9 +122,13 @@ fn main() -> Result<(), audio_cpp::Error> {
         let samples = audio.samples.as_deref().unwrap_or(&[]);
         write_wav_pcm16(out_path, samples, audio.sample_rate, channels)
             .map_err(|e| audio_cpp::Error::Ffi(format!("写 {out_path} 失败: {e}")))?;
-        println!("已写入 {out_path}: {}Hz {}ch {}采样（{} 秒）",
-            audio.sample_rate, channels, samples.len(),
-            samples.len() as f64 / audio.sample_rate.max(1) as f64);
+        println!(
+            "已写入 {out_path}: {}Hz {}ch {}采样（{} 秒）",
+            audio.sample_rate,
+            channels,
+            samples.len(),
+            samples.len() as f64 / audio.sample_rate.max(1) as f64
+        );
     } else {
         println!("(无合并音频输出；报告信息: {result:?})");
     }

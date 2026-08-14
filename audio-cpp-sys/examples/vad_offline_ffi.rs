@@ -1,3 +1,5 @@
+// 示例代码中的 unwrap/expect 是惯用法：失败即程序结束，无需展开错误链。
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! # vad_offline_ffi — 用 silero_vad 模型对一段音频做离线语音活动检测（VAD）
 //!
 //! 该示例演示完整的 registry → model → session → run 调用链：
@@ -29,7 +31,9 @@ unsafe fn take_string(ptr: *mut c_char) -> String {
         return String::new();
     }
     // SAFETY: 调用方保证 ptr 是 shim 返回且尚未释放的 char*。
-    let s = unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned();
+    let s = unsafe { CStr::from_ptr(ptr) }
+        .to_string_lossy()
+        .into_owned();
     // SAFETY: shim 约定返回的 char* 用 audiocpp_free_string 释放。
     unsafe { audiocpp_free_string(ptr) };
     s
@@ -62,11 +66,15 @@ fn main() {
 
     // 1. 创建默认注册表。
     let registry = unsafe { audiocpp_registry_default() };
-    assert!(!registry.is_null(), "创建默认注册表失败: {}", unsafe { last_error("未知错误") });
+    assert!(!registry.is_null(), "创建默认注册表失败: {}", unsafe {
+        last_error("未知错误")
+    });
 
     // 2. 加载 silero_vad 模型。
     let model_path_c = CString::new(model_path.as_str()).expect("模型路径含 NUL");
-    let model = unsafe { audiocpp_registry_load(registry, model_path_c.as_ptr(), ptr::null(), ptr::null()) };
+    let model = unsafe {
+        audiocpp_registry_load(registry, model_path_c.as_ptr(), ptr::null(), ptr::null())
+    };
     if model.is_null() {
         let msg = unsafe { last_error("未知错误") };
         unsafe { audiocpp_registry_free(registry) };

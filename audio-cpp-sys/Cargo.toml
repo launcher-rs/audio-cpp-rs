@@ -105,3 +105,7 @@ openmp = []  # OpenMP 并行加速。依赖 OpenMP 运行时：MSVC 需 /openmp 
 native = []  # 针对本机 CPU 生成优化指令（对应 GGML_NATIVE，如 AVX2/
              # FMA/AVX512）。能提升推理速度，但产出的二进制不再移植到旧 CPU，
              # 若二进制的目标机与构建机不同，请不要开启。
+
+# 继承工作区 lint 规则（见仓库根 Cargo.toml [workspace.lints]）
+[lints]
+workspace = true
