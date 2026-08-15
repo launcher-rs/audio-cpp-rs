@@ -197,8 +197,6 @@ cargo run -p audio-cpp --features custom-models --example tts_streaming -- `
 cargo run -p audio-cpp --example registry_inspect
 ```
 
-> 内置 VAD 权重（silero / marblenet）随上游源码 vendored 在 `audio.cpp/assets/framework/models/`，无需另行下载。
-> 除 VAD 外的 GGUF 权重建议统一放到 `F:\models\` 目录。
 
 ## 状态
 
