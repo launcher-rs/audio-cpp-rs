@@ -33,7 +33,11 @@ struct EventSinkInner {
 ///
 /// `user_data` 指向 `EventSinkInner`。事件 JSON 由 shim 一次性构造，转为
 /// Rust 类型后交给用户闭包。
-unsafe extern "C" fn stream_event_cb(user_data: *mut c_void, event_json: *const c_char, _is_final: c_int) {
+unsafe extern "C" fn stream_event_cb(
+    user_data: *mut c_void,
+    event_json: *const c_char,
+    _is_final: c_int,
+) {
     if user_data.is_null() || event_json.is_null() {
         return;
     }
@@ -42,9 +46,8 @@ unsafe extern "C" fn stream_event_cb(user_data: *mut c_void, event_json: *const 
     let json = unsafe { std::ffi::CStr::from_ptr(event_json) }
         .to_string_lossy()
         .into_owned();
-    let event = match serde_json::from_str::<StreamEvent>(&json) {
-        Ok(e) => e,
-        Err(_) => return, // 事件 JSON 契约不符：忽略
+    let Ok(event) = serde_json::from_str::<StreamEvent>(&json) else {
+        return; // 事件 JSON 契约不符：忽略
     };
     // SAFETY: 同上，inner 在会话生命周期内有效（EventSink 析构前回调已解绑）。
     let mut guard = match unsafe { (*inner).cb.lock() } {
@@ -68,7 +71,10 @@ unsafe impl Send for Session {}
 impl Session {
     /// 从原始 C 句柄包装（仅内部使用）。
     pub(crate) fn from_raw(raw: *mut audiocpp_session) -> Self {
-        Self { raw, event_sink: None }
+        Self {
+            raw,
+            event_sink: None,
+        }
     }
 
     /// 模型族名（借用的 C 字符串，即刻拷贝为 Rust 字符串）。
@@ -108,6 +114,10 @@ impl Session {
     }
 
     /// 流式策略描述（输入/输出类型、推荐分块大小）。
+    ///
+    /// # Errors
+    ///
+    /// C ABI 调用失败或返回的 JSON 无法解析时返回对应 [`Error`] 变体。
     pub fn streaming_policy(&self) -> Result<StreamingPolicy, Error> {
         let mut out: *mut c_char = ptr::null_mut();
         ffi::check_rc(unsafe { audiocpp_session_streaming_policy_json(self.raw, &mut out) })?;
@@ -121,10 +131,16 @@ impl Session {
     /// [`crate::request::Request`] 枚举（推荐，每个任务一种变体），或任意
     /// JSON 字符串。携带 `audio` / `text` / `voice` 等输入，或用 `audio_path`
     /// 指向本地 WAV 文件。空请求可传 `()`。
+    ///
+    /// # Errors
+    ///
+    /// 请求序列化失败、路径含 NUL，或 C ABI 调用失败时返回对应 [`Error`] 变体。
     pub fn prepare<R: IntoRequest>(&self, request: R) -> Result<(), Error> {
         let json = request.into_request()?.to_json()?;
         let req_c = ffi::cstring(&json)?;
-        ffi::check_rc(unsafe { audiocpp_session_prepare(self.raw, req_c.as_ptr() as *const c_char) })
+        ffi::check_rc(unsafe {
+            audiocpp_session_prepare(self.raw, req_c.as_ptr() as *const c_char)
+        })
     }
 
     /// 注册流式事件回调；调用 `None` 清除。
@@ -147,7 +163,11 @@ impl Session {
                 cb: Mutex::new(Box::new(cb)),
             }));
             unsafe {
-                audiocpp_session_set_event_sink(self.raw, Some(stream_event_cb), inner.cast::<c_void>());
+                audiocpp_session_set_event_sink(
+                    self.raw,
+                    Some(stream_event_cb),
+                    inner.cast::<c_void>(),
+                );
             }
             self.event_sink = Some(inner);
         } else {
@@ -159,6 +179,10 @@ impl Session {
     ///
     /// `request` 同 [`Session::prepare`]，类型化枚举或 JSON 字符串均可；
     /// 空请求传 `()`。
+    ///
+    /// # Errors
+    ///
+    /// 请求序列化失败、路径含 NUL，或 C ABI 调用失败时返回对应 [`Error`] 变体。
     pub fn start<R: IntoRequest>(&self, request: R) -> Result<(), Error> {
         let json = request.into_request()?.to_json()?;
         let req_c = ffi::cstring(&json)?;
@@ -170,6 +194,10 @@ impl Session {
     /// `samples` 为 `float` 采样（-1..1），`start_sample` 为该块在输入流中的
     /// 起始采样点。若同时注册了事件回调，事件会经回调到达；返回值是
     /// shim 同步返回的事件 JSON。
+    ///
+    /// # Errors
+    ///
+    /// C ABI 调用失败或返回的 JSON 无法解析时返回对应 [`Error`] 变体。
     pub fn process_audio(
         &self,
         samples: &[f32],
@@ -197,6 +225,10 @@ impl Session {
     }
 
     /// 结束流式会话，返回最终 TaskResult。
+    ///
+    /// # Errors
+    ///
+    /// C ABI 调用失败或返回的 JSON 无法解析时返回对应 [`Error`] 变体。
     pub fn finish(&self) -> Result<TaskResult, Error> {
         let mut out: *mut c_char = ptr::null_mut();
         ffi::check_rc(unsafe { audiocpp_session_finish(self.raw, &mut out) })?;
@@ -217,11 +249,17 @@ impl Session {
     ///
     /// 相当于 `prepare` + 一次完整执行（shim 内部已做 prepare）。`request`
     /// 同 [`Session::prepare`]，类型化枚举或 JSON 字符串均可。
+    ///
+    /// # Errors
+    ///
+    /// 请求序列化失败、路径含 NUL，或 C ABI 调用失败时返回对应 [`Error`] 变体。
     pub fn run_offline<R: IntoRequest>(&self, request: R) -> Result<TaskResult, Error> {
         let json = request.into_request()?.to_json()?;
         let req_c = ffi::cstring(&json)?;
         let mut out: *mut c_char = ptr::null_mut();
-        ffi::check_rc(unsafe { audiocpp_session_run_offline(self.raw, req_c.as_ptr() as *const c_char, &mut out) })?;
+        ffi::check_rc(unsafe {
+            audiocpp_session_run_offline(self.raw, req_c.as_ptr() as *const c_char, &mut out)
+        })?;
         if out.is_null() {
             return Err(Error::Ffi(ffi::last_error()));
         }

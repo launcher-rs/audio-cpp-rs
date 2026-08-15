@@ -33,7 +33,10 @@ fn main() -> Result<(), audio_cpp::Error> {
     let registry = Registry::new()?;
     let families = registry.families()?;
     println!("模型族: {families:?}");
-    if !families.iter().any(|f| f == ModelFamily::SortformerDiar.as_str()) {
+    if !families
+        .iter()
+        .any(|f| f == ModelFamily::SortformerDiar.as_str())
+    {
         eprintln!(
             "警告: sortformer_diar 未编译进引擎。请用 `--features model-sortformer-diar` 重新构建。"
         );
@@ -49,11 +52,16 @@ fn main() -> Result<(), audio_cpp::Error> {
         TaskKind::Diar,
         RunMode::Offline,
         Backend::Cpu,
-        0,   // device
-        4,   // threads
+        0, // device
+        4, // threads
         None,
     )?;
-    println!("会话: family={} task={} mode={}", session.family(), session.task_kind(), session.run_mode());
+    println!(
+        "会话: family={} task={} mode={}",
+        session.family(),
+        session.task_kind(),
+        session.run_mode()
+    );
 
     // 4. 离线执行：请求里用 audio_path 指向 WAV 文件（须 16kHz mono）。
     let result = session.run_offline(Request::diar(wav_path))?;
@@ -68,7 +76,12 @@ fn main() -> Result<(), audio_cpp::Error> {
         let end_sec = turn.span.end_sample as f64 / 16000.0;
         println!(
             "{}  {:6.2}s..{:6.2}s  采样 {}..{}  置信度={:.3}",
-            turn.speaker_id, start_sec, end_sec, turn.span.start_sample, turn.span.end_sample, turn.confidence
+            turn.speaker_id,
+            start_sec,
+            end_sec,
+            turn.span.start_sample,
+            turn.span.end_sample,
+            turn.confidence
         );
     }
     Ok(())

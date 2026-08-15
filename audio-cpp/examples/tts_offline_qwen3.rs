@@ -1,3 +1,5 @@
+// 示例代码中的 unwrap/expect 是惯用法：失败即程序结束，无需展开错误链。
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! # tts_offline_qwen3（高层 API）— 用 Qwen3 TTS base 做声音克隆合成
 //!
 //! 演示 Qwen3 TTS（`qwen3_tts` 族）离线合成。Qwen3 TTS **base 变体需要
@@ -34,7 +36,12 @@ use std::io::Write;
 use audio_cpp::{Backend, ModelFamily, Registry, Request, RunMode, TaskKind};
 
 /// 把交错 f32 采样写入 16-bit PCM WAV 文件。
-fn write_wav_pcm16(path: &str, samples: &[f32], sample_rate: i32, channels: u16) -> std::io::Result<()> {
+fn write_wav_pcm16(
+    path: &str,
+    samples: &[f32],
+    sample_rate: i32,
+    channels: u16,
+) -> std::io::Result<()> {
     let bytes_per_sample = 2u32; // 16-bit
     let block_align = bytes_per_sample * channels as u32;
     let byte_rate = sample_rate as u32 * block_align;
@@ -63,7 +70,9 @@ fn write_wav_pcm16(path: &str, samples: &[f32], sample_rate: i32, channels: u16)
 fn main() -> Result<(), audio_cpp::Error> {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 4 {
-        eprintln!("用法: tts_offline_qwen3 <model.gguf> <reference.wav> <reference_text> <out.wav> [text]");
+        eprintln!(
+            "用法: tts_offline_qwen3 <model.gguf> <reference.wav> <reference_text> <out.wav> [text]"
+        );
         std::process::exit(1);
     }
     let model_path = &args[1];
@@ -87,11 +96,16 @@ fn main() -> Result<(), audio_cpp::Error> {
         TaskKind::Tts,
         RunMode::Offline,
         Backend::Cpu,
-        0,   // device
-        4,   // threads
+        0, // device
+        4, // threads
         None,
     )?;
-    println!("会话: family={} task={} mode={}", session.family(), session.task_kind(), session.run_mode());
+    println!(
+        "会话: family={} task={} mode={}",
+        session.family(),
+        session.task_kind(),
+        session.run_mode()
+    );
 
     // 3. 构造请求：text 为待合成文本；reference 指向参考人声（声音克隆）；
     //    reference_text 为参考音频文本转写（Windows 路径无需手动转义）。

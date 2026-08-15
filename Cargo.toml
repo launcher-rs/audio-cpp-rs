@@ -33,3 +33,34 @@ thiserror = "2"
 
 # 内部 crate（版本随 workspace.package 统一升版）
 audio-cpp-sys = { version = "0.2.0", path = "audio-cpp-sys" }
+
+# =====================================================================
+# 工作区统一 lint 配置（所有成员 crate 继承）。
+# 用 clippy 规范代码：修正性建议全部按 warning 处理，CI 里再加 -D warnings
+# 把告警升为错误，确保不引入新的违规项。
+# =====================================================================
+# =====================================================================
+# 工作区统一 lint 配置（所有成员 crate 继承）。
+# 用 clippy 规范代码：修正性建议全部按 warning 处理，CI 里再加 -D warnings
+# 把告警升为错误，确保不引入新的违规项。
+# =====================================================================
+[workspace.lints.clippy]
+# 警示性建议：与书写意图明显不符的写法一律告警
+all = "warn"
+# pedantic 组（cast 截断、doc_markdown 等）过于吹毛求疵，在 C 绑定/数值边界
+# 场景大量误报，统一不启用；需要时用单独规则或局部 #[allow] 开启。
+# pedantic = "warn"
+# 用 let-else 取代嵌套 if let / else，减少缩进噪音
+manual_let_else = "warn"
+# 禁止非检查条件下的 panic（构建脚本 / 库代码统一用 Result / 断言）
+unwrap_used = "warn"
+expect_used = "warn"
+# 文档注释完整性（缺反引号、缺错误/恐慌说明）
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+# 模块级检查
+mod_module_files = "warn"
+# 冗余写法
+redundant_closure_for_method_calls = "warn"
+# 默认返回/歧义
+default_trait_access = "warn"

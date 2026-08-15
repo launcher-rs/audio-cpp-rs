@@ -1,3 +1,5 @@
+// 示例代码中的 unwrap/expect 是惯用法：失败即程序结束，无需展开错误链。
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! # tts_offline（高层 API）— 用 MOSS-TTS-Nano 合成一段语音
 //!
 //! 演示 `custom-models` 构建的 TTS 模型族。运行前需要：
@@ -23,7 +25,12 @@ use audio_cpp::{Backend, ModelFamily, Registry, Request, RunMode, TaskKind};
 /// 把 (-1..1) 的 f32 采样写入 16-bit PCM WAV 文件。
 ///
 /// `samples` 为交错存放（每帧 = `channels` 个采样），`sample_rate` 为采样率。
-fn write_wav_pcm16(path: &str, samples: &[f32], sample_rate: i32, channels: u16) -> std::io::Result<()> {
+fn write_wav_pcm16(
+    path: &str,
+    samples: &[f32],
+    sample_rate: i32,
+    channels: u16,
+) -> std::io::Result<()> {
     let bytes_per_sample = 2u32; // 16-bit
     let block_align = bytes_per_sample * channels as u32;
     let byte_rate = sample_rate as u32 * block_align;
@@ -66,7 +73,10 @@ fn main() -> Result<(), audio_cpp::Error> {
     let registry = Registry::new()?;
     let families = registry.families()?;
     println!("模型族: {families:?}");
-    if !families.iter().any(|f| f == ModelFamily::MossTtsNano.as_str()) {
+    if !families
+        .iter()
+        .any(|f| f == ModelFamily::MossTtsNano.as_str())
+    {
         eprintln!(
             "警告: moss_tts_nano 未编译进引擎。请用 `--features custom-models`，\
              并设置 AUDIOCPP_MODELS=moss_tts_nano 重新构建。"
@@ -82,11 +92,16 @@ fn main() -> Result<(), audio_cpp::Error> {
         TaskKind::Tts,
         RunMode::Offline,
         Backend::Cpu,
-        0,   // device
-        4,   // threads
+        0, // device
+        4, // threads
         None,
     )?;
-    println!("会话: family={} task={} mode={}", session.family(), session.task_kind(), session.run_mode());
+    println!(
+        "会话: family={} task={} mode={}",
+        session.family(),
+        session.task_kind(),
+        session.run_mode()
+    );
 
     // 4. 合成：请求带 text 输入（当前 C ABI 对 voice 参考支持有限，用默认音色）。
     let result = session.run_offline(Request::tts(&text))?;

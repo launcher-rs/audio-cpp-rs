@@ -27,7 +27,9 @@ unsafe fn take_string(ptr: *mut c_char) -> String {
         return String::new();
     }
     // SAFETY: 调用方保证 ptr 是 shim 返回且尚未释放的 char*。
-    let s = unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned();
+    let s = unsafe { CStr::from_ptr(ptr) }
+        .to_string_lossy()
+        .into_owned();
     // SAFETY: shim 约定返回的 char* 用 audiocpp_free_string 释放。
     unsafe { audiocpp_free_string(ptr) };
     s
@@ -36,7 +38,10 @@ unsafe fn take_string(ptr: *mut c_char) -> String {
 fn main() {
     // 创建默认注册表（含所有编译进 engine_runtime 的模型族 loader）。
     let registry = unsafe { audiocpp_registry_default() };
-    assert!(!registry.is_null(), "audiocpp_registry_default() 返回空指针");
+    assert!(
+        !registry.is_null(),
+        "audiocpp_registry_default() 返回空指针"
+    );
 
     // 错误信息示例：注册表句柄为空时应捕获错误。
     let mut out = std::ptr::null_mut();

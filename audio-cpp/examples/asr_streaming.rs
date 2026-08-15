@@ -1,3 +1,5 @@
+// 示例代码中的 unwrap/expect 是惯用法：失败即程序结束，无需展开错误链。
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! # asr_streaming（高层 API）— 用 Qwen3 ASR 做流式语音识别
 //!
 //! 演示流式 ASR：`start()` → 分块 `process_audio()` → `finish()`，并通过
@@ -28,7 +30,9 @@
 
 use std::sync::{Arc, Mutex};
 
-use audio_cpp::{load_wav, Backend, ModelFamily, Registry, Request, RunMode, StreamEvent, TaskKind};
+use audio_cpp::{
+    Backend, ModelFamily, Registry, Request, RunMode, StreamEvent, TaskKind, load_wav,
+};
 
 fn main() -> Result<(), audio_cpp::Error> {
     let args: Vec<String> = std::env::args().collect();
@@ -44,18 +48,28 @@ fn main() -> Result<(), audio_cpp::Error> {
     println!("模型族: {:?}", registry.families()?);
     let model = registry.load(model_path, Some(ModelFamily::Qwen3Asr), None)?;
     let wav = load_wav(wav_path)?;
-    println!("音频: {}Hz {}ch {}采样", wav.sample_rate, wav.channels, wav.samples.len());
+    println!(
+        "音频: {}Hz {}ch {}采样",
+        wav.sample_rate,
+        wav.channels,
+        wav.samples.len()
+    );
 
     // 2. 创建流式 ASR 会话。
     let mut session = model.create_task_session(
         TaskKind::Asr,
         RunMode::Streaming,
         Backend::Cpu,
-        0,   // device
-        4,   // threads
+        0, // device
+        4, // threads
         None,
     )?;
-    println!("会话: family={} task={} mode={}", session.family(), session.task_kind(), session.run_mode());
+    println!(
+        "会话: family={} task={} mode={}",
+        session.family(),
+        session.task_kind(),
+        session.run_mode()
+    );
     let policy = session.streaming_policy()?;
     println!("流式策略: {:?}", policy);
 
@@ -89,7 +103,12 @@ fn main() -> Result<(), audio_cpp::Error> {
     let mut start_sample = 0i64;
     while pos < wav.samples.len() {
         let end = (pos + chunk).min(wav.samples.len());
-        session.process_audio(&wav.samples[pos..end], wav.sample_rate, wav.channels, start_sample)?;
+        session.process_audio(
+            &wav.samples[pos..end],
+            wav.sample_rate,
+            wav.channels,
+            start_sample,
+        )?;
         let block_len = (end - pos) as i64;
         pos = end;
         start_sample += block_len;

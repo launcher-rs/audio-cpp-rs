@@ -41,6 +41,7 @@ model-kroko-asr = ["audio-cpp-sys/model-kroko-asr"]         # ASR：Kroko
 model-nemotron-asr = ["audio-cpp-sys/model-nemotron-asr"]   # ASR：Nemotron
 model-parakeet-tdt = ["audio-cpp-sys/model-parakeet-tdt"]   # ASR：Parakeet TDT
 model-qwen3-asr = ["audio-cpp-sys/model-qwen3-asr"]         # ASR：Qwen3
+model-sense-asr = ["audio-cpp-sys/model-sense-asr"]         # ASR：SenseVoice
 model-vibevoice-asr = ["audio-cpp-sys/model-vibevoice-asr"] # ASR：VibeVoice
 model-moss = ["audio-cpp-sys/model-moss"]                   # TTS：MOSS
 model-qwen3-tts = ["audio-cpp-sys/model-qwen3-tts"]         # TTS：Qwen3
@@ -55,3 +56,7 @@ vulkan = ["audio-cpp-sys/vulkan"] # Vulkan 通用后端（需 Vulkan SDK）
 metal = ["audio-cpp-sys/metal"]   # Apple Metal（macOS 默认开启；win32 需 AUDIOCPP_FORCE_METAL）
 openmp = ["audio-cpp-sys/openmp"] # OpenMP 并行（依赖 OpenMP 运行时）
 native = ["audio-cpp-sys/native"] # 针对本机 CPU 优化（不移植）
+
+# 继承工作区 lint 规则（见仓库根 Cargo.toml [workspace.lints]）
+[lints]
+workspace = true

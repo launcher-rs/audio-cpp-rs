@@ -74,4 +74,4 @@ mod session;
 pub use session::Session;
 
 mod audio;
-pub use audio::{load_wav, WavAudio};
+pub use audio::{WavAudio, load_wav};

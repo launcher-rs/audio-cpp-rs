@@ -50,18 +50,25 @@ fn main() -> Result<(), audio_cpp::Error> {
         TaskKind::Vad,
         RunMode::Offline,
         Backend::Cpu,
-        0,   // device
-        4,   // threads
+        0, // device
+        4, // threads
         None,
     )?;
-    println!("会话: family={} task={} mode={}", session.family(), session.task_kind(), session.run_mode());
+    println!(
+        "会话: family={} task={} mode={}",
+        session.family(),
+        session.task_kind(),
+        session.run_mode()
+    );
 
     // 4. 构造请求并离线执行。
     //    不同 VAD 的阈值选项键不同：silero_vad 用 vad_threshold，marblenet 用 threshold。
-    let threshold_key = if session.family() == "marblenet_vad" { "threshold" } else { "vad_threshold" };
-    let result = session.run_offline(
-        Request::vad(wav_path).option(threshold_key, 0.5),
-    )?;
+    let threshold_key = if session.family() == "marblenet_vad" {
+        "threshold"
+    } else {
+        "vad_threshold"
+    };
+    let result = session.run_offline(Request::vad(wav_path).option(threshold_key, 0.5))?;
 
     // 5. 打印语音片段。
     println!("=== 语音片段 ===");

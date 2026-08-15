@@ -158,6 +158,9 @@ audio-cpp-prebuilt-{os}-{target}-{backend}-{modelset}-static.tar.gz
 > 无论开启哪些模型组合 feature，先尝试精确资产名（`core` / `custom-<族1>-<族2>...`），
 > 404 时自动回退下载 `full` 资产（它是任何组合的超集，功能全可用，仅体积较大），
 > 仍失败才回落源码。CI 矩阵因此精简为 full × cpu/vulkan/metal。
+>
+> **后续优化（0.3.0+）**：在 full 之外为常用族发布单族小包、下载端先匹配单族
+> 再回退 full 的"双层资产"方案，见 [prebuilt-roadmap.md](prebuilt-roadmap.md)。
 
 **C. CUDA 预编译的边界**：`emit_cuda_links` 依赖本地 Toolkit（cudart/cublas/... import lib 需在消费机上存在），
 所以 **CUDA 预编译只省编译、不省 SDK**。同理 Vulkan 仍需 `vulkan-1.lib` 链接。文档须写明；

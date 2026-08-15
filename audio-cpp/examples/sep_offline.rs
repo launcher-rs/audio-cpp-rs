@@ -21,7 +21,12 @@ use std::io::Write;
 use audio_cpp::{Backend, ModelFamily, Registry, Request, RunMode, TaskKind};
 
 /// 把交错 f32 采样写入 16-bit PCM WAV 文件。
-fn write_wav_pcm16(path: &str, samples: &[f32], sample_rate: i32, channels: u16) -> std::io::Result<()> {
+fn write_wav_pcm16(
+    path: &str,
+    samples: &[f32],
+    sample_rate: i32,
+    channels: u16,
+) -> std::io::Result<()> {
     let bytes_per_sample = 2u32;
     let block_align = bytes_per_sample * channels as u32;
     let byte_rate = sample_rate as u32 * block_align;
@@ -64,9 +69,7 @@ fn main() -> Result<(), audio_cpp::Error> {
     let families = registry.families()?;
     println!("模型族: {families:?}");
     if !families.iter().any(|f| f == ModelFamily::Htdemucs.as_str()) {
-        eprintln!(
-            "警告: htdemucs 未编译进引擎。请用 `--features model-demucs` 重新构建。"
-        );
+        eprintln!("警告: htdemucs 未编译进引擎。请用 `--features model-demucs` 重新构建。");
     }
 
     // 2. 加载 HTDemucs 模型（GGUF 无法自动探测，须显式指定家族）。
@@ -79,11 +82,16 @@ fn main() -> Result<(), audio_cpp::Error> {
         TaskKind::SourceSeparation,
         RunMode::Offline,
         Backend::Cpu,
-        0,   // device
-        4,   // threads
+        0, // device
+        4, // threads
         None,
     )?;
-    println!("会话: family={} task={} mode={}", session.family(), session.task_kind(), session.run_mode());
+    println!(
+        "会话: family={} task={} mode={}",
+        session.family(),
+        session.task_kind(),
+        session.run_mode()
+    );
 
     // 4. 离线执行：请求里用 audio_path 指向 WAV 文件（须 44100Hz stereo）。
     let result = session.run_offline(Request::source_separation(wav_path))?;

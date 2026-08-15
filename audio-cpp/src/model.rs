@@ -29,6 +29,10 @@ impl Model {
     }
 
     /// 模型元数据（family / variant / description / 候选配置与权重）。
+    ///
+    /// # Errors
+    ///
+    /// C ABI 调用失败或返回的 JSON 无法解析时返回对应 [`Error`] 变体。
     pub fn metadata(&self) -> Result<ModelMetadata, Error> {
         let mut out: *mut c_char = ptr::null_mut();
         ffi::check_rc(unsafe { audiocpp_model_metadata_json(self.raw, &mut out) })?;
@@ -37,6 +41,10 @@ impl Model {
     }
 
     /// 模型能力集合。
+    ///
+    /// # Errors
+    ///
+    /// C ABI 调用失败或返回的 JSON 无法解析时返回对应 [`Error`] 变体。
     pub fn capabilities(&self) -> Result<Capabilities, Error> {
         let mut out: *mut c_char = ptr::null_mut();
         ffi::check_rc(unsafe { audiocpp_model_capabilities_json(self.raw, &mut out) })?;
@@ -47,6 +55,11 @@ impl Model {
     /// 在模型上创建一次任务会话。
     ///
     /// 可从 `metadata()` / `capabilities()` 确认模型是否支持目标任务与模式。
+    ///
+    /// # Errors
+    ///
+    /// 参数含 NUL / 非 UTF-8 返回 [`Error::Nul`] 或 [`Error::NonUtf8Path`]；
+    /// 底层无法创建会话返回 [`Error::NullHandle`]。
     pub fn create_task_session(
         &self,
         task: TaskKind,
@@ -69,7 +82,9 @@ impl Model {
                 backend_c.as_ptr() as *const c_char,
                 device as c_int,
                 threads as c_int,
-                options_c.as_ref().map_or(ptr::null(), |s| s.as_ptr() as *const c_char),
+                options_c
+                    .as_ref()
+                    .map_or(ptr::null(), |s| s.as_ptr() as *const c_char),
             )
         };
         if raw.is_null() {

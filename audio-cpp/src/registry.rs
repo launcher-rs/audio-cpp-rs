@@ -26,6 +26,10 @@ unsafe impl Sync for Registry {}
 
 impl Registry {
     /// 创建默认注册表，包含所有编译进本库的模型族 loader。
+    ///
+    /// # Errors
+    ///
+    /// 底层 C ABI 无法创建注册表时返回 [`Error::NullHandle`]。
     pub fn new() -> Result<Self, Error> {
         let raw = unsafe { audiocpp_registry_default() };
         if raw.is_null() {
@@ -35,6 +39,10 @@ impl Registry {
     }
 
     /// 已注册的模型族列表，例如 `["silero_vad","qwen3_asr"]`。
+    ///
+    /// # Errors
+    ///
+    /// C ABI 调用失败或返回的 JSON 无法解析时返回对应 [`Error`] 变体。
     pub fn families(&self) -> Result<Vec<String>, Error> {
         let mut out: *mut c_char = ptr::null_mut();
         ffi::check_rc(unsafe { audiocpp_registry_families_json(self.raw, &mut out) })?;
@@ -43,6 +51,10 @@ impl Registry {
     }
 
     /// 所有 loader 的声明信息（模型族、任务、端点）。
+    ///
+    /// # Errors
+    ///
+    /// C ABI 调用失败或返回的 JSON 无法解析时返回对应 [`Error`] 变体。
     pub fn loaders(&self) -> Result<Vec<LoaderInfo>, Error> {
         let mut out: *mut c_char = ptr::null_mut();
         ffi::check_rc(unsafe { audiocpp_registry_loaders_json(self.raw, &mut out) })?;
@@ -52,6 +64,10 @@ impl Registry {
     }
 
     /// 枚举所有后端可用的计算设备。
+    ///
+    /// # Errors
+    ///
+    /// C ABI 调用失败或返回的 JSON 无法解析时返回对应 [`Error`] 变体。
     pub fn devices() -> Result<Vec<Device>, Error> {
         let mut out: *mut c_char = ptr::null_mut();
         ffi::check_rc(unsafe { audiocpp_registry_devices_json(&mut out) })?;
@@ -65,6 +81,11 @@ impl Registry {
     /// `family_hint` 可选，用于指定模型族（GGUF / NeMo safetensors 无法
     /// 自动探测族别，须显式指定，见 [`crate::ModelFamily`]）；`load_options`
     /// 可选，例如 `{"weight_id":"..."}`。
+    ///
+    /// # Errors
+    ///
+    /// 路径含 NUL / 非 UTF-8 返回 [`Error::Nul`] 或 [`Error::NonUtf8Path`]；
+    /// 底层加载失败返回 [`Error::NullHandle`]。
     pub fn load(
         &self,
         model_path: &str,
@@ -82,8 +103,12 @@ impl Registry {
             audiocpp_registry_load(
                 self.raw,
                 path_c.as_ptr() as *const c_char,
-                hint_c.as_ref().map_or(ptr::null(), |s| s.as_ptr() as *const c_char),
-                options_c.as_ref().map_or(ptr::null(), |s| s.as_ptr() as *const c_char),
+                hint_c
+                    .as_ref()
+                    .map_or(ptr::null(), |s| s.as_ptr() as *const c_char),
+                options_c
+                    .as_ref()
+                    .map_or(ptr::null(), |s| s.as_ptr() as *const c_char),
             )
         };
         if raw.is_null() {
