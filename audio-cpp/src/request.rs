@@ -454,6 +454,24 @@ mod tests {
     }
 
     #[test]
+    fn diar_offline() {
+        let req = Request::diar("./meeting.wav").option("num_speakers", 4);
+        assert_eq!(
+            json(&req.to_json().unwrap()),
+            json(r#"{"audio_path":"./meeting.wav","options":{"num_speakers":4}}"#)
+        );
+    }
+
+    #[test]
+    fn source_separation_offline() {
+        let req = Request::source_separation("./song.wav").options([("stem", "vocals")]);
+        assert_eq!(
+            json(&req.to_json().unwrap()),
+            json(r#"{"audio_path":"./song.wav","options":{"stem":"vocals"}}"#)
+        );
+    }
+
+    #[test]
     fn embedded_audio_buffer() {
         let buf = WavAudio {
             sample_rate: 16000,

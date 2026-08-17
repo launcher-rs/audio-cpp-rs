@@ -534,3 +534,190 @@ pub struct StreamingPolicy {
     /// 推荐的音频分块秒数。
     pub preferred_audio_chunk_seconds: f64,
 }
+
+#[cfg(test)]
+mod tests {
+    // 测试断言中的 unwrap/expect 是惯用法：失败即测试失败，展开错误链无意义。
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
+    use super::*;
+
+    /// 所有非 Custom 变体的 `as_str()` 必须能被 `From<&str>` 精确回收到
+    /// 原变体（而不是落入 `Custom`），且 `as_str` 与 `From` 两张 match
+    /// 表完全一致——防止新增模型族时漏改其一。
+    #[test]
+    fn model_family_roundtrip() {
+        let mut variants: Vec<ModelFamily> = Vec::new();
+        macro_rules! push {
+            ($($v:ident),* $(,)?) => {
+                $(variants.push(ModelFamily::$v);)*
+            };
+        }
+        push![
+            // VAD
+            SileroVad,
+            MarblenetVad,
+            // ASR
+            Qwen3Asr,
+            CitrinetAsr,
+            SenseAsr,
+            FunAsrNano,
+            HiggsAudioStt,
+            HviskeAsr,
+            KrokoAsr,
+            NemotronAsr,
+            ParakeetTdt,
+            VibevoiceAsr,
+            // TTS
+            Qwen3Tts,
+            Confucius4Tts,
+            DotsTts,
+            FishAudio,
+            GlmTts,
+            HiggsAudioTts,
+            IndexTts2,
+            IrodoriTts,
+            MossTtsLocal,
+            MossTtsNano,
+            Neutts,
+            Outetts,
+            PocketTts,
+            VietneuTts,
+            MinimaxH3,
+            // 分离 / 转换 / 音乐
+            SortformerDiar,
+            SeedVc,
+            Rvc,
+            Chatterbox,
+            Vevo2,
+            Voxcpm2,
+            AceStep,
+            Htdemucs,
+            MelBandRoformer,
+            BsRoformer,
+            Muscriptor,
+            Omnivoice,
+            StableAudio,
+            Supertonic,
+            VoxtralRealtime,
+            // 其他
+            Miocodec,
+            Miotts,
+            Vibevoice,
+            Dramabox,
+            Heartmula,
+            InflectV2,
+            Qwen3ForcedAligner,
+        ];
+        assert!(
+            variants.len() >= 40,
+            "ModelFamily 应至少覆盖上游全部 40+ loader 族，当前 {}",
+            variants.len()
+        );
+        for v in variants {
+            let name = v.as_str();
+            assert_eq!(
+                ModelFamily::from(name),
+                v,
+                "as_str() 与 From<&str> 不一致：{}",
+                name
+            );
+            // Display / AsRef 应等价于 as_str。
+            assert_eq!(format!("{v}"), name);
+            assert_eq!(v.as_ref(), name);
+        }
+    }
+
+    #[test]
+    fn model_family_custom_fallback() {
+        // 未收录的名字落入 Custom 并原样保留。
+        let m = ModelFamily::from("brand_new_family");
+        match &m {
+            ModelFamily::Custom(s) => assert_eq!(s, "brand_new_family"),
+            other => panic!("未收录名字应落入 Custom，得到 {other:?}"),
+        }
+        assert_eq!(m.as_str(), "brand_new_family");
+        // Custom 值本身不再被 From 回收。
+        assert_eq!(
+            ModelFamily::from("brand_new_family"),
+            ModelFamily::Custom("brand_new_family".to_owned())
+        );
+        // From<String> 与 AsRef 一致。
+        assert_eq!(
+            ModelFamily::from("qwen3_asr".to_owned()),
+            ModelFamily::Qwen3Asr
+        );
+    }
+
+    #[test]
+    fn task_kind_as_str() {
+        let cases = [
+            (TaskKind::Vad, "vad"),
+            (TaskKind::Asr, "asr"),
+            (TaskKind::Diar, "diar"),
+            (TaskKind::SourceSeparation, "sep"),
+            (TaskKind::Tts, "tts"),
+        ];
+        for (k, want) in cases {
+            assert_eq!(k.as_str(), want);
+        }
+    }
+
+    #[test]
+    fn run_mode_as_str() {
+        assert_eq!(RunMode::Offline.as_str(), "offline");
+        assert_eq!(RunMode::Streaming.as_str(), "streaming");
+    }
+
+    #[test]
+    fn backend_as_str() {
+        let cases = [
+            (Backend::Cpu, "cpu"),
+            (Backend::Cuda, "cuda"),
+            (Backend::Hip, "hip"),
+            (Backend::Vulkan, "vulkan"),
+            (Backend::Metal, "metal"),
+            (Backend::Best, "best"),
+        ];
+        for (b, want) in cases {
+            assert_eq!(b.as_str(), want);
+        }
+    }
+
+    /// 结构化类型应能从 C 侧 `dump_*` 产出的 JSON 反序列化（serde 契约）。
+    #[test]
+    fn structured_types_deserialize() {
+        let result: TaskResult = serde_json::from_str(
+            r#"{
+                "speech_segments": [
+                    {"span": {"start_sample": 0, "end_sample": 1600}, "confidence": 0.95, "text": ""}
+                ],
+                "text_output": {"text": "hi", "language": "en"},
+                "audio_output": {"sample_rate": 24000, "channels": 1, "sample_count": 0, "samples": []},
+                "named_audio_outputs": [],
+                "speaker_turns": []
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(result.speech_segments.len(), 1);
+        assert_eq!(result.speech_segments[0].span.start_sample, 0);
+        assert_eq!(result.speech_segments[0].confidence, 0.95);
+        assert_eq!(result.text_output.as_ref().unwrap().text, "hi");
+        assert_eq!(result.audio_output.unwrap().sample_rate, 24000);
+
+        let ev: StreamEvent = serde_json::from_str(
+            r#"{
+                "voice_activity": [
+                    {"kind": "speech_start", "sample": 100, "probability": 0.8, "segment": null}
+                ],
+                "partial_text": null,
+                "audio_output": null,
+                "named_audio_outputs": [{"id": "chunk_0", "audio": {"sample_rate": 48000, "channels": 2, "sample_count": 320, "samples": []}, "meta": {}}],
+                "is_final": true
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(ev.voice_activity[0].kind, "speech_start");
+        assert_eq!(ev.named_audio_outputs[0].id, "chunk_0");
+        assert!(ev.is_final);
+    }
+}
