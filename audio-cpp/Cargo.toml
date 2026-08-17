@@ -22,6 +22,14 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 
+[dev-dependencies]
+# 示例 load_any_audio 演示用 symphonia 解码非 WAV 格式（mp3/flac/ogg/m4a…）。
+# 仅影响示例编译，不进入库本身依赖；用户可自行选择任何解码库。
+symphonia = { workspace = true, features = [
+    "aac", "adpcm", "alac", "flac", "isomp4", "mp1", "mp2", "mp3",
+    "ogg", "pcm", "vorbis", "wav",
+] }
+
 [features]
 default = ["core-models"]
 # 转发给 audio-cpp-sys：启用 prebuilt 自动下载（见其 Cargo.toml 说明）。

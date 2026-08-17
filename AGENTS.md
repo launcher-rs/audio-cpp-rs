@@ -36,6 +36,14 @@
 
 ### 4. 构建环境（win32）
 - 工具：PowerShell 7（`pwsh`）、CMake、Ninja（build.rs 强制 `generator("Ninja")`）、MSVC 或 GCC/Clang、bindgen 需要 clang 与 MSVC `INCLUDE` 环境。
+- **中文乱码约定**：本机 pwsh 的 `[Console]::OutputEncoding` 默认是系统代码页（936/GB2312），而 opencode 等工具读 pwsh 输出时按 UTF-8 解码——含中文的命令输出（如 `git log`、`rg`、`cargo` 的警告、`Get-Content`、`Get-ChildItem`）会乱码。**执行含中文输出的命令前**，先设置 UTF-8（四行都设，`$PSStyle.OutputRendering='PlainText'` 可避免 pwsh 7 的 ANSI 样式在管道时干扰编码）：
+  ```powershell
+  [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+  [Console]::InputEncoding = [System.Text.Encoding]::UTF8
+  $OutputEncoding = [System.Text.Encoding]::UTF8
+  $PSStyle.OutputRendering = 'PlainText'
+  ```
+  也可把上述四行写入 pwsh profile（`$PROFILE`）让所有会话自动生效；`Get-Content` 读中文文件建议加 `-Encoding UTF8`。
 - 构建命令：
   - `cargo build`（默认 `core-models` + CPU）
   - `cargo build --features full-models,openmp`

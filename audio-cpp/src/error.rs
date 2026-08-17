@@ -24,4 +24,8 @@ pub enum Error {
     /// 路径含非法 UTF-8（capi.h 约定所有字符串均为 UTF-8）。
     #[error("路径不是合法 UTF-8: {0}")]
     NonUtf8Path(PathBuf),
+
+    /// 其他运行时错误（如示例中用户自选解码库的失败信息）。
+    #[error("{0}")]
+    Other(String),
 }

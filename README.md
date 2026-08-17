@@ -209,6 +209,12 @@ cargo run -p audio-cpp --features custom-models --example tts_streaming -- `
 
 # 11) 注册表内省（无需下载权重；枚举模型族/loader/设备并校验 ModelFamily 往返）
 cargo run -p audio-cpp --example registry_inspect
+
+# 12) 非 WAV 音频输入：用 symphonia 解码 mp3/flac/ogg/m4a 等任意格式喂给引擎
+#    （symphonia 仅示例用 dev-dependency，不进入库依赖；用户可用任何解码库）
+cargo run -p audio-cpp --example load_any_audio -- `
+  audio-cpp-sys/audio.cpp/assets/framework/models/silero_vad/silero_vad_16k.safetensors `
+  ./song.mp3
 ```
 
 
@@ -232,6 +238,7 @@ cargo run -p audio-cpp --example registry_inspect
 - [x] 流式 ASR 端到端验证：Qwen3 ASR Q8_0 GGUF（sample_16k.wav → 逐窗口部分转录 + 最终文本）
 - [x] 注册表内省示例（registry_inspect）与流式 TTS 示例（tts_streaming，VoxCPM2）
 - [x] C ABI 流事件回传：`StreamEvent.named_audio_outputs`（流式 TTS 逐块音频）
+- [x] 非 WAV 音频输入示例（load_any_audio）：symphonia 解码 mp3/flac 实测跑通（symphonia 为 dev-dependency，不进入库依赖）
 
 ## 参考
 

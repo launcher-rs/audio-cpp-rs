@@ -31,14 +31,13 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 
+# 仅示例/测试使用：用 symphonia 解码 mp3/flac/ogg/m4a 等非 WAV 格式，
+# 演示如何把任意格式音频解码为 f32 采样喂给引擎（不进入库本身依赖）。
+symphonia = { version = "0.6", default-features = false }
+
 # 内部 crate（版本随 workspace.package 统一升版）
 audio-cpp-sys = { version = "0.2.0", path = "audio-cpp-sys" }
 
-# =====================================================================
-# 工作区统一 lint 配置（所有成员 crate 继承）。
-# 用 clippy 规范代码：修正性建议全部按 warning 处理，CI 里再加 -D warnings
-# 把告警升为错误，确保不引入新的违规项。
-# =====================================================================
 # =====================================================================
 # 工作区统一 lint 配置（所有成员 crate 继承）。
 # 用 clippy 规范代码：修正性建议全部按 warning 处理，CI 里再加 -D warnings
