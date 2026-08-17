@@ -91,10 +91,10 @@ cargo run -p audio-cpp --features model-citrinet-asr --example asr_offline   # A
 | `model-fun-asr-nano` | fun_asr_nano | ASR |
 | `model-hviske-asr` / `model-kroko-asr` / `model-nemotron-asr` / `model-parakeet-tdt` / `model-vibevoice-asr` | 对应 asr 族 | ASR |
 | `model-moss` | moss（moss_tts_nano / moss_tts_local） | TTS（已验证） |
-| `model-qwen3-tts` / `model-irodori-tts` | qwen3_tts / irodori_tts | TTS |
+| `model-qwen3-tts` / `model-irodori-tts` | qwen3_tts / irodori_tts | TTS（qwen3 已验证） |
 | `model-fish-audio` | fish_audio | TTS / 声音克隆 |
 | `model-demucs` | demucs（htdemucs） | 音频分离 |
-| `model-rockro` | roformer（mel_band_roformer） | 音频分离 |
+| `model-roformer` | roformer（mel_band_roformer） | 音频分离 |
 
 - build.rs 会自动收集所有启用的 `model-<族>` feature（经 `CARGO_FEATURE_MODEL_*`
   环境变量），并把它们与 `AUDIOCPP_MODELS` 环境变量取**并集**——两者可混用；
@@ -190,6 +190,13 @@ cargo run -p audio-cpp --features model-citrinet-asr --example asr_offline -- `
 cargo run -p audio-cpp --features model-moss --example tts_offline -- `
   ./moss-tts-nano-100m-q8_0.gguf out.wav "Hello from Rust and audio.cpp!"
 
+# 6b) 离线 TTS 声音克隆（Qwen3 TTS base 变体须做 voice-clone，见 tts_offline_qwen3.rs 头注）
+cargo run -p audio-cpp --features model-qwen3-tts --example tts_offline_qwen3 -- `
+  ./qwen3-tts-12hz-0.6b-base-q8_0.gguf `
+  audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav `
+  "Some call me nature. Others call me Mother Nature." `
+  out.wav "Hello from Rust and Qwen3 TTS!"
+
 # 7) 离线说话人分离（SortFormer GGUF 需自行下载并重采样到 16kHz，见 diar_offline.rs 头注）
 cargo run -p audio-cpp --features model-sortformer-diar --example diar_offline -- `
   ./sortformer-diar-4spk-v1-q8_0.gguf ./four_speaker_16k.wav
@@ -230,6 +237,7 @@ cargo run -p audio-cpp --example load_any_audio -- `
 - [x] 内置 VAD 两种模型端到端验证：silero_vad（离线+流式）、marblenet_vad（离线）
 - [x] ASR 端到端验证：Citrinet ASR Q8_0 GGUF 离线转录（sample_16k.wav → Nature 台词）
 - [x] TTS 端到端验证：MOSS-TTS-Nano-100M Q8_0 GGUF 离线合成（~8s 语音写入 WAV）
+- [x] Qwen3 TTS 声音克隆端到端验证：qwen3-tts-12hz-0.6b-base Q8_0 GGUF（sample_16k.wav 做参考 → ~4s 克隆语音）
 - [x] C ABI 音频回传：`audio_output.samples` 携带生成音频的 f32 采样
 - [x] `custom-models` feature：按需编译指定模型族，避免 full 全量成本
 - [x] 说话人分离端到端验证：SortFormer Diar 4spk Q8_0 GGUF（four_speaker_short.wav 重采样到 16kHz）

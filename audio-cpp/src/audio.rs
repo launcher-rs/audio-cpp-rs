@@ -7,22 +7,10 @@
 //! 格式的音频，本 crate **不内置解码库**（避免替用户锁定生态 / 增加依赖），
 //! 而是留出 [`WavAudio`] + `Request::asr` / `vad` / `diar` 等的 `Buffer` 路径——
 //! 用户用任意 Rust 解码库（如 [symphonia]、[rodio]、[hound]、[claxon]）解码出
-//! f32 采样后，直接构造 [`WavAudio`] 交给请求即可：
+//! f32 采样后，直接构造 [`WavAudio`] 交给请求即可。
 //!
-//! ```rust,ignore
-//! // 以 symphonia 为例（仅示意，用户按需自选解码库）：
-//! //   use symphonia::core::{codecs::audio::AudioDecoderOptions, formats::{probe::Hint, FormatOptions, TrackType}, io::MediaSourceStream, meta::MetadataOptions};
-//! //   let mss = MediaSourceStream::new(Box::new(std::fs::File::open(path)?), Default::default());
-//! //   let mut format = symphonia::default::get_probe().probe(&Hint::new(), mss, FormatOptions::default(), MetadataOptions::default())?;
-//! //   let track = format.default_track(TrackType::Audio).ok_or("no audio")?;
-//! //   let mut decoder = symphonia::default::get_codecs().make_audio_decoder(track.codec_params.as_ref().unwrap().audio().unwrap(), &AudioDecoderOptions::default())?;
-//! //   let mut samples = vec![];
-//! //   while let Some(pkt) = format.next_packet()? {
-//! //       if let Ok(buf) = decoder.decode(&pkt) { samples.resize(buf.samples_interleaved(), 0.0); buf.copy_to_slice_interleaved(&mut samples); }
-//! //   }
-//! //   let wav = audio_cpp::WavAudio { sample_rate: 16000, channels: 1, samples };
-//! //   let req = audio_cpp::Request::asr(audio_cpp::AudioInput::Buffer(wav));
-//! ```
+//! 完整的可运行示例见 `load_any_audio`（在 `audio-cpp/examples/` 下），
+//! 它用 symphonia 解码 mp3/flac/ogg/m4a 后经 `AudioInput::Buffer` 跑通 VAD 链路。
 //!
 //! [symphonia]: https://crates.io/crates/symphonia
 //! [rodio]: https://crates.io/crates/rodio
