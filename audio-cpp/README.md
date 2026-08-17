@@ -43,10 +43,13 @@ cargo build --features full-models,cuda       # 全量 + GPU 后端
 
 - **官方 GGUF 包**：[`audio-cpp/audio.cpp-gguf`](https://huggingface.co/audio-cpp/audio.cpp-gguf)
   —— 官方发布的现成 GGUF（`Family-GGUF/<name>.gguf` 组织，如
-  `Qwen3-ASR-GGUF/qwen3-asr-q8_0.gguf`、`MOSS-TTS-Nano-100M-GGUF/moss-tts-nano-100m-q8_0.gguf`）；
+  `Qwen3-ASR-0.6B-GGUF/qwen3-asr-0.6b-q8_0.gguf`、`MOSS-TTS-Nano-100M-GGUF/moss-tts-nano-100m-q8_0.gguf`）；
 - **社区模型包**：[`mirek190/audio.cpp`](https://huggingface.co/mirek190/audio.cpp)；
 - **官方下载工具**：上游 `tools/model_manager_v2.py` 按模型规格自动下载默认包，
-  优先用现成 GGUF（见上游 [model_manager 文档](https://github.com/0xShug0/audio.cpp/blob/main/docs/model_manager.md)）。
+  优先用现成 GGUF（见上游 [model_manager 文档](https://github.com/0xShug0/audio.cpp/blob/main/docs/model_manager.md)）；
+- **自动下载（推荐）**：`examples/download_model` 示例用
+  [hf-hub](https://crates.io/crates/hf-hub)（仅示例用 dev-dependency）在本地文件
+  不存在时直接从 Hugging Face 拉到缓存再加载，缓存走 `HF_HOME`、再次运行自动命中。
 
 下载后把 GGUF 路径传给 [`Registry::load`](src/registry.rs)；GGUF 无法自动探测族别，
 必须同时给 `family_hint`（见下方注意事项）。`examples/` 里每个需要权重的示例头注

@@ -35,6 +35,9 @@ thiserror = "2"
 # 演示如何把任意格式音频解码为 f32 采样喂给引擎（不进入库本身依赖）。
 symphonia = { version = "0.6", default-features = false }
 
+# 仅示例/测试使用：用 hf-hub 从 Hugging Face 下载模型权重（不进入库本身依赖）。
+hf-hub = { version = "1.0", default-features = false, features = ["blocking"] }
+
 # 内部 crate（版本随 workspace.package 统一升版）
 audio-cpp-sys = { version = "0.2.0", path = "audio-cpp-sys" }
 

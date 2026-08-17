@@ -29,6 +29,9 @@ symphonia = { workspace = true, features = [
     "aac", "adpcm", "alac", "flac", "isomp4", "mp1", "mp2", "mp3",
     "ogg", "pcm", "vorbis", "wav",
 ] }
+# 示例 download_model 演示用 hf-hub 从 Hugging Face 下载模型权重（blocking 同步 API）。
+# 仅影响示例编译，不进入库本身依赖；用户可自行选择下载方式。
+hf-hub = { workspace = true }
 
 [features]
 default = ["core-models"]

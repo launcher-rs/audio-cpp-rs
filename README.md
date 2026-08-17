@@ -150,6 +150,10 @@ cargo build --features custom-models,vulkan,openmp
 
 > 各示例头注里均标注了对应模型的下载地址与所需 feature；GGUF 模型加载时须显式
 > 传 `family_hint`（见 `audio-cpp/README.md`）。
+>
+> 想自动下载而非手动点页面：`audio-cpp/examples/download_model` 示例用
+> [hf-hub](https://crates.io/crates/hf-hub)（仅示例用 dev-dependency）在本地文件
+> 不存在时直接从 Hugging Face 拉到缓存再加载，详见该示例头注。
 
 ## 示例
 
@@ -222,6 +226,11 @@ cargo run -p audio-cpp --example registry_inspect
 cargo run -p audio-cpp --example load_any_audio -- `
   audio-cpp-sys/audio.cpp/assets/framework/models/silero_vad/silero_vad_16k.safetensors `
   ./song.mp3
+
+# 13) 模型自动下载：本地不存在时用 hf-hub 从 Hugging Face 拉取到缓存再加载
+#    （hf-hub 仅示例用 dev-dependency；缓存走 HF_HOME，再次运行自动命中）
+cargo run -p audio-cpp --example download_model -- `
+  audio-cpp/audio.cpp-gguf Qwen3-ASR-0.6B-GGUF/qwen3-asr-0.6b-q8_0.gguf
 ```
 
 
@@ -247,6 +256,7 @@ cargo run -p audio-cpp --example load_any_audio -- `
 - [x] 注册表内省示例（registry_inspect）与流式 TTS 示例（tts_streaming，VoxCPM2）
 - [x] C ABI 流事件回传：`StreamEvent.named_audio_outputs`（流式 TTS 逐块音频）
 - [x] 非 WAV 音频输入示例（load_any_audio）：symphonia 解码 mp3/flac 实测跑通（symphonia 为 dev-dependency，不进入库依赖）
+- [x] 模型自动下载示例（download_model）：hf-hub 从官方仓库实测下载 citrinet GGUF 并缓存复用（hf-hub 为 dev-dependency，不进入库依赖）
 
 ## 参考
 
