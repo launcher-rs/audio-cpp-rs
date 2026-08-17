@@ -20,7 +20,7 @@
 //! 运行方式：
 //! ```bash
 //! cargo run -p audio-cpp --features model-qwen3-tts --example tts_offline_qwen3 -- `
-//!     F:\models\qwen3-tts-12hz-0.6b-base-q8_0.gguf `
+//!     ./qwen3-tts-12hz-0.6b-base-q8_0.gguf `
 //!     audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav `
 //!     "Some call me nature. Others call me Mother Nature." `
 //!     out.wav "Hello from Rust and Qwen3 TTS!"

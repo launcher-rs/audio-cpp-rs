@@ -15,11 +15,11 @@
 //! 2. 下载 Qwen3 ASR Q8_0 GGUF：
 //!    `https://huggingface.co/audio-cpp/audio.cpp-gguf` → `Qwen3-ASR-GGUF/qwen3-asr-q8_0.gguf`
 //!
-//! 运行方式（本机已用 `F:\models\qwen3-asr-0.6b-q8_0.gguf` + 内置
-//! `sample_16k.wav` 验证通过，输出逐窗口部分转录 + 最终文本）：
+//! 运行方式（已用 `./qwen3-asr-q8_0.gguf` + 内置 `sample_16k.wav` 验证通过，
+//! 输出逐窗口部分转录 + 最终文本）：
 //! ```bash
 //! cargo run -p audio-cpp --features model-qwen3-asr --example asr_streaming -- `
-//!     F:\models\qwen3-asr-0.6b-q8_0.gguf audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav
+//!     ./qwen3-asr-q8_0.gguf audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav
 //! ```
 //!
 //! 说明：

@@ -14,14 +14,14 @@ audio.cpp 是一个纯 C++ 音频推理框架，基于 ggml，支持 TTS、STT�
 | [`audio-cpp`](audio-cpp/) | **高层安全封装**：类型安全的注册表 / 模型 / 会话 API（离线 + 流式）。使用指南见 [`audio-cpp/README.md`](audio-cpp/README.md) |
 
 ```
-C:\code\audio-cpp-rs\
-├── audio-cpp-sys\        # 底层绑定 crate
+audio-cpp-rs/
+├── audio-cpp-sys/        # 底层绑定 crate
 │   ├── build.rs          # CMake(Ninja) 构建 engine_runtime + cc 编译 shim + bindgen
 │   ├── capi.h            # C ABI 头文件（跨边界契约的全部内容）
 │   ├── capi.cpp          # C++ shim：把 audio.cpp 的异常转换为 C 错误码
-│   └── audio.cpp\        # ⚠️ git submodule 引入的上游源码（内容不入库）
-├── audio-cpp\            # 高层安全封装 crate（骨架）
-└── docs\research_report.md  # 调研报告
+│   └── audio.cpp/        # ⚠️ git submodule 引入的上游源码（内容不入库）
+├── audio-cpp/            # 高层安全封装 crate
+└── docs/                 # 文档：调研报告、预编译报告、使用指南等
 ```
 
 ### 关于上游源码（git submodule）
@@ -162,6 +162,11 @@ cargo run -p audio-cpp --example vad_offline -- `
   audio-cpp-sys/audio.cpp/assets/framework/models/marblenet_vad/marblenet_vad.safetensors `
   audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav marblenet_vad
 
+# 4) 流式 VAD（事件回调 + 分块 process_audio）
+cargo run -p audio-cpp --example vad_streaming -- `
+  audio-cpp-sys/audio.cpp/assets/framework/models/silero_vad/silero_vad_16k.safetensors `
+  audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav
+
 # 5) 离线 ASR（Citrinet GGUF 需自行下载，见 asr_offline.rs 头注）
 #   用 feature 方式按需编译（推荐，无需环境变量）：
 cargo run -p audio-cpp --features model-citrinet-asr --example asr_offline -- `
@@ -179,19 +184,14 @@ cargo run -p audio-cpp --features model-sortformer-diar --example diar_offline -
 cargo run -p audio-cpp --features model-demucs --example sep_offline -- `
   ./htdemucs-q8_0.gguf ./song.wav ./sep_out
 
-# 4) 流式 VAD（事件回调 + 分块 process_audio）
-cargo run -p audio-cpp --example vad_streaming -- `
-  audio-cpp-sys/audio.cpp/assets/framework/models/silero_vad/silero_vad_16k.safetensors `
-  audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav
-
 # 9) 流式 ASR（Qwen3 ASR：窗口部分转录 + 最终文本）
 cargo run -p audio-cpp --features model-qwen3-asr --example asr_streaming -- `
-  F:\models\qwen3-asr-0.6b-q8_0.gguf audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav
+  ./qwen3-asr-q8_0.gguf audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav
 
 # 10) 流式 TTS（VoxCPM2：逐块音频事件 + 合并输出）
 $env:AUDIOCPP_MODELS="voxcpm2"; cargo build --features custom-models
 cargo run -p audio-cpp --features custom-models --example tts_streaming -- `
-  F:\models\voxcpm2-q8_0.gguf out.wav "你好，我是流式语音合成。"
+  ./voxcpm2-q8_0.gguf out.wav "你好，我是流式语音合成。"
 
 # 11) 注册表内省（无需下载权重；枚举模型族/loader/设备并校验 ModelFamily 往返）
 cargo run -p audio-cpp --example registry_inspect

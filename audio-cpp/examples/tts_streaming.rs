@@ -15,10 +15,10 @@
 //! 2. 下载 VoxCPM2 Q8_0 GGUF：
 //!    `https://huggingface.co/audio-cpp/audio.cpp-gguf` → `VoxCPM2-GGUF/voxcpm2-q8_0.gguf`
 //!
-//! 运行方式（模型需自行下载放 F:\models，如 `F:\models\voxcpm2-q8_0.gguf`）：
+//! 运行方式（模型路径自行替换为实际下载位置）：
 //! ```bash
 //! cargo run -p audio-cpp --features custom-models --example tts_streaming -- `
-//!     F:\models\voxcpm2-q8_0.gguf out.wav "你好，我是流式语音合成。"
+//!     ./voxcpm2-q8_0.gguf out.wav "你好，我是流式语音合成。"
 //! ```
 //!
 //! 说明：

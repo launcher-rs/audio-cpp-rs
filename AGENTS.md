@@ -157,9 +157,10 @@
   `options.reference_text` 传入，越贴合内容音色越准；GGUF 须显式
   `family_hint="qwen3_tts"`。已验证：`qwen3-tts-12hz-0.6b-base-q8_0.gguf` + upstream
   `sample_16k.wav`（Nature 台词做参考）合成 ~4s 语音，输出 24000Hz 1ch。
-- **本地测试权重**可放在 `F:\models\`（qwen3-asr-0.6b-q8_0.gguf、
+- **本地测试权重**可放在任意本地目录（qwen3-asr-0.6b-q8_0.gguf、
   fun-asr-nano-2512-q8_0.gguf、voxcpm2-q8_0.gguf、
-  qwen3-tts-12hz-0.6b-base-q8_0.gguf 等），示例文档统一引用该目录。
+  qwen3-tts-12hz-0.6b-base-q8_0.gguf 等），文档中一律用相对路径占位，
+  **不要写入真实的本地绝对路径**（如盘符/用户名），避免泄露个人电脑信息。
 - **预编译旁路**：设置 `AUDIOCPP_PREBUILT_DIR=<目录>` 后 build.rs 跳过整个 CMake
   构建，直接链接该目录下的 `engine_runtime` 及依赖静态库（布局 `<dir>`、`<dir>/lib`、
   `<dir>/lib64`、`<dir>/bin` 均可，与 llama-cpp-rs 的 `LLAMA_PREBUILT_DIR` 一致）。

@@ -267,4 +267,4 @@ println!("{}Hz {}ch {} 采样", audio.sample_rate, audio.channels, samples.len()
 asr_offline / asr_streaming / tts_offline / tts_streaming / diar_offline /
 sep_offline / registry_inspect）。其中 vad_streaming / asr_streaming /
 tts_streaming / registry_inspect 已在本机 win32/MSVC 验证运行；其余离线示例
-此前已验证。测试权重文件可放在 `F:\models` 下。
+此前已验证。测试权重文件请自行放置（不要提交到仓库）。
