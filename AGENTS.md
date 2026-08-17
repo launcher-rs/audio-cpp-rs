@@ -218,6 +218,23 @@
   会警告并强制关闭）。crt-static + vulkan 的静态二进制仅剩 `vulkan-1.dll`（后端
   必需）与系统 DLL。注意：crt-static 路径无预编译加速，需完整源码构建。
 
+- **基于 voxkit 消费反馈的新 API**（voxkit 是 crates.io audio-cpp 0.2 的真实
+  消费者，ASR/VAD/TTS/Diar/流式全链路）：
+  - `ModelFamily::from_path(path)`：按文件名关键词推断模型族（GGUF 加载时
+    免手写家族匹配表），支持 `#family=xxx` 片段显式覆盖优先；
+  - `Request::stream()`：纯 options 的流式请求构造器（无音频输入，用于
+    流式 `start`/`prepare`，音频经 `process_audio` 逐块送），配合
+    `.option("language", ..)` / `.option("audio_chunk_seconds", ..)`，
+    免手拼 JSON；
+  - `StreamingSession`（`audio_cpp::StreamingSession`，session 模块公开）：
+    流式会话便捷封装，自动注册事件收集器，`push_audio` 返回 `Vec<StreamEvent>`
+    （该块全部事件），消除手动回调 + `Arc<Mutex<Vec>>` 样板；
+  - **`Session` 独立于 `Model` 存活**（上游 session 持权重/资产 `shared_ptr`
+    共享所有权，silero_vad 与 spec_backed 均如此）：会话创建后可释放
+    Model/Registry，lib.rs 生命周期文档已记录并给 `no_run` 示例。
+  - 上游 `v0.2.0` git tag 与 crates.io 发布版不一致（发布后未补 tag，tag 仅
+    服务预编译库）——是预期行为，勿改。
+
 ## 常用命令速查
 ```bash
 git submodule update --init --recursive                                  # 补齐 audio-cpp-sys/audio.cpp（克隆后必需）

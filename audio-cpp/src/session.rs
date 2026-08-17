@@ -15,14 +15,15 @@
 use std::ffi::{CStr, c_char, c_void};
 use std::os::raw::c_int;
 use std::ptr;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use audio_cpp_sys::*;
 
 use crate::error::Error;
 use crate::ffi;
+use crate::model::Model;
 use crate::request::IntoRequest;
-use crate::types::{StreamEvent, StreamingPolicy, TaskResult};
+use crate::types::{Backend, RunMode, StreamEvent, StreamingPolicy, TaskKind, TaskResult};
 
 /// 事件回调的底层存储（box 在堆上，地址稳定，可跨线程）。
 struct EventSinkInner {
@@ -301,5 +302,150 @@ impl Drop for Session {
         unsafe {
             audiocpp_session_free(self.raw);
         }
+    }
+}
+
+/// 流式会话的便捷封装。
+///
+/// 包装一个 [`Session`]，自动注册内部事件收集器，把 shim 的逐事件回调
+/// 缓冲为 Vec，使调用方无需手动管理回调 + 锁。典型用法（流式 ASR）：
+///
+/// ```
+/// use audio_cpp::{Backend, Model, Registry, Request, RunMode, TaskKind};
+/// use audio_cpp::session::StreamingSession;
+/// # fn f() -> Result<(), audio_cpp::Error> {
+/// # let registry = Registry::new()?;
+/// # let model = registry.load("./qwen3-asr-0.6b-q8_0.gguf", None, None)?;
+/// let session = model.create_task_session(
+///     TaskKind::Asr, RunMode::Streaming, Backend::Cpu, 0, 1, None,
+/// )?;
+/// let mut stream = StreamingSession::from_session(session);
+///
+/// stream.start(Request::stream().option("language", "auto"))?;
+/// // 每块音频送入后，取出该块触发的全部事件（partial_text / is_final）
+/// let samples: Vec<f32> = vec![0.0; 512];
+/// let events = stream.push_audio(&samples, 16000, 1, 0)?;
+/// for ev in &events {
+///     if let Some(t) = &ev.partial_text {
+///         println!("增量: {}", t.text);
+///     }
+/// }
+/// let result = stream.finish()?;
+/// # Ok(()) }
+/// ```
+///
+/// 与底层 [`Session::process_audio`] 不同，`push_audio` 返回该块触发的
+/// **所有**事件（经内部回调收集），而不是单个事件。不消费音频块的模型族
+/// （如流式 TTS）可跳过 `push_audio`，直接 `start` → `finish`。
+pub struct StreamingSession {
+    session: Session,
+    events: Arc<Mutex<Vec<StreamEvent>>>,
+}
+
+unsafe impl Send for StreamingSession {}
+
+impl StreamingSession {
+    /// 从现有会话包装（流式任务）。
+    pub fn from_session(session: Session) -> Self {
+        let events: Arc<Mutex<Vec<StreamEvent>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = events.clone();
+        session.set_event_callback(Some(move |ev| {
+            if let Ok(mut v) = sink.lock() {
+                v.push(ev);
+            }
+        }));
+        Self { session, events }
+    }
+
+    /// 从模型创建流式会话并包装（等价于
+    /// `create_task_session(Streaming)` + [`Self::from_session`]）。
+    ///
+    /// # Errors
+    ///
+    /// 底层无法创建流式会话时返回对应 [`Error`] 变体。
+    pub fn from_model(
+        model: &Model,
+        task: TaskKind,
+        backend: Backend,
+        device: i32,
+        threads: i32,
+        session_options: Option<&str>,
+    ) -> Result<Self, Error> {
+        let session = model.create_task_session(
+            task,
+            RunMode::Streaming,
+            backend,
+            device,
+            threads,
+            session_options,
+        )?;
+        Ok(Self::from_session(session))
+    }
+
+    /// 开始流式任务（等价于 [`Session::start`]）。
+    ///
+    /// # Errors
+    ///
+    /// 请求序列化失败、路径含 NUL，或 C ABI 调用失败时返回对应 [`Error`] 变体。
+    pub fn start<R: IntoRequest>(&self, request: R) -> Result<(), Error> {
+        self.session.start(request)
+    }
+
+    /// 送入一段音频，返回该块触发的全部流事件。
+    ///
+    /// 等价于先清空内部缓冲、调用 [`Session::process_audio`]、再取出缓冲
+    /// 中的全部事件。`samples` 为 `float` 采样，`start_sample` 为相对输入
+    /// 流的起始采样点。
+    ///
+    /// # Errors
+    ///
+    /// C ABI 调用失败时返回对应 [`Error`] 变体。
+    pub fn push_audio(
+        &self,
+        samples: &[f32],
+        sample_rate: i32,
+        channels: i32,
+        start_sample: i64,
+    ) -> Result<Vec<StreamEvent>, Error> {
+        self.events
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clear();
+        self.session
+            .process_audio(samples, sample_rate, channels, start_sample)?;
+        Ok(self
+            .events
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .drain(..)
+            .collect())
+    }
+
+    /// 结束流式会话，返回最终结果（等价于 [`Session::finish`]）。
+    ///
+    /// # Errors
+    ///
+    /// C ABI 调用失败时返回对应 [`Error`] 变体。
+    pub fn finish(&self) -> Result<TaskResult, Error> {
+        self.session.finish()
+    }
+
+    /// 重置会话（等价于 [`Session::reset`]），并清空内部缓冲。
+    pub fn reset(&self) {
+        self.session.reset();
+        self.events
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clear();
+    }
+
+    /// 底层会话引用。
+    pub fn session(&self) -> &Session {
+        &self.session
+    }
+
+    /// 底层会话可变引用。
+    pub fn session_mut(&mut self) -> &mut Session {
+        &mut self.session
     }
 }

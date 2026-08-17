@@ -94,6 +94,18 @@ impl AudioRequest {
         }
     }
 
+    /// 构造仅含选项的请求（无音频输入）。
+    ///
+    /// 用于流式 `start` / `prepare` 阶段：此时音频经
+    /// [`crate::Session::process_audio`] 逐块送入，请求本身只需携带
+    /// `options`（如 `language`、`audio_chunk_seconds`）。
+    pub fn options_only() -> Self {
+        Self {
+            audio: None,
+            options: BTreeMap::new(),
+        }
+    }
+
     /// 设置一个选项键值（等价于 JSON `options` 里的一个字段）。
     pub fn option<V: Into<Value>>(mut self, key: impl Into<String>, value: V) -> Self {
         self.options.insert(key.into(), value.into());
@@ -205,6 +217,20 @@ impl Request {
     /// ASR 请求：以音频输入构造。
     pub fn asr(audio: impl Into<AudioInput>) -> Self {
         Request::Asr(AudioRequest::new(audio))
+    }
+
+    /// 流式 ASR 请求：仅含选项，无音频输入。
+    ///
+    /// 用于流式会话的 `start` / `prepare`（音频经
+    /// [`crate::Session::process_audio`] 逐块送入，无需 `audio_path`）。
+    /// 例如：
+    /// ```
+    /// use audio_cpp::Request;
+    /// let req = Request::stream().option("language", "auto").option("audio_chunk_seconds", 3.0);
+    /// assert_eq!(req.to_json().unwrap(), r#"{"options":{"audio_chunk_seconds":3.0,"language":"auto"}}"#);
+    /// ```
+    pub fn stream() -> Self {
+        Request::Asr(AudioRequest::options_only())
     }
 
     /// 说话人分离请求：以音频输入构造。
@@ -403,6 +429,24 @@ mod tests {
 
     fn json(s: &str) -> serde_json::Value {
         serde_json::from_str(s).expect("合法 JSON")
+    }
+
+    #[test]
+    fn stream_start_options_only() {
+        let req = Request::stream()
+            .option("language", "auto")
+            .option("audio_chunk_seconds", 3.0);
+        assert_eq!(
+            json(&req.to_json().unwrap()),
+            json(r#"{"options":{"audio_chunk_seconds":3.0,"language":"auto"}}"#)
+        );
+    }
+
+    #[test]
+    fn stream_start_empty() {
+        // 无音频、无选项的流式 start 请求等价于空对象。
+        let req = Request::stream();
+        assert_eq!(json(&req.to_json().unwrap()), json(r#"{}"#));
     }
 
     #[test]

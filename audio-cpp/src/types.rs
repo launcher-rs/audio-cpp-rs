@@ -182,6 +182,128 @@ pub enum ModelFamily {
 }
 
 impl ModelFamily {
+    /// 按文件名关键词推断模型族。
+    ///
+    /// GGUF / NeMo safetensors 无法被引擎自动探测族别，加载时必须显式指定。
+    /// 上游社区习惯以模型族名命名权重文件（如 `qwen3-asr-0.6b-q8_0.gguf`、
+    /// `sortformer-diar-4spk-v1-q8_0.gguf`），本函数从文件名中的关键词
+    /// 匹配到对应 [`ModelFamily`]；无法识别时返回 `None`，调用方应回退到
+    /// 显式 hint 或 [`ModelFamily::Custom`]。
+    ///
+    /// 匹配规则按关键词**首次命中**，文件名需包含明确的族名（如 `qwen3`、
+    /// `citrinet`、`moss-tts-nano`）。`#family=` 片段（`path#family=qwen3_asr`）
+    /// 会被剥离后参与匹配，同时优先于关键词命中。
+    ///
+    /// # 示例
+    ///
+    /// ```
+    /// use audio_cpp::ModelFamily;
+    ///
+    /// assert_eq!(
+    ///     ModelFamily::from_path("models/qwen3-asr-0.6b-q8_0.gguf"),
+    ///     Some(ModelFamily::Qwen3Asr),
+    /// );
+    /// assert_eq!(
+    ///     ModelFamily::from_path("model.gguf#family=citrinet_asr"),
+    ///     Some(ModelFamily::CitrinetAsr),
+    /// );
+    /// assert_eq!(ModelFamily::from_path("my-weights.gguf"), None);
+    /// ```
+    pub fn from_path(path: &str) -> Option<ModelFamily> {
+        let lower = path.to_ascii_lowercase();
+        // `#family=xxx` 片段：显式指定优先，直接映射后返回。
+        if let Some((_, f)) = lower.rsplit_once("#family=") {
+            return Some(ModelFamily::from(f.trim()));
+        }
+        // 关键词 → 族：按文件名常用命名约定匹配。
+        const KEYWORDS: &[(&str, ModelFamily)] = &[
+            ("silero_vad", ModelFamily::SileroVad),
+            ("silero-vad", ModelFamily::SileroVad),
+            ("marblenet_vad", ModelFamily::MarblenetVad),
+            ("marblenet-vad", ModelFamily::MarblenetVad),
+            ("marblenet", ModelFamily::MarblenetVad),
+            ("qwen3_asr", ModelFamily::Qwen3Asr),
+            ("qwen3-asr", ModelFamily::Qwen3Asr),
+            ("qwen3", ModelFamily::Qwen3Asr),
+            ("citrinet", ModelFamily::CitrinetAsr),
+            ("sense_asr", ModelFamily::SenseAsr),
+            ("sense-asr", ModelFamily::SenseAsr),
+            ("sensevoice", ModelFamily::SenseAsr),
+            ("fun-asr-nano", ModelFamily::FunAsrNano),
+            ("fun_asr_nano", ModelFamily::FunAsrNano),
+            ("funasr", ModelFamily::FunAsrNano),
+            ("higgs_audio_stt", ModelFamily::HiggsAudioStt),
+            ("higgs_audio_tts", ModelFamily::HiggsAudioTts),
+            ("higgs", ModelFamily::HiggsAudioStt),
+            ("hviske", ModelFamily::HviskeAsr),
+            ("kroko", ModelFamily::KrokoAsr),
+            ("nemotron", ModelFamily::NemotronAsr),
+            ("parakeet", ModelFamily::ParakeetTdt),
+            ("vibevoice_asr", ModelFamily::VibevoiceAsr),
+            ("vibevoice", ModelFamily::Vibevoice),
+            ("qwen3_tts", ModelFamily::Qwen3Tts),
+            ("qwen3-tts", ModelFamily::Qwen3Tts),
+            ("confucius", ModelFamily::Confucius4Tts),
+            ("dots_tts", ModelFamily::DotsTts),
+            ("dots-tts", ModelFamily::DotsTts),
+            ("fish_audio", ModelFamily::FishAudio),
+            ("fish-audio", ModelFamily::FishAudio),
+            ("glm_tts", ModelFamily::GlmTts),
+            ("glm-tts", ModelFamily::GlmTts),
+            ("index_tts2", ModelFamily::IndexTts2),
+            ("index-tts2", ModelFamily::IndexTts2),
+            ("irodori", ModelFamily::IrodoriTts),
+            ("moss-tts-nano", ModelFamily::MossTtsNano),
+            ("moss_tts_nano", ModelFamily::MossTtsNano),
+            ("moss-tts-local", ModelFamily::MossTtsLocal),
+            ("moss_tts_local", ModelFamily::MossTtsLocal),
+            ("moss", ModelFamily::MossTtsNano),
+            ("neutts", ModelFamily::Neutts),
+            ("outetts", ModelFamily::Outetts),
+            ("pocket_tts", ModelFamily::PocketTts),
+            ("pocket-tts", ModelFamily::PocketTts),
+            ("vietneu", ModelFamily::VietneuTts),
+            ("minimax_h3", ModelFamily::MinimaxH3),
+            ("minimax-h3", ModelFamily::MinimaxH3),
+            ("sortformer-diar", ModelFamily::SortformerDiar),
+            ("sortformer_diar", ModelFamily::SortformerDiar),
+            ("sortformer", ModelFamily::SortformerDiar),
+            ("seed_vc", ModelFamily::SeedVc),
+            ("seed-vc", ModelFamily::SeedVc),
+            ("seedvc", ModelFamily::SeedVc),
+            ("rvc", ModelFamily::Rvc),
+            ("chatterbox", ModelFamily::Chatterbox),
+            ("vevo2", ModelFamily::Vevo2),
+            ("voxcpm2", ModelFamily::Voxcpm2),
+            ("ace_step", ModelFamily::AceStep),
+            ("ace-step", ModelFamily::AceStep),
+            ("htdemucs", ModelFamily::Htdemucs),
+            ("demucs", ModelFamily::Htdemucs),
+            ("mel-band-roformer", ModelFamily::MelBandRoformer),
+            ("mel_band_roformer", ModelFamily::MelBandRoformer),
+            ("bs-roformer", ModelFamily::BsRoformer),
+            ("bs_roformer", ModelFamily::BsRoformer),
+            ("muscriptor", ModelFamily::Muscriptor),
+            ("omnivoice", ModelFamily::Omnivoice),
+            ("stable_audio", ModelFamily::StableAudio),
+            ("stable-audio", ModelFamily::StableAudio),
+            ("supertonic", ModelFamily::Supertonic),
+            ("voxtral-realtime", ModelFamily::VoxtralRealtime),
+            ("voxtral", ModelFamily::VoxtralRealtime),
+            ("miocodec", ModelFamily::Miocodec),
+            ("miotts", ModelFamily::Miotts),
+            ("dramabox", ModelFamily::Dramabox),
+            ("heartmula", ModelFamily::Heartmula),
+            ("inflect", ModelFamily::InflectV2),
+            ("qwen3_forced_aligner", ModelFamily::Qwen3ForcedAligner),
+            ("forced-aligner", ModelFamily::Qwen3ForcedAligner),
+        ];
+        KEYWORDS
+            .iter()
+            .find(|(k, _)| lower.contains(k))
+            .map(|(_, family)| family.clone())
+    }
+
     /// 转换为传给 C 边界的字符串。
     pub fn as_str(&self) -> &str {
         match self {
@@ -646,6 +768,48 @@ mod tests {
             ModelFamily::from("qwen3_asr".to_owned()),
             ModelFamily::Qwen3Asr
         );
+    }
+
+    #[test]
+    fn model_family_from_path() {
+        // 关键词命中（常见 GGUF 命名）
+        assert_eq!(
+            ModelFamily::from_path("models/qwen3-asr-0.6b-q8_0.gguf"),
+            Some(ModelFamily::Qwen3Asr)
+        );
+        assert_eq!(
+            ModelFamily::from_path("sortformer-diar-4spk-v1-q8_0.gguf"),
+            Some(ModelFamily::SortformerDiar)
+        );
+        assert_eq!(
+            ModelFamily::from_path("citrinet-asr-q8_0.gguf"),
+            Some(ModelFamily::CitrinetAsr)
+        );
+        assert_eq!(
+            ModelFamily::from_path("moss-tts-nano-q8_0.gguf"),
+            Some(ModelFamily::MossTtsNano)
+        );
+        assert_eq!(
+            ModelFamily::from_path("htdemucs-6s-q8_0.gguf"),
+            Some(ModelFamily::Htdemucs)
+        );
+        // 大小写不敏感
+        assert_eq!(
+            ModelFamily::from_path("Qwen3-ASR.Q8_0.GGUF"),
+            Some(ModelFamily::Qwen3Asr)
+        );
+        // #family= 显式覆盖优先于关键词
+        assert_eq!(
+            ModelFamily::from_path("model.gguf#family=citrinet_asr"),
+            Some(ModelFamily::CitrinetAsr)
+        );
+        assert_eq!(
+            ModelFamily::from_path("model.gguf#family=qwen3_tts"),
+            Some(ModelFamily::Qwen3Tts)
+        );
+        // 无法识别
+        assert_eq!(ModelFamily::from_path("my-weights.gguf"), None);
+        assert_eq!(ModelFamily::from_path(""), None);
     }
 
     #[test]
