@@ -14,6 +14,19 @@
 - **上游源码**：`audio.cpp` 以 **git submodule** 引入。构建脚本会断言 `audio.cpp/CMakeLists.txt` 存在，缺失时报错提示。
 - **工具链**（win32 实测）：CMake、Ninja、MSVC（或 GCC/Clang）、bindgen 所需的 clang 与 MSVC `INCLUDE`/`LIB` 环境。
 
+## 模型下载
+
+除内置 VAD（silero_vad / marblenet_vad，权重随上游 vendored）外，各模型族的
+权重需从 Hugging Face 下载：
+
+- **官方 GGUF 包**：[`audio-cpp/audio.cpp-gguf`](https://huggingface.co/audio-cpp/audio.cpp-gguf)；
+- **社区模型包**：[`mirek190/audio.cpp`](https://huggingface.co/mirek190/audio.cpp)；
+- **官方下载工具**：上游 `tools/model_manager_v2.py`（见上游
+  [model_manager 文档](https://github.com/0xShug0/audio.cpp/blob/main/docs/model_manager.md)）。
+
+> 高层 crate [`audio-cpp`](https://crates.io/crates/audio-cpp) 的 README 里有更详细的
+> 下载说明与示例对应关系。
+
 ## 使用
 
 把本 crate 加入依赖：

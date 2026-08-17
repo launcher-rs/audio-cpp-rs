@@ -137,6 +137,20 @@ cargo build --features custom-models,vulkan,openmp
 | `AUDIOCPP_LIB_PROFILE` | 覆盖 CMake 构建 profile（默认 `Release`） |
 | `GGML_*` / `CMAKE_*` | 透传给 CMake 缓存，微调 ggml 选项 |
 
+## 模型下载
+
+音频模型权重**不随本仓库提供**（除内置 VAD），需要从 Hugging Face 下载：
+
+- **官方 GGUF 包**：[`audio-cpp/audio.cpp-gguf`](https://huggingface.co/audio-cpp/audio.cpp-gguf)
+  —— audio.cpp 官方发布的现成 GGUF 模型（Q8_0 / Q16 / F32 等精度，按 `Family-GGUF/<name>.gguf` 组织），大多数模型族开箱即用；
+- **社区模型包**：[`mirek190/audio.cpp`](https://huggingface.co/mirek190/audio.cpp)
+  —— 社区维护的补充模型；
+- **官方下载工具**：上游提供 `tools/model_manager_v2.py`，按 `model_specs/*.json` 下载各模型族的默认包，优先选取现成 GGUF（见上游 [docs/model_manager.md](https://github.com/0xShug0/audio.cpp/blob/main/docs/model_manager.md)）；
+- **内置权重**：silero_vad / marblenet_vad 随上游 vendored（`assets/framework/models`），无需下载。
+
+> 各示例头注里均标注了对应模型的下载地址与所需 feature；GGUF 模型加载时须显式
+> 传 `family_hint`（见 `audio-cpp/README.md`）。
+
 ## 示例
 
 `audio-cpp-sys/examples/` 提供直接使用 FFI 的端到端演示（已在本机 win32/MSVC 验证运行），`audio-cpp/examples/` 则展示安全高层 API：

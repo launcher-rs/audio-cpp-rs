@@ -7,8 +7,9 @@
 //!    ```bash
 //!    $env:AUDIOCPP_MODELS="moss_tts_nano"; cargo build --features custom-models
 //!    ```
-//! 2. 下载 MOSS-TTS-Nano-100M Q8_0 GGUF（约 184MB）：`audio-cpp/audio.cpp-gguf`
-//!    仓库的 `MOSS-TTS-Nano-100M-GGUF/moss-tts-nano-100m-q8_0.gguf`。
+//! 2. 下载 MOSS-TTS-Nano-100M Q8_0 GGUF（约 184MB）：
+//!    `https://huggingface.co/audio-cpp/audio.cpp-gguf` →
+//!    `MOSS-TTS-Nano-100M-GGUF/moss-tts-nano-100m-q8_0.gguf`。
 //!
 //! 运行方式：
 //! ```bash

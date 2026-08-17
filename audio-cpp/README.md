@@ -36,6 +36,22 @@ cargo build --features full-models,cuda       # 全量 + GPU 后端
 > 见 `[features]` 表）；未覆盖的族仍可 `$env:AUDIOCPP_MODELS="..."` 配合
 > `--features custom-models` 使用，两者可混用（取并集）。
 
+## 模型下载
+
+除内置 VAD（silero_vad / marblenet_vad，随上游 vendored，开箱即用）外，其他
+模型的权重需要从 Hugging Face 自行下载：
+
+- **官方 GGUF 包**：[`audio-cpp/audio.cpp-gguf`](https://huggingface.co/audio-cpp/audio.cpp-gguf)
+  —— 官方发布的现成 GGUF（`Family-GGUF/<name>.gguf` 组织，如
+  `Qwen3-ASR-GGUF/qwen3-asr-q8_0.gguf`、`MOSS-TTS-Nano-100M-GGUF/moss-tts-nano-100m-q8_0.gguf`）；
+- **社区模型包**：[`mirek190/audio.cpp`](https://huggingface.co/mirek190/audio.cpp)；
+- **官方下载工具**：上游 `tools/model_manager_v2.py` 按模型规格自动下载默认包，
+  优先用现成 GGUF（见上游 [model_manager 文档](https://github.com/0xShug0/audio.cpp/blob/main/docs/model_manager.md)）。
+
+下载后把 GGUF 路径传给 [`Registry::load`](src/registry.rs)；GGUF 无法自动探测族别，
+必须同时给 `family_hint`（见下方注意事项）。`examples/` 里每个需要权重的示例头注
+都标注了对应模型的下载地址与推荐 feature。
+
 ## 架构：一次调用的完整链路
 
 ```
