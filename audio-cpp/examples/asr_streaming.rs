@@ -56,7 +56,7 @@ fn main() -> Result<(), audio_cpp::Error> {
     );
 
     // 2. 创建流式 ASR 会话。
-    let mut session = model.create_task_session(
+    let session = model.create_task_session(
         TaskKind::Asr,
         RunMode::Streaming,
         Backend::Cpu,

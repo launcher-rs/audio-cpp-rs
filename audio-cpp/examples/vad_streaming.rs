@@ -49,7 +49,7 @@ fn main() -> Result<(), audio_cpp::Error> {
     use audio_cpp::StreamEvent;
     let events = Arc::new(Mutex::new(Vec::<String>::new()));
     let collector = Arc::clone(&events);
-    let mut session = session;
+    let session = session;
     session.set_event_callback(Some(move |event: StreamEvent| {
         for act in &event.voice_activity {
             collector.lock().unwrap().push(format!(

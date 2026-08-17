@@ -19,10 +19,10 @@ pub struct Registry {
     raw: *mut audiocpp_registry,
 }
 
-// C ABI 句柄本身不要求 Send/Sync；但上层不透传 & 引用跨线程使用句柄。
-// Registry 自身为唯一持有者，跨线程转移所有权是安全的（内部有锁/无共享可变态）。
+// C ABI 句柄本身不要求 Send/Sync。C 侧 registry 内部无锁，多个线程共享
+// 同一注册表调用 load() 属于并发访问，行为未定义。因此只实现 Send
+// （所有权可跨线程转移），不实现 Sync（禁止 & 共享跨线程使用）。
 unsafe impl Send for Registry {}
-unsafe impl Sync for Registry {}
 
 impl Registry {
     /// 创建默认注册表，包含所有编译进本库的模型族 loader。

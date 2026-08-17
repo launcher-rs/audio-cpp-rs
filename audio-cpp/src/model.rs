@@ -19,8 +19,9 @@ pub struct Model {
     raw: *mut audiocpp_model,
 }
 
+// C ABI 句柄本身不要求 Send/Sync。C 侧 model 内部无锁，多线程共享同一模型
+// 并发建会话属于并发访问，行为未定义。因此只实现 Send，不实现 Sync。
 unsafe impl Send for Model {}
-unsafe impl Sync for Model {}
 
 impl Model {
     /// 从原始 C 句柄包装（仅内部使用）。
