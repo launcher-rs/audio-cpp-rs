@@ -61,7 +61,42 @@
 | `openmp` | `ENGINE_ENABLE_OPENMP=ON` |
 | `native` | `ENGINE_ENABLE_NATIVE_CPU=ON` |
 
+## audio.cpp 升级检查清单
+
+每次把 `audio-cpp-sys/audio.cpp` submodule 更新到上游新 commit 后，按下表顺序审查，缺一不可：
+
+1. **定位 diff**：`git -C audio-cpp-sys/audio.cpp diff <旧commit>..HEAD --stat`，先看整体改动面。
+2. **新增模型 loader → 同步 `ModelFamily`**：查 `audio.cpp/CMakeLists.txt` 是否新增
+   `make_*_loader`。有则同步 `audio-cpp/src/types.rs`：`ModelFamily` 枚举（`as_str()`
+   返回的字符串须与上游 loader 族名一致）+ `from_path()` 关键词表 + Cargo.toml 新增
+   `model-*` feature（如适用）。若只是现有 loader 的行为/选项变化（如 dots_tts 新增
+   edit 推理），枚举无需动，但需评估高层类型/示例是否要暴露新能力。
+3. **C ABI 边界**：capi.cpp 只依赖 `engine/framework/runtime/*`（backend.h / json.h /
+   model.h / registry.h / session.h）与 `engine/framework/io/json.h`。diff 这些头文件：
+   公共 API（session/request/types/registry）改了就要同步 capi.h / capi.cpp / build.rs
+   bindgen allowlist（`audiocpp_.*`）。新增异常类型必须派生自 `std::exception`
+   （shim 统一 `catch (const std::exception&)` 转 `audiocpp_last_error`）；上游新增的
+   `engine::runtime::CapacityError`（请求过大应归 400 而非 500）按需在 shim 里映射。
+4. **请求/响应 JSON 结构**：上游 `app/server/runtime.cpp` 或模型 `request.cpp` 新增
+   task 类型 / 选项键 / 输出字段时，检查 C ABI `dump_task_result` / `dump_stream_event`
+   / `dump_audio_buffer` 是否要补字段，以及高层 `types.rs` 的 serde 结构（两端 serde
+   均向后兼容，未知字段忽略，但新增字段要显式加）。
+5. **构建验证（必跑）**：
+   - `cargo fmt --all -- --check`——CI 卡得最频繁的一项，示例里换行/长行经常不过；
+   - `cargo build --workspace`——验证 shim 对新引擎编译链接通过；
+   - 涉及后端/模型行为变化时按需跑相关示例验证。
+6. **预编译资产**：`metadata.json.audio_commit` 与 submodule HEAD 不一致会强制回落
+   源码构建（预编译自动下载被跳过）。升级 submodule 后应触发
+   `.github/workflows/prebuilt-audio-cpp.yml` 重新发布 `v*` 预编译资产，否则下游
+   只能源码构建。已在“已知状态”记录的验证结论随版本变化需复核。
+
 ## 已知状态
+- 当前 submodule HEAD = `7532403`（release-0.3-gguf-v2-290-g7532403），`cargo build
+  --workspace` 在 win32/MSVC 已验证通过。本次升级（`980bd41`→`7532403`）审查结论：
+  无新增 model loader、capi.cpp 依赖的 engine 公共 API 未变（仅内部 framework
+  构建块 + DotTTS edit 推理 + qwen3_asr/voxcpm2 改抛 `CapacityError`，其派生自
+  `std::runtime_error` 已被 shim 的 `catch (const std::exception&)` 覆盖），故
+  `ModelFamily` 枚举与 C ABI 均无需改动。
 - C ABI 设计/实现（capi.h/capi.cpp）与构建脚本已完成；
 - **端到端 `cargo build --workspace` 已在 win32/MSVC 验证通过**。构建要点：
   - CMake 使用 Ninja 生成器，`CMAKE_ARCHIVE_OUTPUT_DIRECTORY=OUT_DIR/lib` 把归档统一收集；
@@ -239,6 +274,7 @@
 ```bash
 git submodule update --init --recursive                                  # 补齐 audio-cpp-sys/audio.cpp（克隆后必需）
 git -C audio-cpp-sys/audio.cpp pull --ff-only                             # 单独更新 submodule 到上游最新
+git -C audio-cpp-sys/audio.cpp diff <旧commit>..HEAD --stat                 # 升级审查：定位改动面
 cargo build -p audio-cpp-sys                                              # 单独构建底层
 BUILD_DEBUG=1 cargo build                                                 # 调试构建脚本
 AUDIOCPP_PREBUILT_DIR=<预编译目录> cargo build                            # 跳过 CMake，直接用预编译静态库

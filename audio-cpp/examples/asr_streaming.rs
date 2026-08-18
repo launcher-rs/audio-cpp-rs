@@ -42,7 +42,11 @@ fn main() -> Result<(), audio_cpp::Error> {
     // 1. 加载模型与音频。族别按文件名自动推断（from_path），无需手写。
     let registry = Registry::new()?;
     println!("模型族: {:?}", registry.families()?);
-    let model = registry.load(model_path, audio_cpp::ModelFamily::from_path(model_path), None)?;
+    let model = registry.load(
+        model_path,
+        audio_cpp::ModelFamily::from_path(model_path),
+        None,
+    )?;
     let wav = load_wav(wav_path)?;
     println!(
         "音频: {}Hz {}ch {}采样",
