@@ -37,6 +37,31 @@ fn audio_src_dir() -> PathBuf {
 /// 需要用本 URL 直接 clone）。
 const AUDIO_CPP_URL: &str = "https://github.com/0xShug0/audio.cpp.git";
 
+/// 让 cargo 在 submodule 指针变化时重跑构建脚本。
+///
+/// audio.cpp 内容不入库，cargo 无法精准跟踪整个目录（对目录用 rerun-if-changed
+/// 会退化为“总是重跑”，每次 cargo build 都要多花几分钟）。改跟踪父仓库
+/// `.git/modules/<gitlink 路径>/HEAD`：`git submodule update` / `git -C audio.cpp
+/// checkout|pull` 都会改写它，commit hash 变化即触发 build.rs 重跑，避免
+/// submodule 更新后仍链接旧的 engine_runtime。非常规 .git 布局（找不到 HEAD
+/// 文件）时退化为跟踪 submodule 目录本身（总是重跑，正确但慢，仅兜底）。
+fn emit_submodule_rerun_if_changed() {
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR 未设置");
+    let crate_dir = Path::new(&manifest_dir).file_name().unwrap_or_default();
+    let head_file = Path::new(&manifest_dir)
+        .join("..")
+        .join(".git")
+        .join("modules")
+        .join(crate_dir)
+        .join("audio.cpp")
+        .join("HEAD");
+    if head_file.is_file() {
+        println!("cargo:rerun-if-changed={}", head_file.display());
+    } else {
+        println!("cargo:rerun-if-changed=audio.cpp");
+    }
+}
+
 /// 确保 `audio.cpp` 源码树存在；缺失时自动获取。
 ///
 /// 返回包含源码树的路径。获取策略：
@@ -476,6 +501,13 @@ fn main() {
     println!("cargo:rerun-if-changed=Cargo.toml"); // feature 组合变化（model-* 增删）会重跑
     println!("cargo:rerun-if-changed=capi.h");
     println!("cargo:rerun-if-changed=capi.cpp");
+
+    // 跟踪 submodule 指针：audio.cpp 是 git submodule（内容不入库），cargo 无法
+    // 跟踪整个目录（对目录用 rerun-if-changed 会被当作“总是重跑”，每次 cargo
+    // build 都多花 ~2-3 分钟）。改为跟踪 .git 里记录 submodule HEAD 的小文件：
+    // git submodule update / checkout / pull 改写它，内容变化即触发 build.rs
+    // 重跑，避免 submodule 更新后仍链接旧的 engine_runtime。
+    emit_submodule_rerun_if_changed();
     println!("cargo:rerun-if-env-changed=AUDIOCPP_PREBUILT_DIR");
     println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_FEATURE"); // crt-static 切换会重跑
     println!("cargo:rerun-if-env-changed=AUDIOCPP_PREBUILT_TAG");

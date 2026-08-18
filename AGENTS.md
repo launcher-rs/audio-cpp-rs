@@ -83,7 +83,8 @@
    均向后兼容，未知字段忽略，但新增字段要显式加）。
 5. **构建验证（必跑）**：
    - `cargo fmt --all -- --check`——CI 卡得最频繁的一项，示例里换行/长行经常不过；
-   - `cargo build --workspace`——验证 shim 对新引擎编译链接通过；
+   - `cargo build --workspace`——验证 shim 对新引擎编译链接通过。build.rs 已跟踪
+     submodule HEAD 指针会自动触发重编；若输出仍是 0.x 秒未重编，说明跟踪失效需排查；
    - 涉及后端/模型行为变化时按需跑相关示例验证。
 6. **预编译资产**：`metadata.json.audio_commit` 与 submodule HEAD 不一致会强制回落
    源码构建（预编译自动下载被跳过）。升级 submodule 后应触发
@@ -91,12 +92,18 @@
    只能源码构建。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `7532403`（release-0.3-gguf-v2-290-g7532403），`cargo build
-  --workspace` 在 win32/MSVC 已验证通过。本次升级（`980bd41`→`7532403`）审查结论：
-  无新增 model loader、capi.cpp 依赖的 engine 公共 API 未变（仅内部 framework
-  构建块 + DotTTS edit 推理 + qwen3_asr/voxcpm2 改抛 `CapacityError`，其派生自
-  `std::runtime_error` 已被 shim 的 `catch (const std::exception&)` 覆盖），故
-  `ModelFamily` 枚举与 C ABI 均无需改动。
+- 当前 submodule HEAD = `52080cd`（release-0.3-gguf-v2-291-g52080cd），`cargo build
+  --workspace` 在 win32/MSVC 已验证通过。本次升级（`7532403`→`52080cd`）审查结论：
+  仅 `src/framework/text/*` 内部文本归一化改动（IndexTTS2/2.5）+ CMakeLists 新增
+  `ENGINE_BUILD_TESTS` 下的测试 target，无新增 model loader、capi.cpp 依赖的
+  engine 公共 API / JSON 结构 / 异常类型均未变，`ModelFamily` 枚举与 C ABI 无需改动。
+- **build.rs 已跟踪 submodule HEAD 指针**：`cargo build` 的 rerun-if-changed 加入
+  父仓库 `.git/modules/audio-cpp-sys/audio.cpp/HEAD`（cargo 无法精准跟踪整个
+  submodule 目录，对目录会退化为总是重跑、每次多花几分钟）。`git submodule update`
+  / `git -C audio.cpp checkout|pull` 改写该文件即自动触发 build.rs 重跑与 C++
+  增量重编，不再需要手动 touch capi.cpp；非常规 .git 布局兜底跟踪目录本身。
+  升级 submodule 后直接跑 `cargo build --workspace` 即可，若输出仍是 0.x 秒
+  未重编说明跟踪失效（可 `BUILD_DEBUG=1` 排查）。
 - C ABI 设计/实现（capi.h/capi.cpp）与构建脚本已完成；
 - **端到端 `cargo build --workspace` 已在 win32/MSVC 验证通过**。构建要点：
   - CMake 使用 Ninja 生成器，`CMAKE_ARCHIVE_OUTPUT_DIRECTORY=OUT_DIR/lib` 把归档统一收集；
