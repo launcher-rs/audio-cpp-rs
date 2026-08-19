@@ -19,6 +19,8 @@ pub enum TaskKind {
     Diar,
     /// 音频源分离（Source Separation，如 Demucs 分离人声/鼓/贝斯/其他）
     SourceSeparation,
+    /// 音频生成（Audio Generation，如 MiniMax Music3 音乐生成）
+    AudioGeneration,
     /// 语音合成（TTS）
     Tts,
 }
@@ -31,6 +33,7 @@ impl TaskKind {
             TaskKind::Asr => "asr",
             TaskKind::Diar => "diar",
             TaskKind::SourceSeparation => "sep",
+            TaskKind::AudioGeneration => "gen",
             TaskKind::Tts => "tts",
         }
     }
@@ -156,6 +159,8 @@ pub enum ModelFamily {
     Omnivoice,
     /// Stable Audio（音频生成）
     StableAudio,
+    /// MiniMax Music3（音乐生成）
+    MinimaxMusic3,
     /// Supertonic（音乐生成）
     Supertonic,
     /// Voxtral Realtime
@@ -287,6 +292,8 @@ impl ModelFamily {
             ("omnivoice", ModelFamily::Omnivoice),
             ("stable_audio", ModelFamily::StableAudio),
             ("stable-audio", ModelFamily::StableAudio),
+            ("minimax_music3", ModelFamily::MinimaxMusic3),
+            ("minimax-music3", ModelFamily::MinimaxMusic3),
             ("supertonic", ModelFamily::Supertonic),
             ("voxtral-realtime", ModelFamily::VoxtralRealtime),
             ("voxtral", ModelFamily::VoxtralRealtime),
@@ -347,6 +354,7 @@ impl ModelFamily {
             ModelFamily::Muscriptor => "muscriptor",
             ModelFamily::Omnivoice => "omnivoice",
             ModelFamily::StableAudio => "stable_audio",
+            ModelFamily::MinimaxMusic3 => "minimax_music3",
             ModelFamily::Supertonic => "supertonic",
             ModelFamily::VoxtralRealtime => "voxtral_realtime",
             ModelFamily::Miocodec => "miocodec",
@@ -405,6 +413,7 @@ impl From<&str> for ModelFamily {
             "muscriptor" => ModelFamily::Muscriptor,
             "omnivoice" => ModelFamily::Omnivoice,
             "stable_audio" => ModelFamily::StableAudio,
+            "minimax_music3" => ModelFamily::MinimaxMusic3,
             "supertonic" => ModelFamily::Supertonic,
             "voxtral_realtime" => ModelFamily::VoxtralRealtime,
             "miocodec" => ModelFamily::Miocodec,
@@ -819,6 +828,7 @@ mod tests {
             (TaskKind::Asr, "asr"),
             (TaskKind::Diar, "diar"),
             (TaskKind::SourceSeparation, "sep"),
+            (TaskKind::AudioGeneration, "gen"),
             (TaskKind::Tts, "tts"),
         ];
         for (k, want) in cases {

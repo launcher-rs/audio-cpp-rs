@@ -92,11 +92,15 @@
    只能源码构建。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `52080cd`（release-0.3-gguf-v2-291-g52080cd），`cargo build
-  --workspace` 在 win32/MSVC 已验证通过。本次升级（`7532403`→`52080cd`）审查结论：
-  仅 `src/framework/text/*` 内部文本归一化改动（IndexTTS2/2.5）+ CMakeLists 新增
-  `ENGINE_BUILD_TESTS` 下的测试 target，无新增 model loader、capi.cpp 依赖的
-  engine 公共 API / JSON 结构 / 异常类型均未变，`ModelFamily` 枚举与 C ABI 无需改动。
+- 当前 submodule HEAD = `26dcb5c`（0.6.1 发布后），`cargo build --workspace` 在
+  win32/MSVC 已验证通过。本次升级（`52080cd`→`26dcb5c`）审查结论：新增 MiniMax
+  Music3 模型（`make_minimax_music3_loader`，target `minimax_music3`，task 为
+  `gen`/AudioGeneration），已同步 `ModelFamily::MinimaxMusic3`（枚举/as_str/
+  from_path/From<&str>）+ `TaskKind::AudioGeneration`（`as_str` 为 `"gen"`）+
+  `model-minimax-music3` feature（sys 与高层转发），新模型随 `model-minimax-music3`
+  编译链接验证通过；capi.cpp 依赖的 engine 公共 API / JSON 结构均未变，C ABI 无需
+  改动。
+- **bindgen 已升级到 0.72**，crate 版本升至 **0.3.0**（workspace 统一）。
 - **build.rs 已跟踪 submodule HEAD 指针**：`cargo build` 的 rerun-if-changed 加入
   父仓库 `.git/modules/audio-cpp-sys/audio.cpp/HEAD`（cargo 无法精准跟踪整个
   submodule 目录，对目录会退化为总是重跑、每次多花几分钟）。`git submodule update`

@@ -85,6 +85,7 @@ model-fish-audio = ["custom-models"]     # TTS/Voice：Fish Speech/Cloning
 model-demucs = ["custom-models"]          # 音频分离：Demucs 源分离（alias htdemucs）
 model-roformer = ["custom-models"]        # 音频分离：Mel-Band RoFormer 源分离（alias mel_band_roformer）
 model-sortformer-diar = ["custom-models"] # 说话人分离：SortFormer Diar 4spk
+model-minimax-music3 = ["custom-models"]  # 音乐生成：MiniMax Music3（预览）
 
 # ------------------------------------------------------------------------
 # 计算后端 feature（可叠加，映射 engine 的 ENGINE_ENABLE_*_CPU 选项）。

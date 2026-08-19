@@ -61,6 +61,7 @@ model-fish-audio = ["audio-cpp-sys/model-fish-audio"]       # TTS/声音克隆�
 model-demucs = ["audio-cpp-sys/model-demucs"]               # 音频分离：Demucs
 model-roformer = ["audio-cpp-sys/model-roformer"]           # 音频分离：RoFormer
 model-sortformer-diar = ["audio-cpp-sys/model-sortformer-diar"] # 说话人分离：SortFormer
+model-minimax-music3 = ["audio-cpp-sys/model-minimax-music3"]   # 音乐生成：MiniMax Music3
 cuda = ["audio-cpp-sys/cuda"]     # NVIDIA CUDA（需 CUDA Toolkit）
 hip = ["audio-cpp-sys/hip"]       # AMD HIP/ROCm（与 cuda 互斥）
 vulkan = ["audio-cpp-sys/vulkan"] # Vulkan 通用后端（需 Vulkan SDK）

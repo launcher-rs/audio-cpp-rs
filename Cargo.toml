@@ -14,14 +14,14 @@ resolver = "3"
 members = ["audio-cpp-sys", "audio-cpp"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/launcher-rs/audio-cpp-rs"
 
 [workspace.dependencies]
 # 构建脚本依赖
-bindgen = "0.71" # C ABI -> Rust 绑定生成
+bindgen = "0.72" # C ABI -> Rust 绑定生成
 cmake = "0.1"    # 调用 CMake 构建上游 C++ 库
 cc = { version = "1", features = ["parallel"] } # 编译 C/C++ shim
 glob = "0.3"     # 静态库发现
@@ -39,7 +39,7 @@ symphonia = { version = "0.6", default-features = false }
 hf-hub = { version = "1.0", default-features = false, features = ["blocking"] }
 
 # 内部 crate（版本随 workspace.package 统一升版）
-audio-cpp-sys = { version = "0.2.0", path = "audio-cpp-sys" }
+audio-cpp-sys = { version = "0.3.0", path = "audio-cpp-sys" }
 
 # =====================================================================
 # 工作区统一 lint 配置（所有成员 crate 继承）。
