@@ -293,7 +293,9 @@ pub enum Request {
     /// 音乐源分离（Demucs 等）：需音频输入。
     SourceSeparation(AudioRequest),
     /// 语音合成：需文本，可带说话人参考音频（声音克隆）。
-    Tts(TtsRequest),
+    ///
+    /// 用 [`Box`] 包裹以缩小枚举整体体积（`TtsRequest` 远大于其他变体）。
+    Tts(Box<TtsRequest>),
     /// 原始 JSON 字符串透传（不经任何序列化改动）。
     Json(String),
 }
@@ -335,7 +337,7 @@ impl Request {
 
     /// TTS 请求：以待合成文本构造。
     pub fn tts(text: impl Into<String>) -> Self {
-        Request::Tts(TtsRequest::new(text))
+        Request::Tts(Box::new(TtsRequest::new(text)))
     }
 
     /// 原始 JSON 字符串透传（不经序列化改动，直接交给 C 边界）。
@@ -354,7 +356,7 @@ impl Request {
             Request::Asr(r) => Request::Asr(r.option(key, value)),
             Request::Diar(r) => Request::Diar(r.option(key, value)),
             Request::SourceSeparation(r) => Request::SourceSeparation(r.option(key, value)),
-            Request::Tts(r) => Request::Tts(r.option(key, value)),
+            Request::Tts(r) => Request::Tts(Box::new(r.option(key, value))),
             Request::Json(_) => self,
         }
     }
@@ -374,7 +376,7 @@ impl Request {
             Request::Asr(r) => Request::Asr(r.options(opts)),
             Request::Diar(r) => Request::Diar(r.options(opts)),
             Request::SourceSeparation(r) => Request::SourceSeparation(r.options(opts)),
-            Request::Tts(r) => Request::Tts(r.options(opts)),
+            Request::Tts(r) => Request::Tts(Box::new(r.options(opts))),
             Request::Json(_) => self,
         }
     }
@@ -382,7 +384,7 @@ impl Request {
     /// 设置说话人参考音频（仅对 [`Request::Tts`] 有意义，其余变体忽略）。
     pub fn reference(self, audio: impl Into<AudioInput>) -> Self {
         match self {
-            Request::Tts(r) => Request::Tts(r.reference(audio)),
+            Request::Tts(r) => Request::Tts(Box::new(r.reference(audio))),
             other => other,
         }
     }
@@ -390,7 +392,7 @@ impl Request {
     /// 设置参考音频的文本转写（仅对 [`Request::Tts`] 有意义，其余变体忽略）。
     pub fn reference_text(self, text: impl Into<String>) -> Self {
         match self {
-            Request::Tts(r) => Request::Tts(r.reference_text(text)),
+            Request::Tts(r) => Request::Tts(Box::new(r.reference_text(text))),
             other => other,
         }
     }
@@ -398,7 +400,7 @@ impl Request {
     /// 设置说话人参考 / 风格条件（仅对 [`Request::Tts`] 有意义，其余变体忽略）。
     pub fn voice(self, voice: VoiceCondition) -> Self {
         match self {
-            Request::Tts(r) => Request::Tts(r.voice(voice)),
+            Request::Tts(r) => Request::Tts(Box::new(r.voice(voice))),
             other => other,
         }
     }
@@ -406,7 +408,7 @@ impl Request {
     /// 设置文本语言（仅对 [`Request::Tts`] 有意义，其余变体忽略）。
     pub fn language(self, language: impl Into<String>) -> Self {
         match self {
-            Request::Tts(r) => Request::Tts(r.language(language)),
+            Request::Tts(r) => Request::Tts(Box::new(r.language(language))),
             other => other,
         }
     }

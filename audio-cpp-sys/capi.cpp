@@ -955,7 +955,7 @@ audiocpp_session * audiocpp_model_create_task_session(const audiocpp_model * mod
         }
 
         auto session = model->storage->create_task_session(spec, opts);
-        auto * wrapper = new audiocpp_session{std::move(session)};
+        auto * wrapper = new audiocpp_session{std::move(session), nullptr, {}, {}, {}};
         wrapper->family = wrapper->storage->family();
         wrapper->task_kind = engine::runtime::to_string(wrapper->storage->task_kind());
         wrapper->run_mode = engine::runtime::to_string(wrapper->storage->run_mode());

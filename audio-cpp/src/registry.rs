@@ -90,9 +90,8 @@ impl Registry {
     /// assert!(!registry.supports_family("definitely_not_a_family"));
     /// ```
     pub fn supports_family(&self, family: &str) -> bool {
-        let family_c = match ffi::cstring(family) {
-            Ok(s) => s,
-            Err(_) => return false,
+        let Ok(family_c) = ffi::cstring(family) else {
+            return false;
         };
         unsafe {
             audiocpp_registry_supports_family(self.raw, family_c.as_ptr() as *const c_char) != 0
