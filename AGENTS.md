@@ -92,14 +92,23 @@
    只能源码构建。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `26dcb5c`（0.6.1 发布后），`cargo build --workspace` 在
-  win32/MSVC 已验证通过。本次升级（`52080cd`→`26dcb5c`）审查结论：新增 MiniMax
-  Music3 模型（`make_minimax_music3_loader`，target `minimax_music3`，task 为
-  `gen`/AudioGeneration），已同步 `ModelFamily::MinimaxMusic3`（枚举/as_str/
-  from_path/From<&str>）+ `TaskKind::AudioGeneration`（`as_str` 为 `"gen"`）+
-  `model-minimax-music3` feature（sys 与高层转发），新模型随 `model-minimax-music3`
-  编译链接验证通过；capi.cpp 依赖的 engine 公共 API / JSON 结构均未变，C ABI 无需
-  改动。
+- 当前 submodule HEAD = `288a271`（main 分支最新；从 release-0.3-gguf-v2 的
+  `980bd41` 大版本跳跃到 0.7 开发线，`cargo build --workspace` 在 win32/MSVC
+  已验证通过）。本次升级（`980bd41`→`288a271`）审查结论：
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 `engine/framework/runtime/*` 与
+    `engine/framework/io/json.h` 公共 API 均未破坏性变更（backend.h/model.h 仅
+    新增带默认实现的虚函数与自由函数）。include 路径一直是 `include/engine/...`，
+    build.rs 已把 `audio.cpp/include` 加入搜索路径，故 shim 直接编译通过。
+  - **新增 8 个 VoiceTaskKind**：`VoiceCloning`(`clon`)/`VoiceConversion`(`vc`)/
+    `SpeechToSpeech`(`s2s`)/`Alignment`(`align`)/`VoiceDesign`(`vdes`)/
+    `SpeakerRecognition`(`spk`)/`Svc`(`svc`)/`Midi`(`midi`)，已同步到
+    `types.rs` 的 `TaskKind`（as_str / 测试）。
+  - **新增 6 个 loader 族**（上游 `make_*_loader` 清单共 54 个）：`f5_tts`、
+    `magpie_tts`、`personaplex`、`moss_voicegen`、`meanvc2`、`mms_forced_aligner`，
+    已同步 `ModelFamily`（枚举/as_str/from_path/From<&str>/测试）+ 对应 `model-*`
+    feature（sys 与高层转发）。其余 48 个族此前已收录。
+  - 默认 `core-models` 构建约 1.5 分钟（win32/MSVC，增量）编译链接通过；19 个
+    types 单元测试全部通过。
 - **bindgen 已升级到 0.72**，crate 版本升至 **0.3.0**（workspace 统一）。
 - **build.rs 已跟踪 submodule HEAD 指针**：`cargo build` 的 rerun-if-changed 加入
   父仓库 `.git/modules/audio-cpp-sys/audio.cpp/HEAD`（cargo 无法精准跟踪整个

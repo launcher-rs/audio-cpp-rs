@@ -23,6 +23,22 @@ pub enum TaskKind {
     AudioGeneration,
     /// 语音合成（TTS）
     Tts,
+    /// 语音克隆（Voice Cloning）
+    VoiceCloning,
+    /// 语音转换（Voice Conversion）
+    VoiceConversion,
+    /// 语音到语音（Speech-to-Speech）
+    SpeechToSpeech,
+    /// 强制对齐（Alignment）
+    Alignment,
+    /// 声音设计（Voice Design）
+    VoiceDesign,
+    /// 说话人识别（Speaker Recognition）
+    SpeakerRecognition,
+    /// 歌唱语音转换（SVC）
+    Svc,
+    /// MIDI 生成
+    Midi,
 }
 
 impl TaskKind {
@@ -35,6 +51,14 @@ impl TaskKind {
             TaskKind::SourceSeparation => "sep",
             TaskKind::AudioGeneration => "gen",
             TaskKind::Tts => "tts",
+            TaskKind::VoiceCloning => "clon",
+            TaskKind::VoiceConversion => "vc",
+            TaskKind::SpeechToSpeech => "s2s",
+            TaskKind::Alignment => "align",
+            TaskKind::VoiceDesign => "vdes",
+            TaskKind::SpeakerRecognition => "spk",
+            TaskKind::Svc => "svc",
+            TaskKind::Midi => "midi",
         }
     }
 }
@@ -119,6 +143,8 @@ pub enum ModelFamily {
     MossTtsLocal,
     /// MOSS TTS Nano
     MossTtsNano,
+    /// MOSS VoiceGen（语音生成）
+    MossVoicegen,
     /// Neutts
     Neutts,
     /// Outetts
@@ -127,6 +153,12 @@ pub enum ModelFamily {
     PocketTts,
     /// Vietneu TTS
     VietneuTts,
+    /// F5 TTS
+    F5Tts,
+    /// Magpie TTS
+    MagpieTts,
+    /// PersonaPlex（多角色对话语音）
+    Personaplex,
     /// MiniMax H3
     MinimaxH3,
 
@@ -137,6 +169,8 @@ pub enum ModelFamily {
     SeedVc,
     /// RVC（语音转换）
     Rvc,
+    /// MeanVC2（语音转换）
+    Meanvc2,
     /// Chatterbox（说话人还原 / TTS）
     Chatterbox,
     /// Vevo2（零样本 TTS / VC / 语音编辑）
@@ -181,6 +215,8 @@ pub enum ModelFamily {
     InflectV2,
     /// Qwen3 Forced Aligner（强制对齐）
     Qwen3ForcedAligner,
+    /// MMS Forced Aligner（强制对齐，社区模型）
+    MmsForcedAligner,
 
     /// 未收录的模型族名（原样传给 C 边界）。
     Custom(String),
@@ -262,12 +298,18 @@ impl ModelFamily {
             ("moss_tts_nano", ModelFamily::MossTtsNano),
             ("moss-tts-local", ModelFamily::MossTtsLocal),
             ("moss_tts_local", ModelFamily::MossTtsLocal),
+            ("moss_voicegen", ModelFamily::MossVoicegen),
+            ("moss-voicegen", ModelFamily::MossVoicegen),
             ("moss", ModelFamily::MossTtsNano),
             ("neutts", ModelFamily::Neutts),
             ("outetts", ModelFamily::Outetts),
             ("pocket_tts", ModelFamily::PocketTts),
             ("pocket-tts", ModelFamily::PocketTts),
             ("vietneu", ModelFamily::VietneuTts),
+            ("f5_tts", ModelFamily::F5Tts),
+            ("f5-tts", ModelFamily::F5Tts),
+            ("magpie", ModelFamily::MagpieTts),
+            ("personaplex", ModelFamily::Personaplex),
             ("minimax_h3", ModelFamily::MinimaxH3),
             ("minimax-h3", ModelFamily::MinimaxH3),
             ("sortformer-diar", ModelFamily::SortformerDiar),
@@ -277,6 +319,8 @@ impl ModelFamily {
             ("seed-vc", ModelFamily::SeedVc),
             ("seedvc", ModelFamily::SeedVc),
             ("rvc", ModelFamily::Rvc),
+            ("meanvc2", ModelFamily::Meanvc2),
+            ("mean-vc2", ModelFamily::Meanvc2),
             ("chatterbox", ModelFamily::Chatterbox),
             ("vevo2", ModelFamily::Vevo2),
             ("voxcpm2", ModelFamily::Voxcpm2),
@@ -303,6 +347,8 @@ impl ModelFamily {
             ("heartmula", ModelFamily::Heartmula),
             ("inflect", ModelFamily::InflectV2),
             ("qwen3_forced_aligner", ModelFamily::Qwen3ForcedAligner),
+            ("mms_forced_aligner", ModelFamily::MmsForcedAligner),
+            ("mms", ModelFamily::MmsForcedAligner),
             ("forced-aligner", ModelFamily::Qwen3ForcedAligner),
         ];
         KEYWORDS
@@ -336,14 +382,19 @@ impl ModelFamily {
             ModelFamily::IrodoriTts => "irodori_tts",
             ModelFamily::MossTtsLocal => "moss_tts_local",
             ModelFamily::MossTtsNano => "moss_tts_nano",
+            ModelFamily::MossVoicegen => "moss_voicegen",
             ModelFamily::Neutts => "neutts",
             ModelFamily::Outetts => "outetts",
             ModelFamily::PocketTts => "pocket_tts",
             ModelFamily::VietneuTts => "vietneu_tts",
+            ModelFamily::F5Tts => "f5_tts",
+            ModelFamily::MagpieTts => "magpie_tts",
+            ModelFamily::Personaplex => "personaplex",
             ModelFamily::MinimaxH3 => "minimax_h3",
             ModelFamily::SortformerDiar => "sortformer_diar",
             ModelFamily::SeedVc => "seed_vc",
             ModelFamily::Rvc => "rvc",
+            ModelFamily::Meanvc2 => "meanvc2",
             ModelFamily::Chatterbox => "chatterbox",
             ModelFamily::Vevo2 => "vevo2",
             ModelFamily::Voxcpm2 => "voxcpm2",
@@ -364,6 +415,7 @@ impl ModelFamily {
             ModelFamily::Heartmula => "heartmula",
             ModelFamily::InflectV2 => "inflect_v2",
             ModelFamily::Qwen3ForcedAligner => "qwen3_forced_aligner",
+            ModelFamily::MmsForcedAligner => "mms_forced_aligner",
             ModelFamily::Custom(s) => s,
         }
     }
@@ -395,14 +447,19 @@ impl From<&str> for ModelFamily {
             "irodori_tts" => ModelFamily::IrodoriTts,
             "moss_tts_local" => ModelFamily::MossTtsLocal,
             "moss_tts_nano" => ModelFamily::MossTtsNano,
+            "moss_voicegen" => ModelFamily::MossVoicegen,
             "neutts" => ModelFamily::Neutts,
             "outetts" => ModelFamily::Outetts,
             "pocket_tts" => ModelFamily::PocketTts,
             "vietneu_tts" => ModelFamily::VietneuTts,
+            "f5_tts" => ModelFamily::F5Tts,
+            "magpie_tts" => ModelFamily::MagpieTts,
+            "personaplex" => ModelFamily::Personaplex,
             "minimax_h3" => ModelFamily::MinimaxH3,
             "sortformer_diar" => ModelFamily::SortformerDiar,
             "seed_vc" => ModelFamily::SeedVc,
             "rvc" => ModelFamily::Rvc,
+            "meanvc2" => ModelFamily::Meanvc2,
             "chatterbox" => ModelFamily::Chatterbox,
             "vevo2" => ModelFamily::Vevo2,
             "voxcpm2" => ModelFamily::Voxcpm2,
@@ -423,6 +480,7 @@ impl From<&str> for ModelFamily {
             "heartmula" => ModelFamily::Heartmula,
             "inflect_v2" => ModelFamily::InflectV2,
             "qwen3_forced_aligner" => ModelFamily::Qwen3ForcedAligner,
+            "mms_forced_aligner" => ModelFamily::MmsForcedAligner,
             other => ModelFamily::Custom(other.to_owned()),
         }
     }
@@ -709,15 +767,20 @@ mod tests {
             IrodoriTts,
             MossTtsLocal,
             MossTtsNano,
+            MossVoicegen,
             Neutts,
             Outetts,
             PocketTts,
             VietneuTts,
+            F5Tts,
+            MagpieTts,
+            Personaplex,
             MinimaxH3,
             // 分离 / 转换 / 音乐
             SortformerDiar,
             SeedVc,
             Rvc,
+            Meanvc2,
             Chatterbox,
             Vevo2,
             Voxcpm2,
@@ -738,6 +801,7 @@ mod tests {
             Heartmula,
             InflectV2,
             Qwen3ForcedAligner,
+            MmsForcedAligner,
         ];
         assert!(
             variants.len() >= 40,
@@ -830,6 +894,14 @@ mod tests {
             (TaskKind::SourceSeparation, "sep"),
             (TaskKind::AudioGeneration, "gen"),
             (TaskKind::Tts, "tts"),
+            (TaskKind::VoiceCloning, "clon"),
+            (TaskKind::VoiceConversion, "vc"),
+            (TaskKind::SpeechToSpeech, "s2s"),
+            (TaskKind::Alignment, "align"),
+            (TaskKind::VoiceDesign, "vdes"),
+            (TaskKind::SpeakerRecognition, "spk"),
+            (TaskKind::Svc, "svc"),
+            (TaskKind::Midi, "midi"),
         ];
         for (k, want) in cases {
             assert_eq!(k.as_str(), want);
