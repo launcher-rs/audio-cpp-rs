@@ -52,6 +52,14 @@ int audiocpp_registry_loaders_json(const audiocpp_registry * reg, char ** out_js
 /* JSON 数组：所有后端可用的计算设备列表。 */
 int audiocpp_registry_devices_json(char ** out_json);
 
+/* 判断某模型族是否已编译进引擎（加载前预检，避免盲 load 失败）。*/
+int audiocpp_registry_supports_family(const audiocpp_registry * reg, const char * family);
+
+/* 预检模型：返回 metadata / capabilities / cli 选项 / 发现资产（JSON）。*/
+int audiocpp_registry_inspect_json(const audiocpp_registry * reg,
+                                   const char * model_path,
+                                   char ** out_json);
+
 /* 加载一个模型。model_path 必填；family_hint 可传 NULL。
    load_options_json 可传 NULL，或一个 JSON 对象（例如 {"weight_id":"..."}）。 */
 audiocpp_model * audiocpp_registry_load(const audiocpp_registry * reg,

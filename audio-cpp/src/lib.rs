@@ -79,13 +79,14 @@ pub use error::Error;
 mod ffi;
 
 mod request;
-pub use request::{AudioInput, AudioRequest, IntoRequest, Request, TtsRequest};
+pub use request::{AudioInput, AudioRequest, IntoRequest, Request, TtsRequest, VoiceCondition};
 
 mod types;
 pub use types::{
-    AudioBufferInfo, Backend, Capabilities, Device, LoaderInfo, ModelFamily, ModelMetadata,
-    NamedAudioOutput, RunMode, SpeakerTurn, SpeechSegment, StreamEvent, StreamingPolicy,
-    SupportedTask, TaskKind, TaskResult, TextOutput, TimeSpan, VoiceActivityEvent,
+    AudioBufferInfo, Backend, Capabilities, CliInterface, CliOption, Device, LoaderInfo,
+    ModelFamily, ModelInspection, ModelMetadata, NamedAsset, NamedAudioOutput, RunMode,
+    SpeakerTurn, SpeechSegment, StreamEvent, StreamingPolicy, SupportedTask, TaskKind, TaskResult,
+    TextOutput, TimeSpan, VoiceActivityEvent, VoiceArtifact, WordTimestamp,
 };
 
 mod registry;

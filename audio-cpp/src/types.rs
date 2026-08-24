@@ -630,6 +630,100 @@ pub struct SpeakerTurn {
     pub span: TimeSpan,
     /// 置信度（0..1）。
     pub confidence: f32,
+    /// 该段文本（部分模型产出，如带转写的说话人分离）。
+    #[serde(default)]
+    pub text: String,
+}
+
+/// 词级时间戳（ASR 逐词对齐）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WordTimestamp {
+    /// 时间范围（采样点）。
+    pub span: TimeSpan,
+    /// 词文本。
+    pub word: String,
+    /// 置信度（0..1）。
+    pub confidence: f32,
+}
+
+/// 模型产出的产物（embedding / 状态 / 对齐结果等）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VoiceArtifact {
+    /// 产物种类（如 `speaker_embedding` / `transcript_alignment`）。
+    pub kind: String,
+    /// 产物 id。
+    pub id: String,
+    /// 二进制载荷的 base64 编码（无载荷时为空字符串）。
+    #[serde(default)]
+    pub payload_base64: String,
+    /// 附加元数据。
+    #[serde(default)]
+    pub meta: BTreeMap<String, String>,
+}
+
+/// CLI 选项信息（模型支持的请求 / 会话 / 加载选项）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CliOption {
+    /// 选项名。
+    pub name: String,
+    /// 值名称（帮助文本）。
+    pub value_name: String,
+    /// 描述。
+    pub description: String,
+    /// 是否必填。
+    pub required: bool,
+    /// 默认值（可选）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<String>,
+    /// 最小值（可选，字符串形式）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_value: Option<String>,
+    /// 最大值（可选，字符串形式）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_value: Option<String>,
+}
+
+/// 模型预检时发现的配置 / 权重资产。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NamedAsset {
+    /// 资产 id。
+    pub id: String,
+    /// 资产路径。
+    pub path: String,
+}
+
+/// 模型的三类 CLI 选项（请求 / 会话 / 加载）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CliInterface {
+    /// 请求级选项（如 `audio_chunk_seconds`）。
+    #[serde(default)]
+    pub request_options: Vec<CliOption>,
+    /// 会话级选项。
+    #[serde(default)]
+    pub session_options: Vec<CliOption>,
+    /// 加载级选项（如 `weight_id`）。
+    #[serde(default)]
+    pub load_options: Vec<CliOption>,
+}
+
+/// 模型预检结果（`Registry::inspect`）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ModelInspection {
+    /// 模型元数据。
+    pub metadata: ModelMetadata,
+    /// 能力集合。
+    pub capabilities: Capabilities,
+    /// CLI 选项（请求 / 会话 / 加载）。
+    pub cli: CliInterface,
+    /// 发现的配置文件。
+    #[serde(default)]
+    pub discovered_configs: Vec<NamedAsset>,
+    /// 发现的权重文件。
+    #[serde(default)]
+    pub discovered_weights: Vec<NamedAsset>,
+    /// 模型根目录。
+    #[serde(default)]
+    pub model_root: String,
 }
 
 /// 文本输出（如 ASR / TTS 的文本）。
@@ -680,6 +774,15 @@ pub struct TaskResult {
     pub audio_output: Option<AudioBufferInfo>,
     /// 命名音频输出列表。
     pub named_audio_outputs: Vec<NamedAudioOutput>,
+    /// 词级时间戳（ASR 逐词对齐，存在时）。
+    #[serde(default)]
+    pub word_timestamps: Vec<WordTimestamp>,
+    /// 单个产物输出（存在时，如 voice-clone 的 cached_voice_id）。
+    #[serde(default)]
+    pub artifact_output: Option<VoiceArtifact>,
+    /// 多个产物输出（存在时）。
+    #[serde(default)]
+    pub output_artifacts: Vec<VoiceArtifact>,
 }
 
 /// 流式会话产出的单个事件。
@@ -694,6 +797,15 @@ pub struct StreamEvent {
     /// 命名音频输出列表（如流式 TTS 的逐块 `chunk_N`）。
     #[serde(default)]
     pub named_audio_outputs: Vec<NamedAudioOutput>,
+    /// 说话人分段（流式说话人分离等，存在时）。
+    #[serde(default)]
+    pub speaker_turns: Vec<SpeakerTurn>,
+    /// 词级时间戳（流式 ASR 逐词对齐，存在时）。
+    #[serde(default)]
+    pub word_timestamps: Vec<WordTimestamp>,
+    /// 产物输出（流式产出 embedding / 状态等，存在时）。
+    #[serde(default)]
+    pub output_artifacts: Vec<VoiceArtifact>,
     /// 是否为最终事件。
     pub is_final: bool,
 }
@@ -940,7 +1052,16 @@ mod tests {
                 "text_output": {"text": "hi", "language": "en"},
                 "audio_output": {"sample_rate": 24000, "channels": 1, "sample_count": 0, "samples": []},
                 "named_audio_outputs": [],
-                "speaker_turns": []
+                "speaker_turns": [
+                    {"speaker_id": "speaker_0", "span": {"start_sample": 0, "end_sample": 1600}, "confidence": 0.9, "text": "hello"}
+                ],
+                "word_timestamps": [
+                    {"span": {"start_sample": 0, "end_sample": 320}, "word": "hello", "confidence": 0.99}
+                ],
+                "artifact_output": {"kind": "speaker_embedding", "id": "spk1", "payload_base64": "", "meta": {}},
+                "output_artifacts": [
+                    {"kind": "custom", "id": "a", "payload_base64": "AQID", "meta": {"k": "v"}}
+                ]
             }"#,
         )
         .unwrap();
@@ -949,6 +1070,13 @@ mod tests {
         assert_eq!(result.speech_segments[0].confidence, 0.95);
         assert_eq!(result.text_output.as_ref().unwrap().text, "hi");
         assert_eq!(result.audio_output.unwrap().sample_rate, 24000);
+        assert_eq!(result.speaker_turns[0].text, "hello");
+        assert_eq!(result.word_timestamps[0].word, "hello");
+        assert_eq!(
+            result.artifact_output.as_ref().unwrap().kind,
+            "speaker_embedding"
+        );
+        assert_eq!(result.output_artifacts[0].payload_base64, "AQID");
 
         let ev: StreamEvent = serde_json::from_str(
             r#"{
@@ -958,6 +1086,9 @@ mod tests {
                 "partial_text": null,
                 "audio_output": null,
                 "named_audio_outputs": [{"id": "chunk_0", "audio": {"sample_rate": 48000, "channels": 2, "sample_count": 320, "samples": []}, "meta": {}}],
+                "speaker_turns": [],
+                "word_timestamps": [],
+                "output_artifacts": [],
                 "is_final": true
             }"#,
         )
@@ -965,5 +1096,53 @@ mod tests {
         assert_eq!(ev.voice_activity[0].kind, "speech_start");
         assert_eq!(ev.named_audio_outputs[0].id, "chunk_0");
         assert!(ev.is_final);
+    }
+
+    #[test]
+    fn model_inspection_deserialize() {
+        // 验证 inspect 返回的 ModelInspection 结构与上游 dump_inspection 对齐，
+        // 且缺失字段（无 meta / 无发现资产）能向后兼容。
+        let info: ModelInspection = serde_json::from_str(
+            r#"{
+                "metadata": {
+                    "family": "qwen3_asr",
+                    "variant": "q8_0",
+                    "description": "Qwen3 ASR",
+                    "config_candidates": ["config.json"],
+                    "weight_candidates": ["qwen3-asr-q8_0.gguf"]
+                },
+                "capabilities": {
+                    "supported_tasks": [{"task": "asr", "modes": ["offline", "streaming"]}],
+                    "languages": ["zh", "en"],
+                    "supports_speaker_reference": false,
+                    "supports_style_condition": false,
+                    "supports_timestamps": true
+                },
+                "discovered_weights": [
+                    {"id": "model", "path": "/models/qwen3-asr-q8_0.gguf"}
+                ],
+                "cli": {
+                    "request_options": [
+                        {"name": "language", "value_name": "CODE", "description": "语言", "required": false, "default_value": "auto"}
+                    ],
+                    "session_options": [],
+                    "load_options": []
+                }
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(info.metadata.family, "qwen3_asr");
+        assert!(
+            info.capabilities
+                .supported_tasks
+                .iter()
+                .any(|t| t.task == "asr" && t.modes.contains(&"streaming".to_string()))
+        );
+        assert_eq!(info.discovered_weights[0].id, "model");
+        assert_eq!(info.cli.request_options[0].name, "language");
+        assert_eq!(
+            info.cli.request_options[0].default_value.as_deref(),
+            Some("auto")
+        );
     }
 }

@@ -124,6 +124,85 @@ impl AudioRequest {
     }
 }
 
+/// 说话人参考 / 风格条件（映射到上游请求 JSON 的 `voice` 字段）。
+///
+/// 比把参考音频塞进顶层 `audio` 更语义化：支持「用参考音频克隆音色」、
+/// 「用 `cached_voice_id` 复用已注册音色」、以及风格/语速/音高控制。
+/// 通过 [`TtsRequest::voice`] 设置。
+#[derive(Debug, Clone, Default)]
+pub struct VoiceCondition {
+    /// 说话人参考音频（声音克隆）。
+    pub speaker_audio: Option<AudioInput>,
+    /// 已缓存的音色 id（复用之前克隆得到的音色，免去再次上传参考音频）。
+    pub cached_voice_id: Option<String>,
+    /// 风格：语言。
+    pub language: Option<String>,
+    /// 风格：情绪。
+    pub emotion: Option<String>,
+    /// 风格：语速缩放。
+    pub speaking_rate: Option<f32>,
+    /// 风格：音高偏移。
+    pub pitch_shift: Option<f32>,
+    /// 风格：能量缩放。
+    pub energy_scale: Option<f32>,
+    /// 风格：自由标签。
+    pub tags: BTreeMap<String, String>,
+}
+
+impl VoiceCondition {
+    /// 以说话人参考音频（声音克隆）构造。
+    pub fn speaker(audio: impl Into<AudioInput>) -> Self {
+        Self {
+            speaker_audio: Some(audio.into()),
+            ..Default::default()
+        }
+    }
+
+    /// 以已缓存音色 id 构造（复用音色）。
+    pub fn cached(id: impl Into<String>) -> Self {
+        Self {
+            cached_voice_id: Some(id.into()),
+            ..Default::default()
+        }
+    }
+
+    /// 设置语言。
+    pub fn language(mut self, language: impl Into<String>) -> Self {
+        self.language = Some(language.into());
+        self
+    }
+
+    /// 设置情绪。
+    pub fn emotion(mut self, emotion: impl Into<String>) -> Self {
+        self.emotion = Some(emotion.into());
+        self
+    }
+
+    /// 设置语速缩放。
+    pub fn speaking_rate(mut self, rate: f32) -> Self {
+        self.speaking_rate = Some(rate);
+        self
+    }
+
+    /// 设置音高偏移。
+    pub fn pitch_shift(mut self, shift: f32) -> Self {
+        self.pitch_shift = Some(shift);
+        self
+    }
+
+    /// 设置能量缩放。
+    pub fn energy_scale(mut self, scale: f32) -> Self {
+        self.energy_scale = Some(scale);
+        self
+    }
+
+    /// 设置一个风格标签。
+    pub fn tag(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.tags.insert(key.into(), value.into());
+        self
+    }
+}
+
 /// 语音合成（TTS）的请求参数。
 #[derive(Debug, Clone)]
 pub struct TtsRequest {
@@ -135,6 +214,8 @@ pub struct TtsRequest {
     pub reference_audio: Option<AudioInput>,
     /// 参考音频的文本转写（经 `options.reference_text` 交给上游）。
     pub reference_text: Option<String>,
+    /// 说话人参考 / 风格条件（映射到上游 `voice` 字段）。
+    pub voice: Option<VoiceCondition>,
     /// 附加选项键值（如流式 TTS 的 `retry_badcase`）。
     pub options: BTreeMap<String, Value>,
 }
@@ -147,6 +228,7 @@ impl TtsRequest {
             language: None,
             reference_audio: None,
             reference_text: None,
+            voice: None,
             options: BTreeMap::new(),
         }
     }
@@ -166,6 +248,14 @@ impl TtsRequest {
     /// 设置参考音频的文本转写。
     pub fn reference_text(mut self, text: impl Into<String>) -> Self {
         self.reference_text = Some(text.into());
+        self
+    }
+
+    /// 设置说话人参考 / 风格条件（映射到上游 `voice` 字段）。
+    ///
+    /// 例：`Request::tts("Hi").voice(VoiceCondition::speaker("./ref.wav").emotion("happy"))`。
+    pub fn voice(mut self, voice: VoiceCondition) -> Self {
+        self.voice = Some(voice);
         self
     }
 
@@ -305,6 +395,14 @@ impl Request {
         }
     }
 
+    /// 设置说话人参考 / 风格条件（仅对 [`Request::Tts`] 有意义，其余变体忽略）。
+    pub fn voice(self, voice: VoiceCondition) -> Self {
+        match self {
+            Request::Tts(r) => Request::Tts(r.voice(voice)),
+            other => other,
+        }
+    }
+
     /// 设置文本语言（仅对 [`Request::Tts`] 有意义，其余变体忽略）。
     pub fn language(self, language: impl Into<String>) -> Self {
         match self {
@@ -351,6 +449,9 @@ impl Request {
                         Value::Object(options.into_iter().collect()),
                     );
                 }
+                if let Some(voice) = &r.voice {
+                    obj.insert("voice".into(), serialize_voice(voice));
+                }
             }
         }
         Ok(serde_json::to_string(&Value::Object(obj))?)
@@ -374,6 +475,59 @@ fn write_audio(obj: &mut serde_json::Map<String, Value>, input: &AudioInput) {
             );
         }
     }
+}
+
+/// 把 [`VoiceCondition`] 序列化为上游请求的 `voice` 对象。
+fn serialize_voice(voice: &VoiceCondition) -> Value {
+    let mut speaker = serde_json::Map::new();
+    if let Some(id) = &voice.cached_voice_id {
+        speaker.insert("cached_voice_id".into(), Value::String(id.clone()));
+    }
+    if let Some(audio) = &voice.speaker_audio {
+        match audio {
+            AudioInput::Path(p) => {
+                speaker.insert("audio_path".into(), Value::String(p.clone()));
+            }
+            AudioInput::Buffer(buf) => {
+                speaker.insert(
+                    "audio".into(),
+                    serde_json::json!({
+                        "sample_rate": buf.sample_rate,
+                        "channels": buf.channels,
+                        "samples": buf.samples,
+                    }),
+                );
+            }
+        }
+    }
+    let mut style = serde_json::Map::new();
+    if let Some(v) = &voice.language {
+        style.insert("language".into(), Value::String(v.clone()));
+    }
+    if let Some(v) = &voice.emotion {
+        style.insert("emotion".into(), Value::String(v.clone()));
+    }
+    if let Some(v) = &voice.speaking_rate {
+        style.insert("speaking_rate".into(), serde_json::json!(v));
+    }
+    if let Some(v) = &voice.pitch_shift {
+        style.insert("pitch_shift".into(), serde_json::json!(v));
+    }
+    if let Some(v) = &voice.energy_scale {
+        style.insert("energy_scale".into(), serde_json::json!(v));
+    }
+    if !voice.tags.is_empty() {
+        let mut tags = serde_json::Map::new();
+        for (k, v) in &voice.tags {
+            tags.insert(k.clone(), Value::String(v.clone()));
+        }
+        style.insert("tags".into(), Value::Object(tags));
+    }
+
+    let mut voice_obj = serde_json::Map::new();
+    voice_obj.insert("speaker".into(), Value::Object(speaker));
+    voice_obj.insert("style".into(), Value::Object(style));
+    Value::Object(voice_obj)
 }
 
 /// 可转换为一次任务请求的参数。
@@ -512,6 +666,33 @@ mod tests {
         assert_eq!(
             json(&req.to_json().unwrap()),
             json(r#"{"audio_path":"./song.wav","options":{"stem":"vocals"}}"#)
+        );
+    }
+
+    #[test]
+    fn tts_voice_condition() {
+        // 说话人参考 + 风格控制映射到上游 `voice` 字段。
+        let req = Request::tts("Hi").voice(
+            VoiceCondition::speaker("./ref.wav")
+                .emotion("happy")
+                .speaking_rate(1.1)
+                .tag("gender", "female"),
+        );
+        assert_eq!(
+            json(&req.to_json().unwrap()),
+            json(
+                r#"{"text":"Hi","voice":{"speaker":{"audio_path":"./ref.wav"},"style":{"emotion":"happy","speaking_rate":1.100000023841858,"tags":{"gender":"female"}}}}"#
+            )
+        );
+    }
+
+    #[test]
+    fn tts_voice_cached_id() {
+        // 复用已缓存音色：仅传 cached_voice_id。
+        let req = Request::tts("Hi").voice(VoiceCondition::cached("spk_abc"));
+        assert_eq!(
+            json(&req.to_json().unwrap()),
+            json(r#"{"text":"Hi","voice":{"speaker":{"cached_voice_id":"spk_abc"},"style":{}}}"#)
         );
     }
 

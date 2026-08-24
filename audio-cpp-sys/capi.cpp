@@ -6,9 +6,11 @@
 #include "engine/framework/runtime/registry.h"
 #include "engine/framework/runtime/session.h"
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
@@ -108,6 +110,7 @@ static json::Value dump_speaker_turn(const engine::runtime::SpeakerTurn & turn) 
     obj.emplace("speaker_id", json::Value::make_string(turn.speaker_id));
     obj.emplace("span", dump_time_span(turn.span));
     obj.emplace("confidence", json::Value::make_number(turn.confidence));
+    obj.emplace("text", json::Value::make_string(turn.text));
     return json::Value::make_object(std::move(obj));
 }
 
@@ -144,6 +147,91 @@ static json::Value dump_named_audio_outputs(const std::vector<NamedAudioBuffer> 
     return json::Value::make_array(std::move(named_audio));
 }
 
+/* ------------------------------------------------------------------ */
+/* 词级时间戳 / 产物（artifact）/ 模型预检                              */
+/* ------------------------------------------------------------------ */
+
+static const char * artifact_kind_to_string(engine::runtime::ArtifactKind k) {
+    using engine::runtime::ArtifactKind;
+    switch (k) {
+        case ArtifactKind::SpeakerEmbedding:   return "speaker_embedding";
+        case ArtifactKind::StyleEmbedding:     return "style_embedding";
+        case ArtifactKind::PromptEmbedding:    return "prompt_embedding";
+        case ArtifactKind::AcousticTokens:     return "acoustic_tokens";
+        case ArtifactKind::Midi:               return "midi";
+        case ArtifactKind::TranscriptAlignment: return "transcript_alignment";
+        case ArtifactKind::DiarizationState:   return "diarization_state";
+        case ArtifactKind::VadState:           return "vad_state";
+        case ArtifactKind::Custom:             return "custom";
+    }
+    return "custom";
+}
+
+// 把二进制产物编码为 base64（JSON 无法原生承载 bytes）。
+static std::string base64_encode(const std::vector<std::byte> & data) {
+    static const char * table =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string out;
+    out.reserve(((data.size() + 2) / 3) * 4);
+    const auto * p = reinterpret_cast<const unsigned char *>(data.data());
+    size_t i = 0;
+    auto append = [&](uint32_t n) {
+        out.push_back(table[(n >> 18) & 0x3F]);
+        out.push_back(table[(n >> 12) & 0x3F]);
+        out.push_back(table[(n >> 6) & 0x3F]);
+        out.push_back(table[n & 0x3F]);
+    };
+    while (i + 3 <= data.size()) {
+        append((uint32_t(p[i]) << 16) | (uint32_t(p[i + 1]) << 8) | uint32_t(p[i + 2]));
+        i += 3;
+    }
+    size_t rem = data.size() - i;
+    if (rem == 1) {
+        uint32_t n = uint32_t(p[i]) << 16;
+        out.push_back(table[(n >> 18) & 0x3F]);
+        out.push_back(table[(n >> 12) & 0x3F]);
+        out.push_back('=');
+        out.push_back('=');
+    } else if (rem == 2) {
+        uint32_t n = (uint32_t(p[i]) << 16) | (uint32_t(p[i + 1]) << 8);
+        out.push_back(table[(n >> 18) & 0x3F]);
+        out.push_back(table[(n >> 12) & 0x3F]);
+        out.push_back(table[(n >> 6) & 0x3F]);
+        out.push_back('=');
+    }
+    return out;
+}
+
+static json::Value dump_word_timestamp(const engine::runtime::WordTimestamp & w) {
+    json::Value::Object obj;
+    obj.emplace("span", dump_time_span(w.span));
+    obj.emplace("word", json::Value::make_string(w.word));
+    obj.emplace("confidence", json::Value::make_number(static_cast<double>(w.confidence)));
+    return json::Value::make_object(std::move(obj));
+}
+
+static json::Value dump_voice_artifact(const engine::runtime::VoiceArtifact & a) {
+    json::Value::Object obj;
+    obj.emplace("kind", json::Value::make_string(artifact_kind_to_string(a.kind)));
+    obj.emplace("id", json::Value::make_string(a.id));
+    obj.emplace("payload_base64", json::Value::make_string(base64_encode(a.payload)));
+    json::Value::Object meta;
+    for (const auto & [k, v] : a.meta) {
+        meta.emplace(k, json::Value::make_string(v));
+    }
+    obj.emplace("meta", json::Value::make_object(std::move(meta)));
+    return json::Value::make_object(std::move(obj));
+}
+
+static json::Value dump_artifact_list(const std::vector<engine::runtime::VoiceArtifact> & list) {
+    json::Value::Array arr;
+    arr.reserve(list.size());
+    for (const auto & a : list) {
+        arr.push_back(dump_voice_artifact(a));
+    }
+    return json::Value::make_array(std::move(arr));
+}
+
 static json::Value dump_task_result(const TaskResult & result) {
     json::Value::Object obj;
 
@@ -172,6 +260,18 @@ static json::Value dump_task_result(const TaskResult & result) {
     }
 
     obj.emplace("named_audio_outputs", dump_named_audio_outputs(result.named_audio_outputs));
+
+    json::Value::Array words;
+    words.reserve(result.word_timestamps.size());
+    for (const auto & w : result.word_timestamps) {
+        words.push_back(dump_word_timestamp(w));
+    }
+    obj.emplace("word_timestamps", json::Value::make_array(std::move(words)));
+
+    if (result.artifact_output.has_value()) {
+        obj.emplace("artifact_output", dump_voice_artifact(*result.artifact_output));
+    }
+    obj.emplace("output_artifacts", dump_artifact_list(result.output_artifacts));
 
     return json::Value::make_object(std::move(obj));
 }
@@ -211,6 +311,21 @@ static json::Value dump_stream_event(const StreamEvent & event) {
     }
     if (!event.named_audio_outputs.empty()) {
         obj.emplace("named_audio_outputs", dump_named_audio_outputs(event.named_audio_outputs));
+    }
+    json::Value::Array turns;
+    turns.reserve(event.speaker_turns.size());
+    for (const auto & turn : event.speaker_turns) {
+        turns.push_back(dump_speaker_turn(turn));
+    }
+    obj.emplace("speaker_turns", json::Value::make_array(std::move(turns)));
+    json::Value::Array words;
+    words.reserve(event.word_timestamps.size());
+    for (const auto & w : event.word_timestamps) {
+        words.push_back(dump_word_timestamp(w));
+    }
+    obj.emplace("word_timestamps", json::Value::make_array(std::move(words)));
+    if (!event.output_artifacts.empty()) {
+        obj.emplace("output_artifacts", dump_artifact_list(event.output_artifacts));
     }
     obj.emplace("is_final", json::Value::make_bool(event.is_final));
     return json::Value::make_object(std::move(obj));
@@ -257,6 +372,64 @@ static json::Value dump_metadata(const engine::runtime::ModelMetadata & meta) {
     }
     obj.emplace("weight_candidates", json::Value::make_array(std::move(weights)));
     return json::Value::make_object(std::move(obj));
+}
+
+static json::Value dump_cli_option(const engine::runtime::CliOptionInfo & o) {
+    json::Value::Object obj;
+    obj.emplace("name", json::Value::make_string(o.name));
+    obj.emplace("value_name", json::Value::make_string(o.value_name));
+    obj.emplace("description", json::Value::make_string(o.description));
+    obj.emplace("required", json::Value::make_bool(o.required));
+    if (o.default_value.has_value()) {
+        obj.emplace("default_value", json::Value::make_string(*o.default_value));
+    }
+    if (o.min_value.has_value()) {
+        obj.emplace("min_value", json::Value::make_string(*o.min_value));
+    }
+    if (o.max_value.has_value()) {
+        obj.emplace("max_value", json::Value::make_string(*o.max_value));
+    }
+    return json::Value::make_object(std::move(obj));
+}
+
+static json::Value dump_inspection(const engine::runtime::ModelInspection & insp) {
+    json::Value::Object root;
+    root.emplace("metadata", dump_metadata(insp.metadata));
+    root.emplace("capabilities", dump_capabilities(insp.capabilities));
+
+    json::Value::Object cli;
+    json::Value::Array req, sess, load;
+    for (const auto & o : insp.cli.request_options) {
+        req.push_back(dump_cli_option(o));
+    }
+    for (const auto & o : insp.cli.session_options) {
+        sess.push_back(dump_cli_option(o));
+    }
+    for (const auto & o : insp.cli.load_options) {
+        load.push_back(dump_cli_option(o));
+    }
+    cli.emplace("request_options", json::Value::make_array(std::move(req)));
+    cli.emplace("session_options", json::Value::make_array(std::move(sess)));
+    cli.emplace("load_options", json::Value::make_array(std::move(load)));
+    root.emplace("cli", json::Value::make_object(std::move(cli)));
+
+    json::Value::Array cfgs, wts;
+    for (const auto & a : insp.discovered_configs) {
+        json::Value::Object item;
+        item.emplace("id", json::Value::make_string(a.id));
+        item.emplace("path", json::Value::make_string(a.path.string()));
+        cfgs.push_back(json::Value::make_object(std::move(item)));
+    }
+    for (const auto & a : insp.discovered_weights) {
+        json::Value::Object item;
+        item.emplace("id", json::Value::make_string(a.id));
+        item.emplace("path", json::Value::make_string(a.path.string()));
+        wts.push_back(json::Value::make_object(std::move(item)));
+    }
+    root.emplace("discovered_configs", json::Value::make_array(std::move(cfgs)));
+    root.emplace("discovered_weights", json::Value::make_array(std::move(wts)));
+    root.emplace("model_root", json::Value::make_string(insp.model_root.string()));
+    return json::Value::make_object(std::move(root));
 }
 
 /* ------------------------------------------------------------------ */
@@ -453,6 +626,72 @@ static TaskRequest parse_task_request(const json::Value & root) {
             request.audio_input = std::move(buf);
         }
     }
+
+    // `voice`：说话人参考 / 风格条件（语音克隆、风格控制等）。
+    if (const auto * voice = root.find("voice"); voice != nullptr && voice->is_object()) {
+        engine::runtime::VoiceCondition cond;
+        if (const auto * speaker = voice->find("speaker"); speaker != nullptr && speaker->is_object()) {
+            engine::runtime::VoiceReference ref;
+            if (const auto * cached = speaker->find("cached_voice_id");
+                cached != nullptr && cached->is_string()) {
+                ref.cached_voice_id = cached->as_string();
+            }
+            if (const auto * audio = speaker->find("audio"); audio != nullptr && audio->is_object()) {
+                engine::runtime::AudioBuffer buf;
+                buf.sample_rate = json::optional_i32(*audio, "sample_rate", 0);
+                buf.channels = json::optional_i32(*audio, "channels", 1);
+                if (const auto * samples = audio->find("samples");
+                    samples != nullptr && samples->is_array()) {
+                    buf.samples = json::number_array_as<float>(*samples);
+                }
+                if (!buf.samples.empty()) {
+                    ref.audio = std::move(buf);
+                }
+            } else if (const auto * speaker_path = speaker->find("audio_path");
+                       speaker_path != nullptr && speaker_path->is_string()) {
+                int sr = 0, ch = 0;
+                size_t n = 0;
+                float * samples = nullptr;
+                if (audiocpp_audio_load_wav(speaker_path->as_string().c_str(), &sr, &ch, &n, &samples) == 0) {
+                    engine::runtime::AudioBuffer buf;
+                    buf.sample_rate = sr;
+                    buf.channels = ch;
+                    buf.samples.assign(samples, samples + n);
+                    std::free(samples);
+                    ref.audio = std::move(buf);
+                }
+            }
+            cond.speaker = std::move(ref);
+        }
+        if (const auto * style = voice->find("style"); style != nullptr && style->is_object()) {
+            engine::runtime::StyleCondition sc;
+            if (const auto * v = style->find("language"); v != nullptr && v->is_string()) {
+                sc.language = v->as_string();
+            }
+            if (const auto * v = style->find("emotion"); v != nullptr && v->is_string()) {
+                sc.emotion = v->as_string();
+            }
+            if (const auto * v = style->find("speaking_rate"); v != nullptr && v->is_number()) {
+                sc.speaking_rate = static_cast<float>(v->as_number());
+            }
+            if (const auto * v = style->find("pitch_shift"); v != nullptr && v->is_number()) {
+                sc.pitch_shift = static_cast<float>(v->as_number());
+            }
+            if (const auto * v = style->find("energy_scale"); v != nullptr && v->is_number()) {
+                sc.energy_scale = static_cast<float>(v->as_number());
+            }
+            if (const auto * tags = style->find("tags"); tags != nullptr && tags->is_object()) {
+                for (const auto & [k, v] : tags->as_object()) {
+                    if (v.is_string()) {
+                        sc.tags.emplace(k, v.as_string());
+                    }
+                }
+            }
+            cond.style = std::move(sc);
+        }
+        request.voice = std::move(cond);
+    }
+
     return request;
 }
 
@@ -551,6 +790,43 @@ int audiocpp_registry_devices_json(char ** out_json) {
         return -1;
     } catch (...) {
         set_last_error("unknown exception in audiocpp_registry_devices_json");
+        return -1;
+    }
+}
+
+int audiocpp_registry_supports_family(const audiocpp_registry * reg, const char * family) {
+    if (reg == nullptr || family == nullptr) {
+        set_last_error("null reg or family");
+        return 0;
+    }
+    try {
+        return reg->storage.supports_family(std::string(family)) ? 1 : 0;
+    } catch (const std::exception & ex) {
+        set_last_error(ex.what());
+        return 0;
+    } catch (...) {
+        set_last_error("unknown exception in audiocpp_registry_supports_family");
+        return 0;
+    }
+}
+
+int audiocpp_registry_inspect_json(const audiocpp_registry * reg,
+                                   const char * model_path,
+                                   char ** out_json) {
+    if (reg == nullptr || model_path == nullptr || out_json == nullptr) {
+        set_last_error("null reg, model_path or out_json");
+        return -1;
+    }
+    *out_json = nullptr;
+    try {
+        auto inspection = reg->storage.inspect(std::filesystem::path(model_path));
+        *out_json = dup_string(json::stringify(dump_inspection(inspection)));
+        return 0;
+    } catch (const std::exception & ex) {
+        set_last_error(ex.what());
+        return -1;
+    } catch (...) {
+        set_last_error("unknown exception in audiocpp_registry_inspect_json");
         return -1;
     }
 }

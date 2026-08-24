@@ -7,6 +7,8 @@
 //! 运行方式：
 //! ```bash
 //! cargo run -p audio-cpp --example registry_inspect
+//! # 带权重路径时额外演示 inspect 预检：
+//! cargo run -p audio-cpp --example registry_inspect ./qwen3-asr-q8_0.gguf
 //! ```
 //!
 //! 也可以验证 [`ModelFamily`] 枚举与引擎返回字符串的往返一致性：
@@ -73,6 +75,61 @@ fn main() -> Result<(), audio_cpp::Error> {
                 ModelFamily::from(l.family.as_str())
             );
         }
+    }
+
+    // 6. 加载前预检：supports_family 判断某族是否已编译进引擎（无需权重）。
+    println!("\n=== supports_family 预检 ===");
+    for probe in ["silero_vad", "qwen3_asr", "definitely_not_a_family"] {
+        println!(
+            "  {probe:30} → {}",
+            if registry.supports_family(probe) {
+                "已编译"
+            } else {
+                "未编译"
+            }
+        );
+    }
+
+    // 7. 预检具体权重文件：inspect 不真正加载即可给出 metadata / 能力 / 选项 / 资产。
+    //    仅当命令行传入路径时演示（无权重也能跑上面 1~6 步）。
+    if let Some(path) = std::env::args().nth(1) {
+        println!("\n=== inspect 预检：{path} ===");
+        match registry.inspect(&path) {
+            Ok(info) => {
+                println!("  族: {}", info.metadata.family);
+                println!("  变体: {}", info.metadata.variant);
+                println!("  描述: {}", info.metadata.description);
+                let tasks = info
+                    .capabilities
+                    .supported_tasks
+                    .iter()
+                    .map(|t| format!("{}[{}]", t.task, t.modes.join("/")))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                println!("  能力: {tasks}");
+                if !info.discovered_weights.is_empty() {
+                    println!("  发现权重:");
+                    for w in &info.discovered_weights {
+                        println!("    - {}  {}", w.id, w.path);
+                    }
+                }
+                if !info.cli.request_options.is_empty() {
+                    println!(
+                        "  请求选项: {}",
+                        info.cli
+                            .request_options
+                            .iter()
+                            .map(|o| o.name.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    );
+                }
+            }
+            Err(e) => println!("  inspect 失败: {e}（文件可能不存在或无法被任何 loader 识别）"),
+        }
+    } else {
+        println!("\n提示: 传入权重路径可演示 inspect，例如");
+        println!("  cargo run -p audio-cpp --example registry_inspect ./qwen3-asr-q8_0.gguf");
     }
 
     println!("\n提示: registry.families() 反映当前编译的模型集；切换 feature 或");

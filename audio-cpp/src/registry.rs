@@ -12,7 +12,7 @@ use audio_cpp_sys::*;
 use crate::error::Error;
 use crate::ffi;
 use crate::model::Model;
-use crate::types::{Device, LoaderInfo, ModelFamily};
+use crate::types::{Device, LoaderInfo, ModelFamily, ModelInspection};
 
 /// 模型注册表。
 pub struct Registry {
@@ -75,6 +75,59 @@ impl Registry {
         serde_json::from_str(&json).map_err(Error::from)
     }
 
+    /// 判断某个模型族是否已编译进当前引擎。
+    ///
+    /// 用于加载前的预检：返回 `false` 说明该族未启（需对应 `model-*` feature
+    /// 或 `full-models` 重新编译），直接 `load` 会失败。
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use audio_cpp::Registry;
+    /// let registry = Registry::new().unwrap();
+    /// // 默认 core 构建恒定包含 silero_vad；随机字符串必然为 false。
+    /// assert!(registry.supports_family("silero_vad"));
+    /// assert!(!registry.supports_family("definitely_not_a_family"));
+    /// ```
+    pub fn supports_family(&self, family: &str) -> bool {
+        let family_c = match ffi::cstring(family) {
+            Ok(s) => s,
+            Err(_) => return false,
+        };
+        unsafe {
+            audiocpp_registry_supports_family(self.raw, family_c.as_ptr() as *const c_char) != 0
+        }
+    }
+
+    /// 预检模型文件：无需真正加载即可获得 metadata / capabilities / 支持的
+    /// CLI 选项 / 发现的配置与权重资产。
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use audio_cpp::Registry;
+    /// let registry = Registry::new().unwrap();
+    /// let info = registry.inspect("./qwen3-asr-q8_0.gguf").unwrap();
+    /// println!("族: {}，变体: {}", info.metadata.family, info.metadata.variant);
+    /// for opt in &info.cli.request_options {
+    ///     println!("  请求选项 {}: {}", opt.name, opt.description);
+    /// }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// C ABI 调用失败、路径非法或返回 JSON 无法解析时返回对应 [`Error`] 变体。
+    /// 若文件不存在或无法被任何 loader 识别，底层会报错（如 [`Error::NullHandle`]）。
+    pub fn inspect(&self, model_path: &str) -> Result<ModelInspection, Error> {
+        let path_c = ffi::cstring(model_path)?;
+        let mut out: *mut c_char = ptr::null_mut();
+        ffi::check_rc(unsafe {
+            audiocpp_registry_inspect_json(self.raw, path_c.as_ptr() as *const c_char, &mut out)
+        })?;
+        let json = unsafe { ffi::take_string(out)? };
+        serde_json::from_str(&json).map_err(Error::from)
+    }
+
     /// 加载一个模型。
     ///
     /// `model_path` 为权重文件路径（如 `.safetensors` / `.gguf`）；
@@ -123,5 +176,20 @@ impl Drop for Registry {
         unsafe {
             audiocpp_registry_free(self.raw);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // 测试断言中的 unwrap/expect 是惯用法：失败即测试失败，展开错误链无意义。
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
+    use super::*;
+
+    #[test]
+    fn supports_family_known_and_unknown() {
+        let reg = Registry::new().unwrap();
+        // core 模型集始终包含 silero_vad；明显不存在的族应返回 false 且不报错。
+        assert!(reg.supports_family("silero_vad"));
+        assert!(!reg.supports_family("definitely_not_a_real_family_xyz"));
     }
 }

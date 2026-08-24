@@ -78,5 +78,16 @@ fn main() -> Result<(), audio_cpp::Error> {
             seg.span.start_sample, seg.span.end_sample, seg.confidence, seg.text
         );
     }
+
+    // 6. 词级时间戳（部分 ASR 模型在 engines 产出 word_timestamps 时可用）。
+    for w in &result.word_timestamps {
+        println!(
+            "  词 \"{}\" {}..{} 置信度={}",
+            w.word, w.span.start_sample, w.span.end_sample, w.confidence
+        );
+    }
+    if result.word_timestamps.is_empty() {
+        println!("（该模型未产出词级时间戳；word_timestamps 为空属正常）");
+    }
     Ok(())
 }

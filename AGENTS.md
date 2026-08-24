@@ -106,9 +106,23 @@
   - **新增 6 个 loader 族**（上游 `make_*_loader` 清单共 54 个）：`f5_tts`、
     `magpie_tts`、`personaplex`、`moss_voicegen`、`meanvc2`、`mms_forced_aligner`，
     已同步 `ModelFamily`（枚举/as_str/from_path/From<&str>/测试）+ 对应 `model-*`
-    feature（sys 与高层转发）。其余 48 个族此前已收录。
-  - 默认 `core-models` 构建约 1.5 分钟（win32/MSVC，增量）编译链接通过；19 个
-    types 单元测试全部通过。
+     feature（sys 与高层转发）。其余 48 个族此前已收录。
+  - **补全未绑定的高价值 API**（上游运行时新增能力）：
+    - C ABI 新增 `audiocpp_registry_supports_family`（加载前判断某族是否已编译
+      进引擎）与 `audiocpp_registry_inspect_json`（预检模型：metadata /
+      capabilities / CLI 选项 / 发现资产）；高层 `Registry::supports_family` /
+      `Registry::inspect`（返回 `ModelInspection`：`CliInterface` / `NamedAsset` 等）。
+    - `dump_*` 系列补齐新字段：TaskResult/StreamEvent 的 `word_timestamps`（词级
+      时间戳）、`speaker_turns`（流式说话人分段）、`artifact_output` /
+      `output_artifacts`（`VoiceArtifact`，二进制载荷 base64 编码）；`SpeakerTurn`
+      补 `text`。高层 `TaskResult` / `StreamEvent` / `SpeakerTurn` 及新增
+      `WordTimestamp` / `VoiceArtifact` 类型同步。
+    - `parse_task_request` 解析 `voice` 条件对象（参考音频 / `cached_voice_id` +
+      风格 `language`/`emotion`/`speaking_rate`/`pitch_shift`/`energy_scale`/`tags`）；
+      高层新增 `VoiceCondition` 构造器（经 `Request::tts(...).voice(...)` 使用），
+      比把参考音频塞进顶层 `audio` 更语义化。
+  - 默认 `core-models` 构建约 1.5 分钟（win32/MSVC，增量）编译链接通过；22 个
+    types/registry/request 单元测试全部通过。
 - **bindgen 已升级到 0.72**，crate 版本升至 **0.3.0**（workspace 统一）。
 - **build.rs 已跟踪 submodule HEAD 指针**：`cargo build` 的 rerun-if-changed 加入
   父仓库 `.git/modules/audio-cpp-sys/audio.cpp/HEAD`（cargo 无法精准跟踪整个

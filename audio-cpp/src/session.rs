@@ -246,6 +246,9 @@ impl Session {
                 text_output: None,
                 audio_output: None,
                 named_audio_outputs: Vec::new(),
+                word_timestamps: Vec::new(),
+                artifact_output: None,
+                output_artifacts: Vec::new(),
             });
         }
         let json = unsafe { ffi::take_string(out)? };
