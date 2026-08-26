@@ -106,7 +106,11 @@ jobs:
           elif [[ -n "${{ inputs.tag }}" ]]; then
             TAG="${{ inputs.tag }}"
           else
-            PKG_VER="$(cargo pkgid -p audio-cpp-sys | sed 's/.*@//')"
+            # main 开发期 push：`cargo pkgid` 返回 `path+file://...#0.3.0`（无 `@`），
+            # 发版 tag push 返回 `audio-cpp-sys@0.3.0`。两种形态都要正确取到版本号。
+            PKGID="$(cargo pkgid -p audio-cpp-sys)"
+            PKG_VER="${PKGID##*#}"
+            if [ "$PKG_VER" = "$PKGID" ]; then PKG_VER="${PKGID##*@}"; fi
             TAG="v${PKG_VER}"
           fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
@@ -201,7 +205,11 @@ jobs:
           elif [[ -n "${{ inputs.tag }}" ]]; then
             TAG="${{ inputs.tag }}"
           else
-            PKG_VER="$(cargo pkgid -p audio-cpp-sys | sed 's/.*@//')"
+            # main 开发期 push：`cargo pkgid` 返回 `path+file://...#0.3.0`（无 `@`），
+            # 发版 tag push 返回 `audio-cpp-sys@0.3.0`。两种形态都要正确取到版本号。
+            PKGID="$(cargo pkgid -p audio-cpp-sys)"
+            PKG_VER="${PKGID##*#}"
+            if [ "$PKG_VER" = "$PKGID" ]; then PKG_VER="${PKGID##*@}"; fi
             TAG="v${PKG_VER}"
           fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
@@ -305,7 +313,11 @@ jobs:
           elif [[ -n "${{ inputs.tag }}" ]]; then
             TAG="${{ inputs.tag }}"
           else
-            PKG_VER="$(cargo pkgid -p audio-cpp-sys | sed 's/.*@//')"
+            # main 开发期 push：`cargo pkgid` 返回 `path+file://...#0.3.0`（无 `@`），
+            # 发版 tag push 返回 `audio-cpp-sys@0.3.0`。两种形态都要正确取到版本号。
+            PKGID="$(cargo pkgid -p audio-cpp-sys)"
+            PKG_VER="${PKGID##*#}"
+            if [ "$PKG_VER" = "$PKGID" ]; then PKG_VER="${PKGID##*@}"; fi
             TAG="v${PKG_VER}"
           fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
