@@ -61,6 +61,15 @@
 | `openmp` | `ENGINE_ENABLE_OPENMP=ON` |
 | `native` | `ENGINE_ENABLE_NATIVE_CPU=ON` |
 
+### 6. 发布 / 标签 / Release 操作需显式授权
+AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户在对话中**明确命令**：
+- 发布到 crates.io（`cargo publish`）；
+- 创建 / 删除 GitHub Release（含 `gh release create` / `delete` / `upload`）；
+- 创建 / 删除 / 推送 git tag（含 `git tag`、`git push --delete <tag>`，以及 `gh release create` 顺带建出的 tag）。
+以上操作多为**不可逆**（crates.io 版本无法撤回；tag / release 直接决定预编译资产的寻址与下游消费端），
+即便推断“应该”这么做（如版本号已变、需要发布预编译资产等），代理也必须先停下、向用户确认，
+由用户决定是否执行。预编译资产归属哪个 release / tag 以用户指定为准，代理不得自行拍板。
+
 ## audio.cpp 升级检查清单
 
 每次把 `audio-cpp-sys/audio.cpp` submodule 更新到上游新 commit 后，按下表顺序审查，缺一不可：
@@ -153,7 +162,7 @@
       比把参考音频塞进顶层 `audio` 更语义化。
   - 默认 `core-models` 构建约 1.5 分钟（win32/MSVC，增量）编译链接通过；22 个
     types/registry/request 单元测试全部通过。
-- **bindgen 已升级到 0.72**，crate 版本升至 **0.3.1**（workspace 统一，由 0.3.0 升上来；0.3.0 已发布，预编译资产随 0.3.1 发布）。
+- **bindgen 已升级到 0.72**，crate 版本升至 **0.3.1**（workspace 统一，由 0.3.0 升上来；0.3.0 / 0.3.1 均已发布到 crates.io，预编译资产随 0.3.1 发布到 `v0.3.1`）。
 - **build.rs 已跟踪 submodule HEAD 指针**：`cargo build` 的 rerun-if-changed 加入
   父仓库 `.git/modules/audio-cpp-sys/audio.cpp/HEAD`（cargo 无法精准跟踪整个
   submodule 目录，对目录会退化为总是重跑、每次多花几分钟）。`git submodule update`
