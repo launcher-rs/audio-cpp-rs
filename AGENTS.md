@@ -92,8 +92,26 @@
    只能源码构建。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `c79e588`（main 分支最新；从 `288a271` 快进，`cargo build
-  --workspace` 在 win32/MSVC 已验证通过）。历史升级记录见下方逐条。
+- 当前 submodule HEAD = `da16c1b`（main 分支最新；0.7.0 开发线，从 `c79e588` 快进，
+  `cargo build --workspace` + `cargo test -p audio-cpp --lib`（23 项）在 win32/MSVC
+  已验证通过）。历史升级记录见下方逐条。
+- **升级 `c79e588`→`da16c1b` 审查结论**：
+  - diff 涉及大量模型族新增（`audio.cpp/CMakeLists.txt` 新增 5 个 `make_*_loader`：
+    `audiosr` / `controlfoley` / `firered_audio` / `fireredtts3` / `midashenglm_gen`，
+    上游 loader 清单共 59 个）。**未触碰 `engine/framework/runtime/*` 与
+    `engine/framework/io/json.h` 公共 API**：C ABI 边界（capi.h/capi.cpp/build.rs
+    bindgen allowlist）无需改动。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 5 个枚举变体
+    （`Audiosr` / `ControlFoley` / `FireredAudio` / `Fireredtts3` / `MidashEnglmGen`）
+    + `as_str()`（`audiosr` / `controlfoley` / `firered_audio` / `fireredtts3` /
+    `midashenglm_gen`，与上游 loader 族名一致）+ `from_path()` 关键词表 +
+    `From<&str>`；并在 `audio-cpp-sys/Cargo.toml` 与 `audio-cpp/Cargo.toml` 新增
+    `model-audiosr` / `model-controlfoley` / `model-firered-audio` /
+    `model-fireredtts3` / `model-midashenglm-gen` 五个 `model-*` feature（build.rs
+    按 `model-<target>` 约定自动映射 CMake target，无需改 build.rs）。`as_str` 与
+    `From` 一致性测试（`model_family_roundtrip`）已覆盖这 5 个新变体。
+  - 注意：这 5 个新族均不在 `core` 模型集，默认 `core-models` 构建不会编译它们；
+    需用时用 `custom-models` + 对应 `model-*` feature 或 `AUDIOCPP_MODELS` 环境变量。
 - **升级 `288a271`→`c79e588` 审查结论**：
   - diff 仅涉及 `src/framework/audio/chunking.cpp`、`src/models/index_tts2/{gpt,session}.cpp`、
     `src/models/supertonic/session.cpp` 与 CI/文档，**未触碰 `engine/framework/runtime/*`

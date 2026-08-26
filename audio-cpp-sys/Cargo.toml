@@ -92,6 +92,11 @@ model-personaplex = ["custom-models"]      # 多角色对话语音：PersonaPlex
 model-moss-voicegen = ["custom-models"]    # 语音生成：MOSS VoiceGen
 model-meanvc2 = ["custom-models"]          # 语音转换：MeanVC2
 model-mms-forced-aligner = ["custom-models"]  # 强制对齐：MMS Forced Aligner（社区模型）
+model-audiosr = ["custom-models"]              # 音频超分辨率：AudioSR
+model-controlfoley = ["custom-models"]        # 可控音效生成：ControlFoley
+model-firered-audio = ["custom-models"]       # 语音理解/生成：FireRed Audio
+model-fireredtts3 = ["custom-models"]          # TTS：FireRed TTS3
+model-midashenglm-gen = ["custom-models"]      # 生成式音频：MIdashengLM
 
 # ------------------------------------------------------------------------
 # 计算后端 feature（可叠加，映射 engine 的 ENGINE_ENABLE_*_CPU 选项）。

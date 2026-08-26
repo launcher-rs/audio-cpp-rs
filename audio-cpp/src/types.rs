@@ -121,6 +121,8 @@ pub enum ModelFamily {
     ParakeetTdt,
     /// Vibevoice ASR
     VibevoiceAsr,
+    /// FireRed Audio（语音理解 / 生成，含 Qwen3.5 运行时）
+    FireredAudio,
 
     // ---- TTS ----
     /// Qwen3 TTS
@@ -153,6 +155,8 @@ pub enum ModelFamily {
     PocketTts,
     /// Vietneu TTS
     VietneuTts,
+    /// FireRed TTS3（零样本语音合成）
+    Fireredtts3,
     /// F5 TTS
     F5Tts,
     /// Magpie TTS
@@ -199,6 +203,12 @@ pub enum ModelFamily {
     Supertonic,
     /// Voxtral Realtime
     VoxtralRealtime,
+    /// AudioSR（语音/音频超分辨率）
+    Audiosr,
+    /// ControlFoley（可控电影音效生成）
+    ControlFoley,
+    /// MidoAudio / MIdashengLM 生成式音频
+    MidashEnglmGen,
 
     // ---- 其他 ----
     /// Miocodec / Miotts（小米语音）
@@ -281,6 +291,11 @@ impl ModelFamily {
             ("nemotron", ModelFamily::NemotronAsr),
             ("parakeet", ModelFamily::ParakeetTdt),
             ("vibevoice_asr", ModelFamily::VibevoiceAsr),
+            ("firered_audio", ModelFamily::FireredAudio),
+            ("firered-audio", ModelFamily::FireredAudio),
+            ("fireredtts3", ModelFamily::Fireredtts3),
+            ("firered_tts3", ModelFamily::Fireredtts3),
+            ("firered-tts3", ModelFamily::Fireredtts3),
             ("vibevoice", ModelFamily::Vibevoice),
             ("qwen3_tts", ModelFamily::Qwen3Tts),
             ("qwen3-tts", ModelFamily::Qwen3Tts),
@@ -341,6 +356,13 @@ impl ModelFamily {
             ("supertonic", ModelFamily::Supertonic),
             ("voxtral-realtime", ModelFamily::VoxtralRealtime),
             ("voxtral", ModelFamily::VoxtralRealtime),
+            ("audiosr", ModelFamily::Audiosr),
+            ("audio-sr", ModelFamily::Audiosr),
+            ("controlfoley", ModelFamily::ControlFoley),
+            ("control-foley", ModelFamily::ControlFoley),
+            ("midashenglm_gen", ModelFamily::MidashEnglmGen),
+            ("midashenglm-gen", ModelFamily::MidashEnglmGen),
+            ("midashen", ModelFamily::MidashEnglmGen),
             ("miocodec", ModelFamily::Miocodec),
             ("miotts", ModelFamily::Miotts),
             ("dramabox", ModelFamily::Dramabox),
@@ -372,6 +394,7 @@ impl ModelFamily {
             ModelFamily::NemotronAsr => "nemotron_asr",
             ModelFamily::ParakeetTdt => "parakeet_tdt",
             ModelFamily::VibevoiceAsr => "vibevoice_asr",
+            ModelFamily::FireredAudio => "firered_audio",
             ModelFamily::Qwen3Tts => "qwen3_tts",
             ModelFamily::Confucius4Tts => "confucius4_tts",
             ModelFamily::DotsTts => "dots_tts",
@@ -387,6 +410,7 @@ impl ModelFamily {
             ModelFamily::Outetts => "outetts",
             ModelFamily::PocketTts => "pocket_tts",
             ModelFamily::VietneuTts => "vietneu_tts",
+            ModelFamily::Fireredtts3 => "fireredtts3",
             ModelFamily::F5Tts => "f5_tts",
             ModelFamily::MagpieTts => "magpie_tts",
             ModelFamily::Personaplex => "personaplex",
@@ -408,6 +432,9 @@ impl ModelFamily {
             ModelFamily::MinimaxMusic3 => "minimax_music3",
             ModelFamily::Supertonic => "supertonic",
             ModelFamily::VoxtralRealtime => "voxtral_realtime",
+            ModelFamily::Audiosr => "audiosr",
+            ModelFamily::ControlFoley => "controlfoley",
+            ModelFamily::MidashEnglmGen => "midashenglm_gen",
             ModelFamily::Miocodec => "miocodec",
             ModelFamily::Miotts => "miotts",
             ModelFamily::Vibevoice => "vibevoice",
@@ -437,6 +464,7 @@ impl From<&str> for ModelFamily {
             "nemotron_asr" => ModelFamily::NemotronAsr,
             "parakeet_tdt" => ModelFamily::ParakeetTdt,
             "vibevoice_asr" => ModelFamily::VibevoiceAsr,
+            "firered_audio" => ModelFamily::FireredAudio,
             "qwen3_tts" => ModelFamily::Qwen3Tts,
             "confucius4_tts" => ModelFamily::Confucius4Tts,
             "dots_tts" => ModelFamily::DotsTts,
@@ -452,6 +480,7 @@ impl From<&str> for ModelFamily {
             "outetts" => ModelFamily::Outetts,
             "pocket_tts" => ModelFamily::PocketTts,
             "vietneu_tts" => ModelFamily::VietneuTts,
+            "fireredtts3" => ModelFamily::Fireredtts3,
             "f5_tts" => ModelFamily::F5Tts,
             "magpie_tts" => ModelFamily::MagpieTts,
             "personaplex" => ModelFamily::Personaplex,
@@ -473,6 +502,9 @@ impl From<&str> for ModelFamily {
             "minimax_music3" => ModelFamily::MinimaxMusic3,
             "supertonic" => ModelFamily::Supertonic,
             "voxtral_realtime" => ModelFamily::VoxtralRealtime,
+            "audiosr" => ModelFamily::Audiosr,
+            "controlfoley" => ModelFamily::ControlFoley,
+            "midashenglm_gen" => ModelFamily::MidashEnglmGen,
             "miocodec" => ModelFamily::Miocodec,
             "miotts" => ModelFamily::Miotts,
             "vibevoice" => ModelFamily::Vibevoice,
@@ -868,6 +900,7 @@ mod tests {
             NemotronAsr,
             ParakeetTdt,
             VibevoiceAsr,
+            FireredAudio,
             // TTS
             Qwen3Tts,
             Confucius4Tts,
@@ -884,6 +917,7 @@ mod tests {
             Outetts,
             PocketTts,
             VietneuTts,
+            Fireredtts3,
             F5Tts,
             MagpieTts,
             Personaplex,
@@ -905,6 +939,9 @@ mod tests {
             StableAudio,
             Supertonic,
             VoxtralRealtime,
+            Audiosr,
+            ControlFoley,
+            MidashEnglmGen,
             // 其他
             Miocodec,
             Miotts,
