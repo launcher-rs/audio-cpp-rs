@@ -1,10 +1,10 @@
-# 预编译资产路线图（0.3.0+）
+# 预编译资产路线图（0.4.0+）
 
-> 记录 audio-cpp-rs 预编译资产机制的未来优化目标。当前状态（0.3.0）已实现的
+> 记录 audio-cpp-rs 预编译资产机制的未来优化目标。当前状态（0.4.0）已实现的
 > 方案见 [prebuilt_pattern_report.md](prebuilt_pattern_report.md) 与
 > [gh-workflow-guide.md](gh-workflow-guide.md)。
 
-## 现状（0.3.0）
+## 现状（0.4.0）
 
 - **只发布 `full` 全模型资产**（linux 4 + windows 2 + macos 1，共 7 个 cell）；
 - 资产名含 audio.cpp submodule 完整 SHA 前 12 位（如
@@ -30,7 +30,7 @@
 2. **下载体积**：仅要 qwen3_asr 的用户需下载 77MB full 包（一次性的，好网络几秒）；
 3. **编译提速收益显著**：270s → 54s（约 5 倍），且每次增量构建秒级。
 
-## 目标（0.3.0+）：双层资产方案
+## 目标（0.4.0+）：双层资产方案
 
 **思路**：在 full 之外，为常用模型族额外发布"单族小包"（custom-<族>），
 下载端按需匹配，未命中再回退 full。
