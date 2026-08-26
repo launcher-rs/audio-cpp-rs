@@ -153,7 +153,7 @@
       比把参考音频塞进顶层 `audio` 更语义化。
   - 默认 `core-models` 构建约 1.5 分钟（win32/MSVC，增量）编译链接通过；22 个
     types/registry/request 单元测试全部通过。
-- **bindgen 已升级到 0.72**，crate 版本升至 **0.3.0**（workspace 统一）。
+- **bindgen 已升级到 0.72**，crate 版本升至 **0.4.0**（workspace 统一，由 0.3.0 升上来）。
 - **build.rs 已跟踪 submodule HEAD 指针**：`cargo build` 的 rerun-if-changed 加入
   父仓库 `.git/modules/audio-cpp-sys/audio.cpp/HEAD`（cargo 无法精准跟踪整个
   submodule 目录，对目录会退化为总是重跑、每次多花几分钟）。`git submodule update`
