@@ -421,7 +421,8 @@ fn git_capture(args: &[&str], dir: &Path) -> Option<String> {
 /// 二者任一不满足则返回 None，迫使消费端回落源码构建——这样资产名里的 commit 才真正
 /// 等价于本地即将编译的 audio.cpp 内容，不会误用 ABI 不匹配的预编译。
 fn local_audio_commit() -> Option<String> {
-    let manifest_dir = Path::new(&env::var("CARGO_MANIFEST_DIR").ok()?);
+    let manifest_dir_str = env::var("CARGO_MANIFEST_DIR").ok()?;
+    let manifest_dir = Path::new(&manifest_dir_str);
     let sub = manifest_dir.join("audio.cpp");
     if !sub.join("CMakeLists.txt").exists() {
         return None;
