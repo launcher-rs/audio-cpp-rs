@@ -4,7 +4,6 @@
 
 audio.cpp 是一个纯 C++ 音频推理框架，基于 ggml，支持 TTS、STT（ASR）、VAD、说话人分离、音源分离、声音克隆、编解码与音乐生成等 44+ 模型族任务，后端覆盖 CPU / CUDA / HIP / Vulkan / Metal，可加载 GGUF 与 safetensors 模型。
 
-本项目**不重写 audio.cpp**，而是为 Rust 开发者提供一条**安全、易用、与 C++ 运行时共享实现**的绑定路径。
 
 ## 工作区结构
 
