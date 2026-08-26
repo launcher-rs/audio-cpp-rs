@@ -1,18 +1,16 @@
 name: Build prebuilt audio-cpp artifacts
 
 on:
-  # 发版 tag 时构建（按 tag 上传到同名 Release）。
-  - push:
-      tags:
-        - 'v*'
-  # 开发期：只要 audio.cpp submodule 指针变动（main 上），就构建对应 commit 的预编译，
-  # 让消费端能按 submodule commit 精确寻址、无需每次都回落源码构建。
-  - push:
-      branches:
-        - main
-      paths:
-        - 'audio-cpp-sys/audio.cpp'
-  - workflow_dispatch:
+  # 发版 tag 或开发期 submodule 指针变动时构建：GitHub 语义下 tags 与 branches 取 OR，
+  # 再与 paths 取 AND，即 (tag 为 v* 或分支为 main) 且本次 push 改动 audio.cpp submodule 才触发。
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+    paths:
+      - 'audio-cpp-sys/audio.cpp'
+  workflow_dispatch:
       inputs:
         upload_to_release:
           description: Upload artifacts to the selected tag release
