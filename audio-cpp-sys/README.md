@@ -29,11 +29,17 @@
 
 ## 使用
 
-把本 crate 加入依赖：
+把本 crate 加入依赖（推荐用 `cargo add`，会自动写入兼容版本）：
+
+```bash
+cargo add audio-cpp-sys
+```
+
+或手工在 `Cargo.toml` 指定（当前版本 `0.3`）：
 
 ```toml
 [dependencies]
-audio-cpp-sys = "0.1"
+audio-cpp-sys = "0.3"
 ```
 
 构建默认的 `core-models`（引擎核心 + 内置 VAD）：
@@ -47,34 +53,48 @@ cargo build
 构建时默认会编译 `audio.cpp` 的 `engine_runtime` 及其依赖（耗时较长）。有以下两种方式
 使用预编译静态库，跳过 **整个 CMake 构建**：
 
-1. **显式指定目录**（任何情况都可用）：
+1. **显式指定目录**（任何情况都可用，跳过 CMake 但仍编译 C shim + bindgen）：
 
 ```bash
-# 目录内需包含 engine_runtime 及依赖库（*.lib / *.a），可放在
-#   <dir>、<dir>/lib、<dir>/lib64 或 <dir>/bin
+# 目录内须包含 engine_runtime 及依赖静态库（*.lib / *.a）。build 脚本会在
+#   <dir>、<dir>/lib、<dir>/lib64、<dir>/bin
+# 下按库名扫描（不依赖资产文件名），命中 engine_runtime / ggml* / sentencepiece /
+# cjson_vendor / yaml_vendor 即视为有效。
 export AUDIOCPP_PREBUILT_DIR=/path/to/prebuilt
 
 cargo build
 ```
 
+> 该模式**不按资产名匹配**：`AUDIOCPP_PREBUILT_DIR` 指向的目录就是直接链接的库根，
+> 只要里面能找到上述已知库名即可（可从 CI 发布的 `audio-cpp-prebuilt-*-static-*.tar.gz`
+> 解压得到，解压后根目录下的 `lib/` 即满足布局）。
+
 2. **自动下载**（`prebuilt` feature，需发布对应 GitHub Release 资产）：
 
 ```toml
-[dependencies]
-audio-cpp-sys = { version = "0.1", features = ["prebuilt"] }
-```
+    [dependencies]
+    audio-cpp-sys = { version = "0.3", features = ["prebuilt"] }
+    ```
 
 ```bash
 cargo build --features prebuilt
 ```
 
-按当前平台/后端/模型组合自动拼资产名并下载，缓存到
-`target/audio-cpp-prebuilt-cache/<tag>/`。资产命名
-`audio-cpp-prebuilt-{linux|macos|windows}-{target}-{backend}-{modelset}-static.tar.gz`。
+按当前平台/后端/模型组合 **+ 本地 audio.cpp 的 commit（完整 SHA 前 12 位）** 自动拼资产名
+并下载，缓存到 `target/audio-cpp-prebuilt-cache/<tag>/<asset>`（`<asset>` 即不含
+`.tar.gz` 的资产名）。资产命名：
+
+```
+audio-cpp-prebuilt-{linux|macos|windows}-{target}-{backend}[-{crt}]-{modelset}-static-{commit}.tar.gz
+```
+
+其中 `crt` 仅 Windows（`md` 动态 / `mt` 静态 CRT），`commit` 为本地 submodule 完整 SHA
+的前 12 位。消费端按自身 commit 精确请求：命中才下载、404 即立即回落源码构建，不会在
+commit 不符时白下整包。
 
 > **只发布 `full` 全模型资产**（full 是任何 model 组合的超集，见下）。core /
-> `custom-<族>` 组合会自动回退下载 full 资产（体积较大但保证可用），仍失败才
-> 回落源码构建。
+> `custom-<族>` 组合会先尝试精确资产名，404 时自动回退下载 `full-{commit}` 资产
+> （体积较大但保证可用），仍失败才回落源码构建。
 
 下载/缓存行为可用环境变量定制（适合内网或访问不了 GitHub 的环境）：
 
@@ -98,13 +118,26 @@ cargo build --features prebuilt
 - CUDA / Vulkan 仍需要本地 SDK 参与链接（静态库不传导其运行时依赖），只省编译；
 - C shim（`capi.cpp`）与 Rust 绑定仍从源码编译，因此上游 `audio.cpp` 源码树依然
   需要（`prebuilt` 旁路会自动获取）；
-- 归档内 `metadata.json` 记录 `audio_commit`（打包时 audio.cpp submodule HEAD）与
-  `msvc_ver`（打包工具链的 `_MSC_VER`）。下载后自动校验：`audio_commit` 与本地
-  submodule 不一致，或本地 MSVC 版本低于归档的 `msvc_ver`，则删缓存回落源码构建
+- 归档内 `metadata.json` 记录 `audio_commit`（打包时 audio.cpp submodule 完整 SHA
+  的前 12 位）与 `msvc_ver`（打包工具链的 `_MSC_VER`）。下载前已按资产名里的 commit
+  精确匹配，解压后再做兜底校验：`audio_commit` 与本地 submodule gitlink（前 12 位）
+  不一致，或本地 MSVC 版本低于归档的 `msvc_ver`，则删缓存回落源码构建
   （避免 ABI 错配；MSVC 静态库绑定工具集版本）。
 
-> 资产由 CI（`.github/workflows/prebuilt-audio-cpp.yml`）在打 `v*` tag 时生成并上传；
+> 资产由 CI（`.github/workflows/prebuilt-audio-cpp.yml`）在打 `v*` tag、`workflow_dispatch`，
+> 或 **main 上 `audio-cpp-sys/audio.cpp` submodule 指针变动** 时生成并上传；
 > 设计见 [docs/prebuilt_pattern_report.md](../../docs/prebuilt_pattern_report.md)。
+
+**版本与预编译的对应关系（长期可寻址）**：消费端查找的 Release tag 是它**自身依赖的
+crate 版本**（`AUDIOCPP_PREBUILT_TAG` 默认 `v{CARGO_PKG_VERSION}`），不是“最新发版”。
+因此 `audio-cpp-sys = "0.3"` 永远查 `v0.3.0`，将来发 `0.6` 后 `0.3` 消费者仍从该旧
+Release 取预编译——只要旧 Release 不被删除，历史预编译长期可寻址。两层隔离保证 ABI
+安全：tag 隔离 crate 版本（`capi.h` 随版本走），资产名里的 commit 隔离 submodule 修订。
+跨版本不会混用，也不存在“全局 latest”覆盖旧资产的问题（`--clobber` 只覆盖同名资产）。
+
+> 注意：若把 submodule 直接升到一个**从未在该版本时代被 CI 构建过**的 commit，对应
+> Release 里没有匹配资产 → 404 → 回落源码构建（安全，不误用）；此时应升级 crate 版本
+> 到构建过该 commit 的发版去找。
 
 ### features
 

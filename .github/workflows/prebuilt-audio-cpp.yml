@@ -1,28 +1,36 @@
 name: Build prebuilt audio-cpp artifacts
 
 on:
-  push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
-    inputs:
-      upload_to_release:
-        description: Upload artifacts to the selected tag release
-        type: boolean
-        default: false
-      tag:
-        description: Existing tag to upload assets to (workflow_dispatch only)
-        required: false
-        default: ""
-      platform:
-        description: OS to build (tag pushes always build all)
-        type: choice
-        default: all
-        options:
-          - all
-          - linux
-          - windows
-          - macos
+  # 发版 tag 时构建（按 tag 上传到同名 Release）。
+  - push:
+      tags:
+        - 'v*'
+  # 开发期：只要 audio.cpp submodule 指针变动（main 上），就构建对应 commit 的预编译，
+  # 让消费端能按 submodule commit 精确寻址、无需每次都回落源码构建。
+  - push:
+      branches:
+        - main
+      paths:
+        - 'audio-cpp-sys/audio.cpp'
+  - workflow_dispatch:
+      inputs:
+        upload_to_release:
+          description: Upload artifacts to the selected tag release
+          type: boolean
+          default: false
+        tag:
+          description: Existing tag to upload assets to (workflow_dispatch only)
+          required: false
+          default: ""
+        platform:
+          description: OS to build (tag pushes always build all)
+          type: choice
+          default: all
+          options:
+            - all
+            - linux
+            - windows
+            - macos
 
 permissions:
   contents: write
@@ -89,7 +97,22 @@ jobs:
       - name: Compute asset name
         id: asset
         shell: bash
-        run: echo "ASSET_NAME=audio-cpp-prebuilt-linux-${TARGET_TRIPLE}-${{ matrix.backend }}-${{ matrix.modelset }}-static.tar.gz" >> "$GITHUB_ENV"
+        run: |
+          set -euo pipefail
+          # 父仓库记录的 submodule gitlink（完整 40 位 SHA），与消费端 local_audio_commit 口径一致。
+          AUDIO_COMMIT="$(git ls-tree HEAD audio-cpp-sys/audio.cpp | awk '{print substr($3,1,12)}')"
+          echo "AUDIO_COMMIT=$AUDIO_COMMIT" >> "$GITHUB_ENV"
+          # 上传目标 Release：tag push / dispatch 用显式 tag，main 开发期用 crate 版本（v{CARGO_PKG_VERSION}）。
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG="${{ github.ref_name }}"
+          elif [[ -n "${{ inputs.tag }}" ]]; then
+            TAG="${{ inputs.tag }}"
+          else
+            PKG_VER="$(cargo pkgid -p audio-cpp-sys | sed 's/.*@//')"
+            TAG="v${PKG_VER}"
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "ASSET_NAME=audio-cpp-prebuilt-linux-${TARGET_TRIPLE}-${{ matrix.backend }}-${{ matrix.modelset }}-static-${AUDIO_COMMIT}.tar.gz" >> "$GITHUB_ENV"
 
       - name: Collect prebuilt libraries
         shell: bash
@@ -98,17 +121,17 @@ jobs:
           ROOT="$RUNNER_TEMP/prebuilt"
           bash .github/scripts/collect-unix-prebuilt.sh "$ROOT" linux
           cat > "$ROOT/metadata.json" <<EOF
-          {"target":"${TARGET_TRIPLE}","features":"${{ matrix.features }}","modelset":"${{ matrix.modelset }}","audio_commit":"$(git -C audio-cpp-sys/audio.cpp rev-parse --short=8 HEAD)"}
+          {"target":"${TARGET_TRIPLE}","features":"${{ matrix.features }}","modelset":"${{ matrix.modelset }}","audio_commit":"${AUDIO_COMMIT}"}
           EOF
           tar -C "$ROOT" -czf "$RUNNER_TEMP/$ASSET_NAME" .
 
       - name: Create or update GitHub release
-        if: startsWith(github.ref, 'refs/tags/') || inputs.upload_to_release == true
+        if: startsWith(github.ref, 'refs/tags/') || inputs.upload_to_release == true || github.ref == 'refs/heads/main'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG_NAME="${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag }}"
+          TAG_NAME="$TAG"
           if ! gh release view "$TAG_NAME" >/dev/null 2>&1; then
             gh release create "$TAG_NAME" --title "$TAG_NAME" --notes "Prebuilt artifacts for $TAG_NAME"
           fi
@@ -169,7 +192,22 @@ jobs:
       - name: Compute asset name
         id: asset
         shell: bash
-        run: echo "ASSET_NAME=audio-cpp-prebuilt-windows-${TARGET_TRIPLE}-${{ matrix.backend }}-${{ matrix.crt }}-${{ matrix.modelset }}-static.tar.gz" >> "$GITHUB_ENV"
+        run: |
+          set -euo pipefail
+          # 父仓库记录的 submodule gitlink（完整 40 位 SHA），与消费端 local_audio_commit 口径一致。
+          AUDIO_COMMIT="$(git ls-tree HEAD audio-cpp-sys/audio.cpp | awk '{print substr($3,1,12)}')"
+          echo "AUDIO_COMMIT=$AUDIO_COMMIT" >> "$GITHUB_ENV"
+          # 上传目标 Release：tag push / dispatch 用显式 tag，main 开发期用 crate 版本（v{CARGO_PKG_VERSION}）。
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG="${{ github.ref_name }}"
+          elif [[ -n "${{ inputs.tag }}" ]]; then
+            TAG="${{ inputs.tag }}"
+          else
+            PKG_VER="$(cargo pkgid -p audio-cpp-sys | sed 's/.*@//')"
+            TAG="v${PKG_VER}"
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "ASSET_NAME=audio-cpp-prebuilt-windows-${TARGET_TRIPLE}-${{ matrix.backend }}-${{ matrix.crt }}-${{ matrix.modelset }}-static-${AUDIO_COMMIT}.tar.gz" >> "$GITHUB_ENV"
 
       - name: Collect prebuilt libraries
         shell: pwsh
@@ -199,19 +237,19 @@ jobs:
             backend       = "${{ matrix.backend }}"
             crt           = "${{ matrix.crt }}"
             modelset      = "${{ matrix.modelset }}"
-            audio_commit  = (git -C audio-cpp-sys/audio.cpp rev-parse --short=8 HEAD)
+            audio_commit  = "$env:AUDIO_COMMIT"
             msvc_ver      = [int]$msvcVer
           } | ConvertTo-Json -Compress
           Set-Content -Path "$ROOT/metadata.json" -Value $json -Encoding ascii
           tar -C "$ROOT" -czf "$env:RUNNER_TEMP/$env:ASSET_NAME" .
 
       - name: Create or update GitHub release
-        if: startsWith(github.ref, 'refs/tags/') || inputs.upload_to_release == true
+        if: startsWith(github.ref, 'refs/tags/') || inputs.upload_to_release == true || github.ref == 'refs/heads/main'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG_NAME="${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag }}"
+          TAG_NAME="$TAG"
           if ! gh release view "$TAG_NAME" >/dev/null 2>&1; then
             gh release create "$TAG_NAME" --title "$TAG_NAME" --notes "Prebuilt artifacts for $TAG_NAME"
           fi
@@ -258,7 +296,22 @@ jobs:
 
       - name: Compute asset name
         shell: bash
-        run: echo "ASSET_NAME=audio-cpp-prebuilt-macos-${TARGET_TRIPLE}-${{ matrix.backend }}-${{ matrix.modelset }}-static.tar.gz" >> "$GITHUB_ENV"
+        run: |
+          set -euo pipefail
+          # 父仓库记录的 submodule gitlink（完整 40 位 SHA），与消费端 local_audio_commit 口径一致。
+          AUDIO_COMMIT="$(git ls-tree HEAD audio-cpp-sys/audio.cpp | awk '{print substr($3,1,12)}')"
+          echo "AUDIO_COMMIT=$AUDIO_COMMIT" >> "$GITHUB_ENV"
+          # 上传目标 Release：tag push / dispatch 用显式 tag，main 开发期用 crate 版本（v{CARGO_PKG_VERSION}）。
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG="${{ github.ref_name }}"
+          elif [[ -n "${{ inputs.tag }}" ]]; then
+            TAG="${{ inputs.tag }}"
+          else
+            PKG_VER="$(cargo pkgid -p audio-cpp-sys | sed 's/.*@//')"
+            TAG="v${PKG_VER}"
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "ASSET_NAME=audio-cpp-prebuilt-macos-${TARGET_TRIPLE}-${{ matrix.backend }}-${{ matrix.modelset }}-static-${AUDIO_COMMIT}.tar.gz" >> "$GITHUB_ENV"
 
       - name: Collect prebuilt libraries
         shell: bash
@@ -267,17 +320,17 @@ jobs:
           ROOT="$RUNNER_TEMP/prebuilt"
           bash .github/scripts/collect-unix-prebuilt.sh "$ROOT" macos
           cat > "$ROOT/metadata.json" <<EOF
-          {"target":"${TARGET_TRIPLE}","features":"${{ matrix.features }}","modelset":"${{ matrix.modelset }}","audio_commit":"$(git -C audio-cpp-sys/audio.cpp rev-parse --short=8 HEAD)"}
+          {"target":"${TARGET_TRIPLE}","features":"${{ matrix.features }}","modelset":"${{ matrix.modelset }}","audio_commit":"${AUDIO_COMMIT}"}
           EOF
           tar -C "$ROOT" -czf "$RUNNER_TEMP/$ASSET_NAME" .
 
       - name: Create or update GitHub release
-        if: startsWith(github.ref, 'refs/tags/') || inputs.upload_to_release == true
+        if: startsWith(github.ref, 'refs/tags/') || inputs.upload_to_release == true || github.ref == 'refs/heads/main'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG_NAME="${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag }}"
+          TAG_NAME="$TAG"
           if ! gh release view "$TAG_NAME" >/dev/null 2>&1; then
             gh release create "$TAG_NAME" --title "$TAG_NAME" --notes "Prebuilt artifacts for $TAG_NAME"
           fi

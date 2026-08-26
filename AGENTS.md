@@ -92,9 +92,21 @@
    只能源码构建。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `288a271`（main 分支最新；从 release-0.3-gguf-v2 的
-  `980bd41` 大版本跳跃到 0.7 开发线，`cargo build --workspace` 在 win32/MSVC
-  已验证通过）。本次升级（`980bd41`→`288a271`）审查结论：
+- 当前 submodule HEAD = `c79e588`（main 分支最新；从 `288a271` 快进，`cargo build
+  --workspace` 在 win32/MSVC 已验证通过）。历史升级记录见下方逐条。
+- **升级 `288a271`→`c79e588` 审查结论**：
+  - diff 仅涉及 `src/framework/audio/chunking.cpp`、`src/models/index_tts2/{gpt,session}.cpp`、
+    `src/models/supertonic/session.cpp` 与 CI/文档，**未触碰 `engine/framework/runtime/*`
+    与 `engine/framework/io/json.h` 公共 API**：C ABI 边界（capi.h/capi.cpp/build.rs
+    bindgen allowlist）无需改动；`index_tts2` / `supertonic` 两族此前已收录于
+    `ModelFamily`，无新增 loader 族。
+  - 行为变更均为内部修复/优化：chunking 把越界 speech metadata 的抛错改为 Warning
+    并丢弃（不再中断整段）；index_tts2 在 HIP 后端把 KV/conv 权重缓存默认改 F16（与
+    CUDA 一致，规避 HIP 上 F32 的 flash-attn 转换开销）；supertonic 新增从请求
+    `voice` / `supertonic.voice` 选项回退取声线预设（WebUI model_params 兼容）。
+    均未引入新 ABI 字段或新 task 类型，高层 `types.rs` 无需改动。
+- 历史升级记录（仍作参考）：
+  - 升级（`980bd41`→`288a271`）审查结论：
   - **C ABI 边界无需改动**：capi.cpp 依赖的 `engine/framework/runtime/*` 与
     `engine/framework/io/json.h` 公共 API 均未破坏性变更（backend.h/model.h 仅
     新增带默认实现的虚函数与自由函数）。include 路径一直是 `include/engine/...`，
@@ -246,28 +258,35 @@
   capi/bindgen/平台链接逻辑已抽为 `compile_capi_shim` / `generate_bindings` /
   `emit_platform_links` 供两路径共用。设计见 docs/prebuilt_pattern_report.md。
 - **`prebuilt` feature 自动下载**：`audio-cpp-sys/prebuilt_download.rs` 按当前
-  平台/后端/模型组合拼资产名（`audio-cpp-prebuilt-{os}-{target}-{backend}-{modelset}-static.tar.gz`），
-  从 GitHub Releases 下载并缓存到 `target/audio-cpp-prebuilt-cache/<tag>/`。
-  backend 由 feature 推导（cpu/vulkan/metal；cuda/hip 不发预编译）。**只发布
-  `full` 全模型资产**（full 是任何 model 组合的超集）：core / custom-<族> 资产
-  404 时自动回退下载 full 资产（`ensure_prebuilt` 的 superset 回退），仍失败才
-  回落源码。归档 `metadata.json.audio_commit` 与本地 submodule HEAD 不符则删
-  缓存回落源码（防 ABI 错配）；`metadata.json.msvc_ver` 为 CI 构建时的
-  `_MSC_VER`，本地工具集版本偏低则回落源码（MSVC 静态库绑定工具集版本）。
-  env：`AUDIOCPP_PREBUILT_TAG`（tag，默认 `v{version}`）、
-  `AUDIOCPP_PREBUILT_REPO`、`AUDIOCPP_PREBUILT_URL`（完整地址覆盖，也可含
-  `{tag}`/`{asset}` 占位符供内网镜像，`file://` 前缀指本地归档直接复制）、
-  `AUDIOCPP_PREBUILT_OFF`（禁用自动下载）。网络抖动重试 3 次带退避（404 等
-  4xx 为确定性失败不重试），仍失败回落源码。`AUDIOCPP_PREBUILT_DIR` 显式目录
-  优先级高于自动下载。
-- **CI 预编译资产**：`.github/workflows/prebuilt-audio-cpp.yml` 在 `v*` tag 或
-  workflow_dispatch 时构建（linux 3 / windows 2 / macos 1 矩阵，full ×
+  平台/后端/模型组合 **+ 本地 audio.cpp 的 commit（完整 SHA 前 12 位）** 拼资产名
+ （`audio-cpp-prebuilt-{os}-{target}-{backend}[-{crt}]-{modelset}-static-{commit}.tar.gz`，
+  `crt` 仅 Windows）。commit 直接编入文件名，消费端按自身 commit 精确请求：命中才
+  下载、404 即立即回落源码构建，**不会在 commit 不符时白下整包**（旧逻辑是下载解压后
+  才由 `metadata.json` 校验）。从 GitHub Releases 下载并缓存到
+  `target/audio-cpp-prebuilt-cache/<tag>/<asset>`。`local_audio_commit()` 取父仓库
+  记录的 submodule gitlink（取完整 SHA 前 12 位），并要求子模块工作树 HEAD 等于它且**干净
+  （无未提交改动）**，否则返回 None 强制源码构建——保证资产名里的 commit 逐字节等价于
+  本地将编译的 audio.cpp 内容。`ensure_prebuilt` 的 superset 回退：`custom-*` / `core`
+  资产 404 时回退下载 `full-{commit}` 资产，仍失败才回落源码。下载后 `metadata.json`
+  仍做兜底校验（`audio_commit` 须等于本地 gitlink、`msvc_ver` 不高于本地工具集）。
+  backend 由 feature 推导（cpu/vulkan/metal；cuda/hip 不发预编译）。env：
+  `AUDIOCPP_PREBUILT_TAG`（tag，默认 `v{version}`）、`AUDIOCPP_PREBUILT_REPO`、
+  `AUDIOCPP_PREBUILT_URL`（完整地址覆盖，也可含 `{tag}`/`{asset}` 占位符供内网镜像，
+  `file://` 前缀指本地归档直接复制）、`AUDIOCPP_PREBUILT_OFF`（禁用自动下载）。网络
+  抖动重试 3 次带退避（404 等 4xx 为确定性失败不重试），仍失败回落源码。
+  `AUDIOCPP_PREBUILT_DIR` 显式目录优先级高于自动下载。
+- **CI 预编译资产**：`.github/workflows/prebuilt-audio-cpp.yml` 在 `v*` tag、
+  `workflow_dispatch`，**或 main 上 `audio-cpp-sys/audio.cpp` submodule 指针变动**
+  （`paths` 过滤）时构建（linux 3 / windows 2 / macos 1 矩阵，full ×
   cpu/vulkan/metal），用 `.github/scripts/collect-unix-prebuilt.sh` 与
   `collect-windows-prebuilt.sh` 从 `target/**/out`（及 Windows 长路径重定向的
-  `%TEMP%\acb*`）收集静态库打包，写 `metadata.json`（含 `msvc_ver`），经
-  `gh release upload` 上传。Windows vulkan 用
-  `.github/actions/setup-vulkan-sdk-windows`（LunarG SDK）。资产命名须与
-  `prebuilt_download.rs::asset_name()` 保持一致。
+  `%TEMP%\acb*`）收集静态库打包，写 `metadata.json`（含 `audio_commit` 完整 SHA 前 12 位 +
+  `msvc_ver`），经 `gh release upload --clobber` 上传到 `v{CARGO_PKG_VERSION}`
+   Release（同一版本 Release 下按 commit 累积多个资产，天然按版本+commit 双重隔离）。
+   消费端按自身 crate 版本查对应 tag，**旧版 Release 长期保留即可被旧版消费者寻址**，
+   `--clobber` 只覆盖同名资产、不删旧 Release，故不存在“新版覆盖旧预编译”问题。
+  Windows vulkan 用 `.github/actions/setup-vulkan-sdk-windows`（LunarG SDK）。资产命名
+  须与 `prebuilt_download.rs::asset_name()` 保持一致（含 commit 段）。
 - **MSVC `crt-static`（静态 CRT）**：消费端开 `-C target-feature=+crt-static`
   后，Rust 侧 std 与 cc 编译的 C shim（capi.o）均为 `/MT`，而 CMake 默认（及
   预编译资产）是 `/MD`，混链接报 LNK2038（RuntimeLibrary 不匹配）+ LNK2019

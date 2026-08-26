@@ -134,7 +134,8 @@
 **A. 资产命名维度 = commit + 模型集 + 后端 + 平台**（不由 crate 版本决定）：
 
 ```text
-audio-cpp-prebuilt-{os}-{target}-{backend}-{modelset}-static.tar.gz
+audio-cpp-prebuilt-{os}-{target}-{backend}[-{crt}]-{modelset}-static-{commit}.tar.gz
+# crt 仅 Windows（md/mt）；commit 为 audio.cpp submodule 完整 SHA 前 12 位
 # modelset 例：core / full / custom-qwen3_asr / custom-moss_tts_nano …
 ```
 
@@ -192,7 +193,7 @@ audio-cpp-prebuilt-{os}-{target}-{backend}-{modelset}-static.tar.gz
 
 **阶段 2 —— `prebuilt` cargo feature 自动下载**
 - 复制 `prebuilt_download.rs`（改前缀 AUDIOCPP、`asset_name` 拼 modelset/backend、`variant_suffix` 映射音讯后端集合）；
-- 缓存到 `target/audio-cpp-prebuilt-cache/<commit>/<asset>`；`LLAMA_*`→`AUDIOCPP_*` 系列 env；解压后无库/404/离线 → 源码回落；
+- 缓存到 `target/audio-cpp-prebuilt-cache/<tag>/<asset>`（`<asset>` 即不含 `.tar.gz` 的资产名，内含 commit）；`LLAMA_*`→`AUDIOCPP_*` 系列 env；按 commit 精确请求、404/解压后无库/离线 → 源码回落；
 - 消费端 `metadata.audio_commit != submodule HEAD` → warning + 回落（对应 llama 的 patches fail-closed）；
 - 验收：win32 `--features prebuilt` 直接拉归档秒装。
 

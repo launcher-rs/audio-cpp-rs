@@ -45,13 +45,13 @@ gh workflow run prebuilt-audio-cpp.yml --repo launcher-rs/audio-cpp-rs \
 ### 2. 构建并发布到 release
 
 ```bash
-# 发布全部平台资产到 v0.1.1
+# 发布全部平台资产到 v0.3.0
 gh workflow run prebuilt-audio-cpp.yml --repo launcher-rs/audio-cpp-rs \
-  -f platform=all -f upload_to_release=true -f tag=v0.1.1
+  -f platform=all -f upload_to_release=true -f tag=v0.3.0
 
 # 只发布 Linux（含新补的 arm64 vulkan full）
 gh workflow run prebuilt-audio-cpp.yml --repo launcher-rs/audio-cpp-rs \
-  -f platform=linux -f upload_to_release=true -f tag=v0.1.1
+  -f platform=linux -f upload_to_release=true -f tag=v0.3.0
 ```
 
 > `upload_to_release=true` 时若目标 tag 的 release 不存在，workflow 会自动创建；
@@ -87,24 +87,24 @@ gh run view <run-id> --repo launcher-rs/audio-cpp-rs --log-failed |
 ### 5. 管理 release 资产
 
 ```bash
-# 列出 v0.1.1 的资产
-gh release view v0.1.1 --repo launcher-rs/audio-cpp-rs \
+# 列出 v0.3.0 的资产
+gh release view v0.3.0 --repo launcher-rs/audio-cpp-rs \
   --json assets --jq '.assets[].name'
 
 # 删除误上传的资产
-gh release delete-asset v0.1.1 <asset-name> --repo launcher-rs/audio-cpp-rs \
+gh release delete-asset v0.3.0 <asset-name> --repo launcher-rs/audio-cpp-rs \
   --yes
 
 # 手动下载资产
-gh release download v0.1.1 --repo launcher-rs/audio-cpp-rs \
+gh release download v0.3.0 --repo launcher-rs/audio-cpp-rs \
   --pattern "audio-cpp-prebuilt-windows-*"
 ```
 
 ## 资产命名与下载
 
-- 命名：`audio-cpp-prebuilt-{linux|windows|macos}-{target}-{backend}-{modelset}-static.tar.gz`
+- 命名：`audio-cpp-prebuilt-{linux|windows|macos}-{target}-{backend}[-{crt}]-{modelset}-static-{commit}.tar.gz`（`crt` 仅 Windows；`commit` 为 audio.cpp submodule 完整 SHA 前 12 位）。消费端按自身 commit 精确请求，命中才下载、404 即回落。
 - 只发布 `full` modelset（任何 model 组合的超集）。消费端 core / `custom-<族>`
-  组合 404 时自动回退下载 full 资产。
+  组合 404 时自动回退下载 `full-{commit}` 资产。
 - 下载与校验由 `audio-cpp-sys/prebuilt_download.rs` 完成：
   - 校验 `metadata.json.audio_commit`（打包时 submodule HEAD）与本地一致，否则回落源码；
   - 校验 `metadata.json.msvc_ver`（Windows 打包工具链的 `_MSC_VER`），本地 MSVC

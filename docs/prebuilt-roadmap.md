@@ -1,15 +1,20 @@
 # 预编译资产路线图（0.3.0+）
 
-> 记录 audio-cpp-rs 预编译资产机制的未来优化目标。当前状态（0.2.0）已实现的
+> 记录 audio-cpp-rs 预编译资产机制的未来优化目标。当前状态（0.3.0）已实现的
 > 方案见 [prebuilt_pattern_report.md](prebuilt_pattern_report.md) 与
 > [gh-workflow-guide.md](gh-workflow-guide.md)。
 
-## 现状（0.2.0）
+## 现状（0.3.0）
 
 - **只发布 `full` 全模型资产**（linux 4 + windows 2 + macos 1，共 7 个 cell）；
+- 资产名含 audio.cpp submodule 完整 SHA 前 12 位（如
+  `audio-cpp-prebuilt-...-full-static-<commit>.tar.gz`），消费端按自身 commit
+  精确请求，404 即立即回落，不再下载解压后才校验；
+- CI 触发：`v*` tag、`workflow_dispatch`，**以及 main 上 submodule 指针变动**
+  （开发期子模块一 bump 即构建对应 commit 的预编译，无需发版）；
 - 下载端 superset 回退：core / `custom-<族>` 组合先尝试精确资产名，404 时
-  自动回退下载 full 资产，仍失败才回落源码构建；
-- 归档 `metadata.json` 记 `audio_commit` + `msvc_ver`，下载端双向校验防 ABI 错配。
+  自动回退下载 `full-<commit>` 资产，仍失败才回落源码构建；
+- 归档 `metadata.json` 记 `audio_commit`（前 12 位）+ `msvc_ver`，下载端兜底校验防 ABI 错配。
 
 ### 实测数据（win32/MSVC，full-models+vulkan）
 

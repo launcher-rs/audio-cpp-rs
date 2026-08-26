@@ -32,7 +32,12 @@ use serde_json::Value;
 const DEFAULT_REPO: &str = "launcher-rs/audio-cpp-rs";
 
 /// 解析当前构建配置对应的预编译归档文件名。
-pub fn asset_name(target: &str, use_shared_libs: bool) -> Option<String> {
+///
+/// `commit` 为本地 audio.cpp submodule 的完整 SHA 前 12 位（见 `local_audio_commit`）。
+/// 把 commit 编入文件名后，消费端只需按自身 commit 精确请求资产：命中才下载、
+/// 404 即立即回落源码构建，避免在“commit 不符”时白下整包（旧逻辑是下载解压后才
+/// 由 `metadata.json` 校验）。
+pub fn asset_name(target: &str, use_shared_libs: bool, commit: &str) -> Option<String> {
     let os = platform_os(target)?;
     let backend = backend_suffix()?;
     let modelset = modelset_suffix()?;
@@ -45,10 +50,11 @@ pub fn asset_name(target: &str, use_shared_libs: bool) -> Option<String> {
         &modelset,
         &library_type,
         crt.as_deref(),
+        commit,
     ))
 }
 
-/// 按各段拼资产名（crt 仅 Windows 存在，其余平台为 None）。
+/// 按各段拼资产名（crt 仅 Windows 存在，其余平台为 None；commit 为完整 SHA 的前 12 位）。
 fn asset_name_of(
     os: &str,
     target: &str,
@@ -56,13 +62,16 @@ fn asset_name_of(
     modelset: &str,
     library_type: &str,
     crt: Option<&str>,
+    commit: &str,
 ) -> String {
     match crt {
         Some(crt) => format!(
-            "audio-cpp-prebuilt-{os}-{target}-{backend}-{crt}-{modelset}-{library_type}.tar.gz"
+            "audio-cpp-prebuilt-{os}-{target}-{backend}-{crt}-{modelset}-{library_type}-{commit}.tar.gz"
         ),
         None => {
-            format!("audio-cpp-prebuilt-{os}-{target}-{backend}-{modelset}-{library_type}.tar.gz")
+            format!(
+                "audio-cpp-prebuilt-{os}-{target}-{backend}-{modelset}-{library_type}-{commit}.tar.gz"
+            )
         }
     }
 }
@@ -71,10 +80,14 @@ fn asset_name_of(
 ///
 /// 返回 `None` 表示该资产不可用（下载失败 / 身份校验未过）或应走源码构建。
 /// 若 modelset 为 `None`，则使用当前 feature 推导的默认 modelset 后缀。
+///
+/// `commit` 为本地 audio.cpp submodule 的完整 SHA 前 12 位，已编入资产名；仅当文件名
+/// 带该 commit 的资产存在时才下载，因此“commit 不符”必然 404 而立即回落，不会白下整包。
 fn fetch_prebuilt(
     target: &str,
     use_shared_libs: bool,
     modelset_override: Option<&str>,
+    commit: &str,
 ) -> Option<PathBuf> {
     if is_disabled() {
         return None;
@@ -98,6 +111,7 @@ fn fetch_prebuilt(
         &modelset,
         &library_type,
         crt_suffix().as_deref(),
+        commit,
     );
     let tag = release_tag();
     let cache_root = cache_root()?;
@@ -105,7 +119,7 @@ fn fetch_prebuilt(
         .join(tag.trim_start_matches('v'))
         .join(asset.strip_suffix(".tar.gz").unwrap_or(&asset));
 
-    if is_valid_prebuilt_root(&extract_dir) {
+    if is_valid_prebuilt_root(&extract_dir) && identity_matches(&extract_dir) {
         println!(
             "cargo:warning=使用缓存中的 audio.cpp 预编译库：{}",
             extract_dir.display()
@@ -156,15 +170,27 @@ fn fetch_prebuilt(
 /// 两者都失败才回落到源码构建。full 资产下载体积较大，但保证任何 feature
 /// 组合都能用上预编译加速。
 pub fn ensure_prebuilt(target: &str, use_shared_libs: bool) -> Option<PathBuf> {
+    // 本地 audio.cpp 的完整 commit：资产名按它精确寻址。无法取得（submodule 未初始化 /
+    // 工作树漂移 / 有未提交改动）时跳过下载，直接源码构建，避免误用不匹配的预编译。
+    let commit = match local_audio_commit() {
+        Some(c) => c,
+        None => {
+            println!(
+                "cargo:warning=无法确定本地 audio.cpp commit（未初始化/漂移/含未提交改动），\
+                 跳过预编译下载，回落到源码构建"
+            );
+            return None;
+        }
+    };
     let exact = modelset_suffix();
-    // 精确资产（core / custom-*）与 full 回退资产。
+    // 精确资产（core / custom-*）与 full 回退资产；两者都按同一 commit 寻址。
     match exact.as_deref() {
-        Some("full") => fetch_prebuilt(target, use_shared_libs, Some("full")),
-        Some(mset) => fetch_prebuilt(target, use_shared_libs, Some(mset)).or_else(|| {
+        Some("full") => fetch_prebuilt(target, use_shared_libs, Some("full"), &commit),
+        Some(mset) => fetch_prebuilt(target, use_shared_libs, Some(mset), &commit).or_else(|| {
             println!("cargo:warning=custom/core 资产不可用，回退到 full 全模型资产");
-            fetch_prebuilt(target, use_shared_libs, Some("full"))
+            fetch_prebuilt(target, use_shared_libs, Some("full"), &commit)
         }),
-        None => fetch_prebuilt(target, use_shared_libs, None),
+        None => fetch_prebuilt(target, use_shared_libs, None, &commit),
     }
 }
 
@@ -373,24 +399,57 @@ fn local_msvc_ver() -> Option<i64> {
     None
 }
 
-/// 读取本地 audio.cpp submodule 的 HEAD commit（短 8 位）。
+/// 运行 git 并取 stdout（trim）。失败返回 None。
+fn git_capture(args: &[&str], dir: &Path) -> Option<String> {
+    let out = std::process::Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let s = String::from_utf8(out.stdout).ok()?;
+    Some(s.trim().to_string())
+}
+
+/// 读取本地 audio.cpp submodule 的“权威 commit”，用于预编译资产精确寻址。
+///
+/// 取父仓库记录的 submodule gitlink（40 位完整 SHA，取前 12 位作寻址键，正是 CI 构建时的基准），并要求：
+/// 1. 子模块工作树实际 HEAD 与 gitlink 一致；
+/// 2. 子模块工作树干净（无未提交改动）。
+/// 二者任一不满足则返回 None，迫使消费端回落源码构建——这样资产名里的 commit 才真正
+/// 等价于本地即将编译的 audio.cpp 内容，不会误用 ABI 不匹配的预编译。
 fn local_audio_commit() -> Option<String> {
-    let manifest_dir = env::var("CARGO_MANIFEST_DIR").ok()?;
-    let sub = Path::new(&manifest_dir).join("audio.cpp");
+    let manifest_dir = Path::new(&env::var("CARGO_MANIFEST_DIR").ok()?);
+    let sub = manifest_dir.join("audio.cpp");
     if !sub.join("CMakeLists.txt").exists() {
         return None;
     }
-    let output = std::process::Command::new("git")
-        .args(["rev-parse", "--short=8", "HEAD"])
-        .current_dir(&sub)
-        .output()
-        .ok()?;
-    if !output.status.success() {
+    // 父仓库记录的 submodule gitlink（第 3 字段为 40 位完整 SHA，取前 12 位作寻址键）。
+    // CARGO_MANIFEST_DIR 即
+    // audio-cpp-sys，submodule 相对此目录的路径为 audio.cpp。
+    let gitlink_line = git_capture(&["ls-tree", "HEAD", "audio.cpp"], manifest_dir)?;
+    let gitlink = gitlink_line.split_whitespace().nth(2)?.to_string();
+    if gitlink.len() != 40 {
         return None;
     }
-    let s = String::from_utf8(output.stdout).ok()?;
-    let s = s.trim().to_string();
-    if s.is_empty() { None } else { Some(s) }
+    // 工作树实际 HEAD 须等于 gitlink，否则开发者手动 checkout / 未 submodule update。
+    let wt = git_capture(&["-C", sub.to_str()?, "rev-parse", "HEAD"], manifest_dir)?;
+    if wt != gitlink {
+        return None;
+    }
+    // 工作树必须干净：有未提交改动则内容未被任何预编译覆盖，强制源码构建。
+    let dirty = git_capture(
+        &["-C", sub.to_str()?, "status", "--porcelain"],
+        manifest_dir,
+    );
+    if dirty.map(|s| !s.is_empty()).unwrap_or(true) {
+        return None;
+    }
+    // 取完整 SHA 的前 12 位作为资产寻址键：碰撞概率可忽略（远超本仓库 commit 量级），
+    // 同时显著缩短文件名，规避 Windows 路径长度问题。CI 侧用同样方式截取，保证一致。
+    Some(gitlink.get(..12).unwrap_or(&gitlink).to_string())
 }
 
 fn is_valid_prebuilt_root(root: &Path) -> bool {
