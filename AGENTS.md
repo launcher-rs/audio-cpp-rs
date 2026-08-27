@@ -101,9 +101,31 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
    只能源码构建。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `da16c1b`（main 分支最新；0.7.0 开发线，从 `c79e588` 快进，
+- 当前 submodule HEAD = `d2ff370`（v0.7.0 正式发布 tag；从 `da16c1b` 快进，
   `cargo build --workspace` + `cargo test -p audio-cpp --lib`（23 项）在 win32/MSVC
   已验证通过）。历史升级记录见下方逐条。
+- **升级 `da16c1b`→`d2ff370`（v0.7.0）审查结论**：
+  - diff 涉及 1 个新 loader 族 + Fish Audio codec 内部重构 + server 改进：
+    `audio.cpp/CMakeLists.txt` 新增 `make_granite5asr_loader`（IBM Granite Speech
+    5.0 470M TurboCTC ASR 社区模型，aliases: `granite_speech5_asr` /
+    `granite_speech` / `granite_speech5_ctc`），上游 loader 清单共 60 个。
+    Fish Audio 的 `FishAudioCodes` / `FishAudioCodecRuntime` 从模型层
+    `include/engine/models/fish_audio/` 提升为框架层共享 codec
+    `include/engine/framework/codecs/fish_dac_codec_runtime.h`，原 `codec.h`
+    删除、`codec.cpp` 由 `fish_dac_codec_runtime.cpp`（编入 `engine_core`）替代。
+    server 新增 `model_memory.cpp`（模型内存预估）。**未触碰
+    `engine/framework/runtime/*` 与 `engine/framework/io/json.h` 公共 API**：
+    C ABI 边界（capi.h/capi.cpp/build.rs bindgen allowlist）无需改动。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 1 个枚举变体
+    `Granite5Asr`（`as_str()` → `"granite5asr"`，与上游 loader 族名一致）+
+    `from_path()` 关键词（`granite5asr` / `granite-speech` / `granite_speech` /
+    `granite`）+ `From<&str>`（含 4 个别名）；并在 `audio-cpp-sys/Cargo.toml`
+    与 `audio-cpp/Cargo.toml` 新增 `model-granite5asr` feature（build.rs 按
+    `model-<target>` 约定自动映射 CMake target，无需改 build.rs）。`as_str` 与
+    `From` 一致性测试（`model_family_roundtrip`）已覆盖新变体。
+  - 注意：`granite5asr` 不在 `core` 模型集，默认 `core-models` 构建不会编译它；
+    需用时用 `custom-models` + `model-granite5asr` feature 或
+    `AUDIOCPP_MODELS` 环境变量。
 - **升级 `c79e588`→`da16c1b` 审查结论**：
   - diff 涉及大量模型族新增（`audio.cpp/CMakeLists.txt` 新增 5 个 `make_*_loader`：
     `audiosr` / `controlfoley` / `firered_audio` / `fireredtts3` / `midashenglm_gen`，

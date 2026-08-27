@@ -72,6 +72,7 @@ model-audiosr = ["audio-cpp-sys/model-audiosr"]              # 音频超分辨�
 model-controlfoley = ["audio-cpp-sys/model-controlfoley"]    # 可控音效生成：ControlFoley
 model-firered-audio = ["audio-cpp-sys/model-firered-audio"]  # 语音理解/生成：FireRed Audio
 model-fireredtts3 = ["audio-cpp-sys/model-fireredtts3"]      # TTS：FireRed TTS3
+model-granite5asr = ["audio-cpp-sys/model-granite5asr"]      # IBM Granite Speech 5.0 ASR（社区模型）
 model-midashenglm-gen = ["audio-cpp-sys/model-midashenglm-gen"]  # 生成式音频：MIdashengLM
 cuda = ["audio-cpp-sys/cuda"]     # NVIDIA CUDA（需 CUDA Toolkit）
 hip = ["audio-cpp-sys/hip"]       # AMD HIP/ROCm（与 cuda 互斥）

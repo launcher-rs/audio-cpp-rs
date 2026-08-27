@@ -123,6 +123,8 @@ pub enum ModelFamily {
     VibevoiceAsr,
     /// FireRed Audio（语音理解 / 生成，含 Qwen3.5 运行时）
     FireredAudio,
+    /// Granite 5 ASR（IBM Granite Speech 5.0 470M TurboCTC ASR，社区模型）
+    Granite5Asr,
 
     // ---- TTS ----
     /// Qwen3 TTS
@@ -293,6 +295,10 @@ impl ModelFamily {
             ("vibevoice_asr", ModelFamily::VibevoiceAsr),
             ("firered_audio", ModelFamily::FireredAudio),
             ("firered-audio", ModelFamily::FireredAudio),
+            ("granite5asr", ModelFamily::Granite5Asr),
+            ("granite-speech", ModelFamily::Granite5Asr),
+            ("granite_speech", ModelFamily::Granite5Asr),
+            ("granite", ModelFamily::Granite5Asr),
             ("fireredtts3", ModelFamily::Fireredtts3),
             ("firered_tts3", ModelFamily::Fireredtts3),
             ("firered-tts3", ModelFamily::Fireredtts3),
@@ -395,6 +401,7 @@ impl ModelFamily {
             ModelFamily::ParakeetTdt => "parakeet_tdt",
             ModelFamily::VibevoiceAsr => "vibevoice_asr",
             ModelFamily::FireredAudio => "firered_audio",
+            ModelFamily::Granite5Asr => "granite5asr",
             ModelFamily::Qwen3Tts => "qwen3_tts",
             ModelFamily::Confucius4Tts => "confucius4_tts",
             ModelFamily::DotsTts => "dots_tts",
@@ -465,6 +472,10 @@ impl From<&str> for ModelFamily {
             "parakeet_tdt" => ModelFamily::ParakeetTdt,
             "vibevoice_asr" => ModelFamily::VibevoiceAsr,
             "firered_audio" => ModelFamily::FireredAudio,
+            "granite5asr" => ModelFamily::Granite5Asr,
+            "granite_speech5_asr" => ModelFamily::Granite5Asr,
+            "granite_speech" => ModelFamily::Granite5Asr,
+            "granite_speech5_ctc" => ModelFamily::Granite5Asr,
             "qwen3_tts" => ModelFamily::Qwen3Tts,
             "confucius4_tts" => ModelFamily::Confucius4Tts,
             "dots_tts" => ModelFamily::DotsTts,
@@ -901,6 +912,7 @@ mod tests {
             ParakeetTdt,
             VibevoiceAsr,
             FireredAudio,
+            Granite5Asr,
             // TTS
             Qwen3Tts,
             Confucius4Tts,
