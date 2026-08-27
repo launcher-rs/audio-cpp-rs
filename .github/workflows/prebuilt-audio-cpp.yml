@@ -1,15 +1,10 @@
 name: Build prebuilt audio-cpp artifacts
 
 on:
-  # 发版 tag 或开发期 submodule 指针变动时构建：GitHub 语义下 tags 与 branches 取 OR，
-  # 再与 paths 取 AND，即 (tag 为 v* 或分支为 main) 且本次 push 改动 audio.cpp submodule 才触发。
+  # 仅在正式发布 tag 推送时构建预编译资产；main 开发期推送不触发。
   push:
     tags:
       - 'v*'
-    branches:
-      - main
-    paths:
-      - 'audio-cpp-sys/audio.cpp'
   workflow_dispatch:
       inputs:
         upload_to_release:
@@ -128,7 +123,7 @@ jobs:
           tar -C "$ROOT" -czf "$RUNNER_TEMP/$ASSET_NAME" .
 
       - name: Create or update GitHub release
-        if: startsWith(github.ref, 'refs/tags/') || inputs.upload_to_release == true || github.ref == 'refs/heads/main'
+        if: startsWith(github.ref, 'refs/tags/') || inputs.upload_to_release == true
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -250,7 +245,7 @@ jobs:
           tar -C "$ROOT" -czf "$env:RUNNER_TEMP/$env:ASSET_NAME" .
 
       - name: Create or update GitHub release
-        if: startsWith(github.ref, 'refs/tags/') || inputs.upload_to_release == true || github.ref == 'refs/heads/main'
+        if: startsWith(github.ref, 'refs/tags/') || inputs.upload_to_release == true
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -335,7 +330,7 @@ jobs:
           tar -C "$ROOT" -czf "$RUNNER_TEMP/$ASSET_NAME" .
 
       - name: Create or update GitHub release
-        if: startsWith(github.ref, 'refs/tags/') || inputs.upload_to_release == true || github.ref == 'refs/heads/main'
+        if: startsWith(github.ref, 'refs/tags/') || inputs.upload_to_release == true
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
