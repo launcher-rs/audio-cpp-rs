@@ -10,8 +10,8 @@
 - 资产名含 audio.cpp submodule 完整 SHA 前 12 位（如
   `audio-cpp-prebuilt-...-full-static-<commit>.tar.gz`），消费端按自身 commit
   精确请求，404 即立即回落，不再下载解压后才校验；
-- CI 触发：`v*` tag、`workflow_dispatch`，**以及 main 上 submodule 指针变动**
-  （开发期子模块一 bump 即构建对应 commit 的预编译，无需发版）；
+- CI 触发：`v*` tag、`workflow_dispatch`（**main 开发期推送与 submodule 指针变动均不触发**；
+  重新发布预编译资产属发布操作，须由用户显式下达发布命令）；
 - 下载端 superset 回退：core / `custom-<族>` 组合先尝试精确资产名，404 时
   自动回退下载 `full-<commit>` 资产，仍失败才回落源码构建；
 - 归档 `metadata.json` 记 `audio_commit`（前 12 位）+ `msvc_ver`，下载端兜底校验防 ABI 错配。

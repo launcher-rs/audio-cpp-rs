@@ -167,6 +167,12 @@ pub enum ModelFamily {
     Personaplex,
     /// MiniMax H3
     MinimaxH3,
+    /// Soprano TTS
+    SopranoTts,
+    /// Echo TTS
+    EchoTts,
+    /// VoxCPM1 TTS
+    Voxcpm1,
 
     // ---- 说话人分离 / 语音转换 / 音乐生成 ----
     /// SortFormer 说话人分离（Diar）
@@ -331,6 +337,14 @@ impl ModelFamily {
             ("f5-tts", ModelFamily::F5Tts),
             ("magpie", ModelFamily::MagpieTts),
             ("personaplex", ModelFamily::Personaplex),
+            ("soprano_tts", ModelFamily::SopranoTts),
+            ("soprano-tts", ModelFamily::SopranoTts),
+            ("soprano", ModelFamily::SopranoTts),
+            ("echo_tts", ModelFamily::EchoTts),
+            ("echo-tts", ModelFamily::EchoTts),
+            ("echo", ModelFamily::EchoTts),
+            ("voxcpm1", ModelFamily::Voxcpm1),
+            ("voxcpm-1", ModelFamily::Voxcpm1),
             ("minimax_h3", ModelFamily::MinimaxH3),
             ("minimax-h3", ModelFamily::MinimaxH3),
             ("sortformer-diar", ModelFamily::SortformerDiar),
@@ -421,6 +435,9 @@ impl ModelFamily {
             ModelFamily::F5Tts => "f5_tts",
             ModelFamily::MagpieTts => "magpie_tts",
             ModelFamily::Personaplex => "personaplex",
+            ModelFamily::SopranoTts => "soprano_tts",
+            ModelFamily::EchoTts => "echo_tts",
+            ModelFamily::Voxcpm1 => "voxcpm1",
             ModelFamily::MinimaxH3 => "minimax_h3",
             ModelFamily::SortformerDiar => "sortformer_diar",
             ModelFamily::SeedVc => "seed_vc",
@@ -495,6 +512,9 @@ impl From<&str> for ModelFamily {
             "f5_tts" => ModelFamily::F5Tts,
             "magpie_tts" => ModelFamily::MagpieTts,
             "personaplex" => ModelFamily::Personaplex,
+            "soprano_tts" => ModelFamily::SopranoTts,
+            "echo_tts" => ModelFamily::EchoTts,
+            "voxcpm1" => ModelFamily::Voxcpm1,
             "minimax_h3" => ModelFamily::MinimaxH3,
             "sortformer_diar" => ModelFamily::SortformerDiar,
             "seed_vc" => ModelFamily::SeedVc,
@@ -933,6 +953,9 @@ mod tests {
             F5Tts,
             MagpieTts,
             Personaplex,
+            SopranoTts,
+            EchoTts,
+            Voxcpm1,
             MinimaxH3,
             // 分离 / 转换 / 音乐
             SortformerDiar,

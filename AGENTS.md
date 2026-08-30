@@ -95,15 +95,40 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
    - `cargo build --workspace`——验证 shim 对新引擎编译链接通过。build.rs 已跟踪
      submodule HEAD 指针会自动触发重编；若输出仍是 0.x 秒未重编，说明跟踪失效需排查；
    - 涉及后端/模型行为变化时按需跑相关示例验证。
-6. **预编译资产**：`metadata.json.audio_commit` 与 submodule HEAD 不一致会强制回落
-   源码构建（预编译自动下载被跳过）。升级 submodule 后应触发
-   `.github/workflows/prebuilt-audio-cpp.yml` 重新发布 `v*` 预编译资产，否则下游
-   只能源码构建。已在“已知状态”记录的验证结论随版本变化需复核。
+ 6. **预编译资产**：`metadata.json.audio_commit` 与 submodule HEAD 不一致会强制回落
+    源码构建（预编译自动下载被跳过），下游自动退化为源码构建即可，无需代理干预。
+    `.github/workflows/prebuilt-audio-cpp.yml` **仅**在推送 `v*` tag 或手动
+    `workflow_dispatch` 时构建并上传预编译资产（main 开发期推送**不**触发，submodule
+    指针变动也不会触发）。因此「升级 submodule 后重新发布预编译资产」属于第 6 节
+    定义的**发布 / Release 操作**，必须由用户显式下达发布命令才处理，代理不得擅自
+    触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `d2ff370`（v0.7.0 正式发布 tag；从 `da16c1b` 快进，
-  `cargo build --workspace` + `cargo test -p audio-cpp --lib`（23 项）在 win32/MSVC
-  已验证通过）。历史升级记录见下方逐条。
+- 当前 submodule HEAD = `ee7be93`（origin/main，release-0.3-gguf-v2-403；从
+  `d2ff370` v0.7.0 快进 113 个提交，`cargo build --workspace` +
+  `cargo test -p audio-cpp --lib`（23 项）+ 带 `model-echo-tts,model-soprano-tts,
+  model-voxcpm1` 的 custom-models 构建在 win32/MSVC 已验证通过）。历史升级记录见下方逐条。
+- **升级 `d2ff370`→`ee7be93`（main）审查结论**：
+  - diff 共 230 文件（+31k/-19k），涉及 3 个新 loader 族 + 大量社区模型实现 +
+    ggml CUDA 重写 + `model_specs_v1/*` 整体迁移到 `model_specs/*`：
+    `audio.cpp/CMakeLists.txt` 新增 `make_echo_tts_loader` / `make_soprano_tts_loader`
+    / `make_voxcpm1_loader`（上游 loader 清单共 63 个）。已同步 `audio-cpp/src/types.rs`
+    的 `ModelFamily`：新增 3 个枚举变体 `SopranoTts` / `EchoTts` / `Voxcpm1`（`as_str()`
+    → `soprano_tts` / `echo_tts` / `voxcpm1`，与上游 loader 族名一致）+ `from_path()`
+    关键词表 + `From<&str>`；并在 `audio-cpp-sys/Cargo.toml` 与 `audio-cpp/Cargo.toml`
+    新增 `model-soprano-tts` / `model-echo-tts` / `model-voxcpm1` 三个 `model-*` feature
+    （build.rs 按 `model-<target>` 约定自动映射 CMake target，无需改 build.rs）。
+    `model_family_roundtrip` 等测试已覆盖这 3 个新变体（23 项全过）。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 `engine/framework/runtime/*` 与
+    `engine/framework/io/json.h` 公共 API 本次 diff **零改动**（仅 `framework/core/
+    backend.h`、`framework/sampling/torch_random.h` 等新增/内部文件变更）。`capi.h` /
+    `capi.cpp` / build.rs bindgen allowlist 保持原样。
+  - 内部行为变更（不触及 ABI，高层 `types.rs` 无需改）：ggml CUDA 后端大幅重写；
+    `wav_reader.cpp`、`framework/core/backend.cpp`、`qwen_causal_decode_runtime.cpp`
+    等核心文件更新；新增 `moss_audio_tokenizer_codec_runtime`（替代部分 moss shared
+    音频 tokenizer 代码）、`torch_random` 采样运行时的 CPU/CUDA 实现；`model_specs_v1`
+    目录被 `model_specs` 取代（仅影响上游自带 CLI/WebUI，不影响本 FFI 的 CMake 构建，
+    构建仍由 `AUDIOCPP_MODEL_SET` / `AUDIOCPP_MODELS` 控制）。
 - **升级 `da16c1b`→`d2ff370`（v0.7.0）审查结论**：
   - diff 涉及 1 个新 loader 族 + Fish Audio codec 内部重构 + server 改进：
     `audio.cpp/CMakeLists.txt` 新增 `make_granite5asr_loader`（IBM Granite Speech
@@ -325,9 +350,10 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
   抖动重试 3 次带退避（404 等 4xx 为确定性失败不重试），仍失败回落源码。
   `AUDIOCPP_PREBUILT_DIR` 显式目录优先级高于自动下载。
 - **CI 预编译资产**：`.github/workflows/prebuilt-audio-cpp.yml` 在 `v*` tag、
-  `workflow_dispatch`，**或 main 上 `audio-cpp-sys/audio.cpp` submodule 指针变动**
-  （`paths` 过滤）时构建（linux 3 / windows 2 / macos 1 矩阵，full ×
-  cpu/vulkan/metal），用 `.github/scripts/collect-unix-prebuilt.sh` 与
+  `workflow_dispatch` 时构建（linux 3 / windows 2 / macos 1 矩阵，full ×
+  cpu/vulkan/metal）。**main 开发期推送不触发，submodule 指针变动也不触发**——
+  重新发布预编译资产属「发布 / Release 操作」，须由用户显式下达发布命令（见第 6 节）。
+  用 `.github/scripts/collect-unix-prebuilt.sh` 与
   `collect-windows-prebuilt.sh` 从 `target/**/out`（及 Windows 长路径重定向的
   `%TEMP%\acb*`）收集静态库打包，写 `metadata.json`（含 `audio_commit` 完整 SHA 前 12 位 +
   `msvc_ver`），经 `gh release upload --clobber` 上传到 `v{CARGO_PKG_VERSION}`

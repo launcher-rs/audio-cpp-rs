@@ -124,9 +124,9 @@ commit 不符时白下整包。
   不一致，或本地 MSVC 版本低于归档的 `msvc_ver`，则删缓存回落源码构建
   （避免 ABI 错配；MSVC 静态库绑定工具集版本）。
 
-> 资产由 CI（`.github/workflows/prebuilt-audio-cpp.yml`）在打 `v*` tag、`workflow_dispatch`，
-> 或 **main 上 `audio-cpp-sys/audio.cpp` submodule 指针变动** 时生成并上传；
-> 设计见 [docs/prebuilt_pattern_report.md](../../docs/prebuilt_pattern_report.md)。
+> 资产由 CI（`.github/workflows/prebuilt-audio-cpp.yml`）在打 `v*` tag、`workflow_dispatch`
+> 时生成并上传；**main 开发期推送与 submodule 指针变动均不触发**。重新发布预编译资产属发布
+> 操作，须由用户显式下达发布命令。设计见 [docs/prebuilt_pattern_report.md](../../docs/prebuilt_pattern_report.md)。
 
 **版本与预编译的对应关系（长期可寻址）**：消费端查找的 Release tag 是它**自身依赖的
 crate 版本**（`AUDIOCPP_PREBUILT_TAG` 默认 `v{CARGO_PKG_VERSION}`），不是“最新发版”。
