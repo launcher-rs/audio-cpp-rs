@@ -100,6 +100,7 @@ model-controlfoley = ["custom-models"]        # 可控音效生成：ControlFole
 model-firered-audio = ["custom-models"]       # 语音理解/生成：FireRed Audio
 model-fireredtts3 = ["custom-models"]          # TTS：FireRed TTS3
 model-granite5asr = ["custom-models"]          # IBM Granite Speech 5.0 ASR（社区模型）
+model-audio8-asr = ["custom-models"]            # Audio8 ASR（社区模型）
 model-midashenglm-gen = ["custom-models"]      # 生成式音频：MIdashengLM
 
 # ------------------------------------------------------------------------

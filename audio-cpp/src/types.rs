@@ -125,6 +125,8 @@ pub enum ModelFamily {
     FireredAudio,
     /// Granite 5 ASR（IBM Granite Speech 5.0 470M TurboCTC ASR，社区模型）
     Granite5Asr,
+    /// Audio8 ASR（社区 ASR 模型）
+    Audio8Asr,
 
     // ---- TTS ----
     /// Qwen3 TTS
@@ -305,6 +307,10 @@ impl ModelFamily {
             ("granite-speech", ModelFamily::Granite5Asr),
             ("granite_speech", ModelFamily::Granite5Asr),
             ("granite", ModelFamily::Granite5Asr),
+            ("audio8_asr", ModelFamily::Audio8Asr),
+            ("audio8-asr", ModelFamily::Audio8Asr),
+            ("audio8asr", ModelFamily::Audio8Asr),
+            ("arkasr", ModelFamily::Audio8Asr),
             ("fireredtts3", ModelFamily::Fireredtts3),
             ("firered_tts3", ModelFamily::Fireredtts3),
             ("firered-tts3", ModelFamily::Fireredtts3),
@@ -416,6 +422,7 @@ impl ModelFamily {
             ModelFamily::VibevoiceAsr => "vibevoice_asr",
             ModelFamily::FireredAudio => "firered_audio",
             ModelFamily::Granite5Asr => "granite5asr",
+            ModelFamily::Audio8Asr => "audio8_asr",
             ModelFamily::Qwen3Tts => "qwen3_tts",
             ModelFamily::Confucius4Tts => "confucius4_tts",
             ModelFamily::DotsTts => "dots_tts",
@@ -493,6 +500,8 @@ impl From<&str> for ModelFamily {
             "granite_speech5_asr" => ModelFamily::Granite5Asr,
             "granite_speech" => ModelFamily::Granite5Asr,
             "granite_speech5_ctc" => ModelFamily::Granite5Asr,
+            "audio8_asr" => ModelFamily::Audio8Asr,
+            "arkasr" => ModelFamily::Audio8Asr,
             "qwen3_tts" => ModelFamily::Qwen3Tts,
             "confucius4_tts" => ModelFamily::Confucius4Tts,
             "dots_tts" => ModelFamily::DotsTts,
@@ -933,6 +942,7 @@ mod tests {
             VibevoiceAsr,
             FireredAudio,
             Granite5Asr,
+            Audio8Asr,
             // TTS
             Qwen3Tts,
             Confucius4Tts,
