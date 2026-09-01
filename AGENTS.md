@@ -104,10 +104,21 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `ee7be93`（origin/main，release-0.3-gguf-v2-403；从
-  `d2ff370` v0.7.0 快进 113 个提交，`cargo build --workspace` +
-  `cargo test -p audio-cpp --lib`（23 项）+ 带 `model-echo-tts,model-soprano-tts,
-  model-voxcpm1` 的 custom-models 构建在 win32/MSVC 已验证通过）。历史升级记录见下方逐条。
+- 当前 submodule HEAD = `3497b7c`（origin/main，release-0.7.1；从
+  `ee7be93` 快进，`cargo build --workspace` +
+  `cargo test -p audio-cpp --lib`（23 项）+ 带 `model-audio8-tts` 的 custom-models 构建在 win32/MSVC 已验证通过）。历史升级记录见下方逐条。
+- **升级 `ee7be93`→`3497b7c`（release-0.7.1）审查结论**：
+  - diff 共 32 文件（+9.4k/-34），涉及 1 个新 loader 族 + chinese_variant 框架
+    层新增 + granite5asr/chatterbox 小修复：
+    `audio.cpp/CMakeLists.txt` 新增 `make_audio8_tts_loader`（社区 Audio8 TTS）。
+    `engine_core` 新增 `chinese_variant.cpp`（中文变体处理）。上游 loader 清单共 64 个。
+  - **C ABI 边界无需改动**：`framework/runtime/*` 与 `framework/io/json.h` 本次 diff
+    **零改动**。`capi.h` / `capi.cpp` / build.rs bindgen allowlist 保持原样。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 1 个枚举变体
+    `Audio8Tts`（`as_str()` → `"audio8_tts"`，与上游 loader 族名一致）+
+    `from_path()` 关键词 + `From<&str>`；并在 `audio-cpp-sys/Cargo.toml`
+    与 `audio-cpp/Cargo.toml` 新增 `model-audio8-tts` feature。`model_family_roundtrip`
+    等测试已覆盖新变体（23 项全过）。
 - **升级 `d2ff370`→`ee7be93`（main）审查结论**：
   - diff 共 230 文件（+31k/-19k），涉及 3 个新 loader 族 + 大量社区模型实现 +
     ggml CUDA 重写 + `model_specs_v1/*` 整体迁移到 `model_specs/*`：
