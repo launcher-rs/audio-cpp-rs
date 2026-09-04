@@ -103,6 +103,7 @@ model-granite5asr = ["custom-models"]          # IBM Granite Speech 5.0 ASR（�
 model-audio8-asr = ["custom-models"]            # Audio8 ASR（社区模型）
 model-audio8-tts = ["custom-models"]            # Audio8 TTS（社区模型）
 model-midashenglm-gen = ["custom-models"]      # 生成式音频：MIdashengLM
+model-chatterbox-turbo = ["custom-models"]  # TTS：Chatterbox Turbo（快速推理变体）
 
 # ------------------------------------------------------------------------
 # 计算后端 feature（可叠加，映射 engine 的 ENGINE_ENABLE_*_CPU 选项）。

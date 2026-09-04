@@ -104,9 +104,21 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `3497b7c`（origin/main，release-0.7.1；从
-  `ee7be93` 快进，`cargo build --workspace` +
-  `cargo test -p audio-cpp --lib`（23 项）+ 带 `model-audio8-tts` 的 custom-models 构建在 win32/MSVC 已验证通过）。历史升级记录见下方逐条。
+- 当前 submodule HEAD = `2269821`（origin/main；从
+  `3497b7c` 快进，`cargo build --workspace` +
+  `cargo test -p audio-cpp --lib`（23 项）+ 带 `model-chatterbox-turbo` 的 custom-models 构建在 win32/MSVC 已验证通过）。历史升级记录见下方逐条。
+- **升级 `3497b7c`→`2269821`（main）审查结论**：
+  - diff 共 45 文件（+3.7k/-84），涉及 1 个新 loader 族 + Chatterbox Turbo TTS
+    社区模型 + Qwen3 ASR 标点输出 + Fish Audio HIP Fast-AR + alignment 端点：
+    `audio.cpp/CMakeLists.txt` 新增 `make_chatterbox_turbo_loader`（社区 Chatterbox
+    Turbo TTS）。上游 loader 清单共 65 个。
+  - **C ABI 边界无需改动**：`framework/runtime/*` 与 `framework/io/json.h` 本次 diff
+    **零改动**。`capi.h` / `capi.cpp` / build.rs bindgen allowlist 保持原样。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 1 个枚举变体
+    `ChatterboxTurbo`（`as_str()` → `"chatterbox_turbo"`，与上游 loader 族名一致）+
+    `from_path()` 关键词 + `From<&str>`；并在 `audio-cpp-sys/Cargo.toml`
+    与 `audio-cpp/Cargo.toml` 新增 `model-chatterbox-turbo` feature。`model_family_roundtrip`
+    等测试已覆盖新变体（23 项全过）。
 - **升级 `ee7be93`→`3497b7c`（release-0.7.1）审查结论**：
   - diff 共 32 文件（+9.4k/-34），涉及 1 个新 loader 族 + chinese_variant 框架
     层新增 + granite5asr/chatterbox 小修复：

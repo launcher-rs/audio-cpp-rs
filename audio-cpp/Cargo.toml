@@ -79,6 +79,7 @@ model-granite5asr = ["audio-cpp-sys/model-granite5asr"]      # IBM Granite Speec
 model-audio8-asr = ["audio-cpp-sys/model-audio8-asr"]        # Audio8 ASR（社区模型）
 model-audio8-tts = ["audio-cpp-sys/model-audio8-tts"]        # Audio8 TTS（社区模型）
 model-midashenglm-gen = ["audio-cpp-sys/model-midashenglm-gen"]  # 生成式音频：MIdashengLM
+model-chatterbox-turbo = ["audio-cpp-sys/model-chatterbox-turbo"]  # TTS：Chatterbox Turbo
 cuda = ["audio-cpp-sys/cuda"]     # NVIDIA CUDA（需 CUDA Toolkit）
 hip = ["audio-cpp-sys/hip"]       # AMD HIP/ROCm（与 cuda 互斥）
 vulkan = ["audio-cpp-sys/vulkan"] # Vulkan 通用后端（需 Vulkan SDK）

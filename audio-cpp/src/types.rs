@@ -189,6 +189,8 @@ pub enum ModelFamily {
     Meanvc2,
     /// Chatterbox（说话人还原 / TTS）
     Chatterbox,
+    /// Chatterbox Turbo TTS（快速推理变体）
+    ChatterboxTurbo,
     /// Vevo2（零样本 TTS / VC / 语音编辑）
     Vevo2,
     /// VoxCPM2
@@ -367,6 +369,8 @@ impl ModelFamily {
             ("rvc", ModelFamily::Rvc),
             ("meanvc2", ModelFamily::Meanvc2),
             ("mean-vc2", ModelFamily::Meanvc2),
+            ("chatterbox_turbo", ModelFamily::ChatterboxTurbo),
+            ("chatterbox-turbo", ModelFamily::ChatterboxTurbo),
             ("chatterbox", ModelFamily::Chatterbox),
             ("vevo2", ModelFamily::Vevo2),
             ("voxcpm2", ModelFamily::Voxcpm2),
@@ -457,6 +461,7 @@ impl ModelFamily {
             ModelFamily::Rvc => "rvc",
             ModelFamily::Meanvc2 => "meanvc2",
             ModelFamily::Chatterbox => "chatterbox",
+            ModelFamily::ChatterboxTurbo => "chatterbox_turbo",
             ModelFamily::Vevo2 => "vevo2",
             ModelFamily::Voxcpm2 => "voxcpm2",
             ModelFamily::AceStep => "ace_step",
@@ -537,6 +542,7 @@ impl From<&str> for ModelFamily {
             "rvc" => ModelFamily::Rvc,
             "meanvc2" => ModelFamily::Meanvc2,
             "chatterbox" => ModelFamily::Chatterbox,
+            "chatterbox_turbo" => ModelFamily::ChatterboxTurbo,
             "vevo2" => ModelFamily::Vevo2,
             "voxcpm2" => ModelFamily::Voxcpm2,
             "ace_step" => ModelFamily::AceStep,
@@ -981,6 +987,7 @@ mod tests {
             Rvc,
             Meanvc2,
             Chatterbox,
+            ChatterboxTurbo,
             Vevo2,
             Voxcpm2,
             AceStep,
