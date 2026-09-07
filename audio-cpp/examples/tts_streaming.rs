@@ -114,14 +114,14 @@ fn main() -> Result<(), audio_cpp::Error> {
 
     // 5. 聚合最终结果。
     let result = session.finish()?;
-    session.reset();
+    session.reset()?;
 
     // 6. 写入完整音频（audio_output 为合并结果）与各音频块。
     if let Some(audio) = &result.audio_output {
         let channels = audio.channels.max(1) as u16;
         let samples = audio.samples.as_deref().unwrap_or(&[]);
         write_wav_pcm16(out_path, samples, audio.sample_rate, channels)
-            .map_err(|e| audio_cpp::Error::Ffi(format!("写 {out_path} 失败: {e}")))?;
+            .map_err(|e| audio_cpp::Error::Other(format!("写 {out_path} 失败: {e}")))?;
         println!(
             "已写入 {out_path}: {}Hz {}ch {}采样（{} 秒）",
             audio.sample_rate,
@@ -141,7 +141,7 @@ fn main() -> Result<(), audio_cpp::Error> {
             let chunk_path = format!("{out_path}_chunk{i}.wav");
             let channels = named.audio.channels.max(1) as u16;
             write_wav_pcm16(&chunk_path, samples, named.audio.sample_rate, channels)
-                .map_err(|e| audio_cpp::Error::Ffi(format!("写 {chunk_path} 失败: {e}")))?;
+                .map_err(|e| audio_cpp::Error::Other(format!("写 {chunk_path} 失败: {e}")))?;
             println!("  {} → {} ({} 采样)", named.id, chunk_path, samples.len());
         }
     }

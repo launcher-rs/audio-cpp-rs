@@ -61,3 +61,23 @@ if [[ "$COUNT" -lt 1 ]]; then
   echo "::endgroup::"
   exit 1
 fi
+
+# 关键归档断言：缺 engine_runtime / sentencepiece / ggml 任一，消费端必链接失败。
+missing=0
+for need in 'libengine_runtime*.a' 'libsentencepiece*.a' 'libggml*.a'; do
+  if ! compgen -G "$ROOT/lib/$need" > /dev/null; then
+    echo "::error::Missing key archive: $need"
+    missing=1
+  fi
+done
+# sentencepiece 在部分平台产物无 lib 前缀，补查一次。
+if ! compgen -G "$ROOT/lib/sentencepiece*.a" > /dev/null && ! compgen -G "$ROOT/lib/libsentencepiece*.a" > /dev/null; then
+  echo "::error::Missing key archive: sentencepiece"
+  missing=1
+fi
+if [[ "$missing" -ne 0 ]]; then
+  echo "::group::Debug: collected files"
+  find "$ROOT/lib" -type f 2>/dev/null || true
+  echo "::endgroup::"
+  exit 1
+fi

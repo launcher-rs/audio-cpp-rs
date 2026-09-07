@@ -162,9 +162,11 @@ fn crt_static_enabled() -> bool {
 /// `sentencepiece-static`（别名 `sentencepiece`）、`cjson_vendor`、
 /// `yaml_vendor`，以及可选的各后端库。cmake crate 把归档库放在
 /// `OUT_DIR/build`（及其子目录），因此对给定的搜索目录做递归 glob，
-/// 并按 stem 去重。链接顺序由各库的相互依赖决定（engine_runtime 依赖
-/// ggml 系列与 sentencepiece 等），这里按发现顺序输出即可，Rust 链接器
-/// 会按需求遍历。
+/// 并按 stem 去重。
+///
+/// 链接顺序：GNU ld 对静态库单遍从左到右解析，被依赖者在前会漏符号；
+/// 因此 `engine_runtime` 固定排首位，其余按字母序稳定输出（不再依赖文件
+/// 系统枚举顺序）。注意这只是启发式排序，若未来出现循环依赖仍需显式拓扑。
 fn extract_static_lib_names(search_dirs: &[PathBuf], os: &str) -> Vec<String> {
     let ext = match os {
         "windows" => "*.lib",
@@ -186,9 +188,6 @@ fn extract_static_lib_names(search_dirs: &[PathBuf], os: &str) -> Vec<String> {
                 continue;
             };
             let mut name = stem.to_string_lossy().into_owned();
-            if !name.starts_with("lib") && path.extension().map(|e| e == "a").unwrap_or(false) {
-                // MinGW 下无 lib 前缀的归档由构建过程处理，这里保留原始 stem。
-            }
             if name.starts_with("lib") {
                 name = name.strip_prefix("lib").unwrap_or(&name).to_string();
             }
@@ -200,11 +199,26 @@ fn extract_static_lib_names(search_dirs: &[PathBuf], os: &str) -> Vec<String> {
             }
         }
     }
+    // engine_runtime 首位，其余字母序：链接顺序确定，与文件系统枚举无关。
+    names.sort();
+    if let Some(i) = names.iter().position(|n| n == "engine_runtime") {
+        let engine = names.remove(i);
+        names.insert(0, engine);
+    }
     names
 }
 
 /// 为发现的每个静态库输出 `cargo:rustc-link-lib=static=` 指令。
 fn link_static_libs(names: &[String]) {
+    // sentencepiece 是链接必需项（tokenizer）：收集脚本若漏掉它，消费端会
+    // 报难懂的 LNK1181/undefined reference，这里提前给出明确提示。
+    if !names.iter().any(|n| n == "sentencepiece") {
+        println!(
+            "cargo:warning=未找到 sentencepiece 静态库（找到: {:?}），最终链接可能失败；\
+             若走预编译路径请检查归档是否完整（含 sentencepiece*.lib/*.a）",
+            names
+        );
+    }
     for name in names {
         println!("cargo:rustc-link-lib=static={}", name);
     }
@@ -302,6 +316,14 @@ fn emit_cuda_links(os: &str) {
     if !cfg!(feature = "cuda") {
         return;
     }
+    // Toolkit 位置影响链接结果，纳入跟踪：升级/切换 Toolkit 后重跑。
+    println!("cargo:rerun-if-env-changed=CUDA_PATH");
+    println!("cargo:rerun-if-env-changed=PATH");
+    for (key, _) in env::vars() {
+        if key.starts_with("CUDA_PATH_V") {
+            println!("cargo:rerun-if-env-changed={key}");
+        }
+    }
     let lib_dir = cuda_toolkit_lib_dir(os).unwrap_or_else(|| {
         panic!(
             "cuda feature 已启用但未找到 CUDA Toolkit。请安装 CUDA Toolkit >= 12.0，\
@@ -372,6 +394,43 @@ fn emit_vulkan_links(os: &str) {
     debug_log!("Vulkan loader 链接: {}", lib_name);
 }
 
+/// hip feature 启用时为最终链接补上 ROCm 运行时库。
+///
+/// 与 CUDA/Vulkan 同理：ggml-hip 以静态库参与链接，其 PRIVATE 的
+/// hip::host/rocblas/hipblas 依赖不会传导。ROCm 未找到时只告警（HIP
+/// 尚未经端到端验证，见 AGENTS.md），找到时才输出链接。
+fn emit_hip_links(_os: &str) {
+    if !cfg!(feature = "hip") {
+        return;
+    }
+    println!("cargo:rerun-if-env-changed=ROCM_PATH");
+    println!("cargo:rerun-if-env-changed=HIP_PATH");
+    let root = env::var("ROCM_PATH")
+        .map(PathBuf::from)
+        .or_else(|_| env::var("HIP_PATH").map(PathBuf::from))
+        .ok()
+        .or_else(|| {
+            let p = PathBuf::from("/opt/rocm");
+            p.is_dir().then_some(p)
+        });
+    // ROCm 的库目录在各平台均为 <root>/lib。
+    let lib_dir = root.map(|r| r.join("lib"));
+    match lib_dir.filter(|d| d.is_dir()) {
+        Some(dir) => {
+            println!("cargo:rustc-link-search=native={}", dir.display());
+            for lib in ["amdhip64", "rocblas", "hipblas"] {
+                println!("cargo:rustc-link-lib={}", lib);
+            }
+            debug_log!("HIP 链接库目录: {}", dir.display());
+        }
+        None => {
+            println!(
+                "cargo:warning=hip feature 已启用但未找到 ROCm（ROCM_PATH/HIP_PATH//opt/rocm），\
+                 未补 amdhip64/rocblas/hipblas 链接，最终链接可能缺符号"
+            );
+        }
+    }
+}
 /// 收集"以 feature 方式启用的模型族"。
 ///
 /// Cargo 会把每个启用的 feature 以环境变量 `CARGO_FEATURE_<名>`（名字中的
@@ -412,8 +471,9 @@ fn merge_custom_models(feature_names: Vec<String>) -> String {
 /// 输出平台相关的系统库链接指令（CMake 路径与预编译路径共用）。
 ///
 /// - Windows：`advapi32`（ggml-cpu 经注册表查询 CPU 特性）；
-/// - CUDA / Vulkan：静态库不传导它们 PRIVATE 的依赖，启用对应 feature 时
-///   必须显式补齐（见 `emit_cuda_links` / `emit_vulkan_links`）。
+/// - CUDA / HIP / Vulkan：静态库不传导它们 PRIVATE 的依赖，启用对应
+///   feature 时必须显式补齐（见 `emit_cuda_links` / `emit_hip_links` /
+///   `emit_vulkan_links`）。
 fn emit_platform_links(os: &str) {
     if os == "windows" {
         println!("cargo:rustc-link-lib=advapi32");
@@ -422,6 +482,11 @@ fn emit_platform_links(os: &str) {
     // CUDA 运行时库：静态的 ggml-cuda/engine_runtime 不会传导它们 PRIVATE
     // 的 CUDA 依赖，启用 cuda feature 时必须显式补齐（缺失时报明确错误）。
     emit_cuda_links(os);
+
+    // HIP/ROCm 运行时库：ggml-hip 同样 PRIVATE 链接 hip::host/rocblas/
+    // hipblas（见上游 external/ggml/src/ggml-hip/CMakeLists.txt），不传导，
+    // 启用 hip feature 时必须显式补齐。
+    emit_hip_links(os);
 
     // Vulkan loader 库：同理，ggml-vulkan 是静态库，PRIVATE 的 Vulkan 依赖
     // 不传导到最终可执行文件，启用 vulkan feature 时必须显式补齐。
@@ -497,8 +562,15 @@ fn generate_bindings(manifest_dir: &Path, out_dir: &Path, os: &str) {
 }
 
 fn main() {
+    // cuda 与 hip 互斥：上游 CMake 同时启用会报错，这里提前拦截并指明 feature。
+    if cfg!(feature = "cuda") && cfg!(feature = "hip") {
+        panic!("feature `cuda` 与 `hip` 互斥，不可同时启用（上游 CMake 会报错）");
+    }
+
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=Cargo.toml"); // feature 组合变化（model-* 增删）会重跑
+    // Cargo.toml 跟踪用于 feature 增删（增删 model-* 会改文件）；切换已有
+    // feature 组合不改动文件，靠 cargo 自身的 fingerprint 触发重跑。
+    println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-changed=capi.h");
     println!("cargo:rerun-if-changed=capi.cpp");
 
@@ -620,6 +692,25 @@ fn main() {
         config.out_dir(&cmake_dir);
     }
 
+    // 透传 GGML_*/CMAKE_* 环境变量，方便下游用户按需微调 ggml 选项，
+    // 而无需修改本脚本。必须先于下方显式 define：cmake 命令行后出现的
+    // -D 覆盖先出现的，显式设置（如 GGML_OPENMP 的 crt-static 强制关闭）
+    // 才能压住环境透传。
+    for (key, value) in env::vars() {
+        if key.starts_with("GGML_") || key.starts_with("CMAKE_") {
+            // GGML_OPENMP 由 ENGINE_ENABLE_OPENMP 逻辑统一控制，不接受透传
+            // 覆盖（否则 crt-static 下会被重新打开，重新引入 vcomp140.dll）。
+            if key == "GGML_OPENMP" {
+                println!(
+                    "cargo:warning=忽略环境透传 {key}（由 `openmp` feature 与 crt-static 逻辑统一控制）"
+                );
+                continue;
+            }
+            println!("cargo:rerun-if-env-changed={key}");
+            config.define(&key, &value);
+        }
+    }
+
     // MSVC 目标下全局注入编译选项：
     //   - /utf-8  —— audio.cpp 源码是 UTF-8 无 BOM，MSVC 默认按 ANSI 代码页
     //                解析，含中文文本的源（如 chinese_normalization.cpp）会报
@@ -677,7 +768,13 @@ fn main() {
             "OFF"
         },
     );
-    let metal_on = cfg!(feature = "metal") || (os == "apple");
+    // AUDIOCPP_FORCE_METAL：文档承诺的强制开关（feature 说明见 Cargo.toml），
+    // 用于非 Apple 平台交叉实验。真值：1/true/yes/on（大小写不敏感）。
+    println!("cargo:rerun-if-env-changed=AUDIOCPP_FORCE_METAL");
+    let force_metal = env::var("AUDIOCPP_FORCE_METAL")
+        .map(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+        .unwrap_or(false);
+    let metal_on = cfg!(feature = "metal") || (os == "apple") || force_metal;
     config.define("ENGINE_ENABLE_METAL", if metal_on { "ON" } else { "OFF" });
     // OpenMP：既控制 engine_runtime 自身的链接（ENGINE_ENABLE_OPENMP），
     // 也要同步 ggml 的 GGML_OPENMP（上游 audio.cpp 未把它接到前者，默认 ON，
@@ -710,6 +807,14 @@ fn main() {
     );
 
     // 模型组合选择（映射 AUDIOCPP_MODEL_SET：full / core / custom）。
+    // full 与 custom 同时启用时按 full 优先（此时 AUDIOCPP_MODELS 被忽略），
+    // 给出提示以免用户以为 custom 生效。
+    if cfg!(feature = "full-models") && cfg!(feature = "custom-models") {
+        println!(
+            "cargo:warning=`full-models` 与 `custom-models` 同时启用，按 full 构建\
+            （custom 的 AUDIOCPP_MODELS/model-* 选择被忽略）"
+        );
+    }
     let model_set = if cfg!(feature = "full-models") {
         "full"
     } else if cfg!(feature = "custom-models") {
@@ -736,14 +841,8 @@ fn main() {
     };
     config.define("AUDIOCPP_MODEL_SET", model_set);
 
-    // 透传 GGML_*/CMAKE_* 环境变量，方便下游用户按需微调 ggml 选项，
-    // 而无需修改本脚本。优先级低于脚本中显式设置的选项。
-    for (key, value) in env::vars() {
-        if key.starts_with("GGML_") || key.starts_with("CMAKE_") {
-            println!("cargo:rerun-if-env-changed={key}");
-            config.define(&key, &value);
-        }
-    }
+    // 透传 GGML_*/CMAKE_* 环境变量已在上方显式 define 之前执行完毕
+    // （显式设置优先，见上）。
 
     // 用 cc crate 探测 MSVC 编译器，把正确解析出的 INCLUDE/LIB 环境注入
     // CMake 子进程。未运行 vcvarsall 的普通 shell 下，CMake 直接调 cl.exe

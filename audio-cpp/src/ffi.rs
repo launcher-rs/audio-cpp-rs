@@ -14,9 +14,14 @@ use crate::error::Error;
 
 /// 将 shim 返回的 `char*` 取出为 UTF-8 字符串并立即释放。
 ///
+/// 非 UTF-8 内容会被替换字符（U+FFFD）代替（lossy），而非报错：C 侧正常
+/// 输出均为 UTF-8 JSON，若模型元数据含非法序列，调用方看到的是替换后的
+/// 文本。如需严格校验，请直接读 `audiocpp_*` 原始指针自行处理。
+///
 /// # Safety
 ///
-/// `ptr` 必须是由 `audiocpp_*` 函数返回且尚未释放的 `char*`。
+/// `ptr` 必须是由 `audiocpp_*` 函数返回且尚未释放的 `char*`，且恰调用一次：
+/// 成功路径调用后指针即失效，失败路径（C 侧已置 NULL）不得调用。
 pub(crate) unsafe fn take_string(ptr: *mut c_char) -> Result<String, Error> {
     if ptr.is_null() {
         return Ok(String::new());

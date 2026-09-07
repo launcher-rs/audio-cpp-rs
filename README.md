@@ -2,7 +2,7 @@
 
 > 用 Rust 封装 [audio.cpp](https://github.com/0xShug0/audio.cpp) —— 基于 ggml 的高性能本地音频推理引擎。
 
-audio.cpp 是一个纯 C++ 音频推理框架，基于 ggml，支持 TTS、STT（ASR）、VAD、说话人分离、音源分离、声音克隆、编解码与音乐生成等 44+ 模型族任务，后端覆盖 CPU / CUDA / HIP / Vulkan / Metal，可加载 GGUF 与 safetensors 模型。
+audio.cpp 是一个纯 C++ 音频推理框架，基于 ggml，支持 TTS、STT（ASR）、VAD、说话人分离、音源分离、声音克隆、编解码与音乐生成等 72 个 loader 族任务，后端覆盖 CPU / CUDA / HIP / Vulkan / Metal，可加载 GGUF 与 safetensors 模型。
 
 
 ## 工作区结构
@@ -72,7 +72,7 @@ cargo build --release
 | `core-models`（默认） | `AUDIOCPP_MODEL_SET=core` | **最小编译集**：引擎核心 + 内置 VAD（silero_vad / marblenet_vad）。内置 VAD 权重随上游 vendored，开箱即用 |
 | `model-<族>` | `AUDIOCPP_MODEL_SET=custom` | **按需编译单个模型族**（最推荐，无需设环境变量） |
 | `custom-models` | `AUDIOCPP_MODEL_SET=custom` | **按需编译**：引擎核心 + 内置 VAD + `AUDIOCPP_MODELS` 指定的模型族（兜底，配合环境变量使用） |
-| `full-models` | `AUDIOCPP_MODEL_SET=full` | **全量**：audio.cpp 全部 44+ 模型族（编译极慢、产物很大，权重仍需自行下载） |
+| `full-models` | `AUDIOCPP_MODEL_SET=full` | **全量**：audio.cpp 全部 72 个 loader 族（编译极慢、产物很大，权重仍需自行下载） |
 
 **按需编译单个模型族**：启用对应的 `model-<族>` feature 即可，无需设置环境变量：
 
@@ -99,7 +99,9 @@ cargo run -p audio-cpp --features model-citrinet-asr --example asr_offline   # A
   环境变量），并把它们与 `AUDIOCPP_MODELS` 环境变量取**并集**——两者可混用；
   新增族 feature 只要在 Cargo.toml 声明名字与上游 target/alias 一致即可，无需改 build.rs。
 - 其余未列出的模型族（roformer、htdemucs、outetts、glm_tts、pocket_tts、
-  sortformer_diar 等约 30 个）仍用 `custom-models` + `AUDIOCPP_MODELS`：
+  sortformer_diar 等约 30 个）仍用 `custom-models` + `AUDIOCPP_MODELS`；
+  另注意 `ModelFamily` 的覆盖范围大于 `model-*` feature（枚举收录全部上游
+  loader 族、未知族可用 `Custom(String)` 兜底），未列出族的加载提示仍可用族名。
 
 ```powershell
 $env:AUDIOCPP_MODELS = "citrinet_asr,qwen3_asr,moss_tts_nano"; cargo build --features custom-models

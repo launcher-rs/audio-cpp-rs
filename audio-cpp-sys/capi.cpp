@@ -12,6 +12,7 @@
 #include <cstring>
 #include <filesystem>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -45,6 +46,10 @@ struct audiocpp_model {
 };
 
 struct EventSink {
+    // 串行化 set_event_sink 与事件派发：派发期间持有锁调用回调，因此
+    // set(None) 返回后必无在途回调再引用旧 user_data（Rust 侧 Drop 先解绑
+    // 再释放即安全）。注意：回调内不得再调回会话方法，否则自死锁。
+    std::mutex mu;
     audiocpp_stream_event_cb cb = nullptr;
     void * user_data = nullptr;
 };
@@ -80,6 +85,18 @@ static char * dup_string(const std::string & s) {
         out[s.size()] = '\0';
     }
     return out;
+}
+
+// dup_string 的 OOM 检查版：成功把字符串写入 *out 并返回 0；malloc
+// 失败时记错误并返回 -1（调用方直接 return 本函数结果即可）。
+static int dup_out(char ** out, const std::string & s, const char * what) {
+    char * p = dup_string(s);
+    if (p == nullptr) {
+        set_last_error(std::string("out of memory in ") + what);
+        return -1;
+    }
+    *out = p;
+    return 0;
 }
 
 void audiocpp_free_string(char * s) {
@@ -436,14 +453,8 @@ static json::Value dump_inspection(const engine::runtime::ModelInspection & insp
 /* WAV 加载（极简 RIFF/WAVE PCM 读取器）                                */
 /* ------------------------------------------------------------------ */
 
-int audiocpp_audio_load_wav(const char * path, int * sample_rate, int * channels,
-                            size_t * count, float ** samples) {
-    if (samples != nullptr) {
-        *samples = nullptr;
-    }
-    if (count != nullptr) {
-        *count = 0;
-    }
+static int audio_load_wav_impl(const char * path, int * sample_rate, int * channels,
+                               size_t * count, float ** samples) {
     FILE * f = std::fopen(path, "rb");
     if (f == nullptr) {
         set_last_error("could not open wav file");
@@ -497,20 +508,35 @@ int audiocpp_audio_load_wav(const char * path, int * sample_rate, int * channels
             bits_per_sample = n_bits;
             have_fmt = true;
             if (chunk_size > 16) {
-                std::fseek(f, static_cast<long>(chunk_size) - 16L, SEEK_CUR);
+                // chunk_size 为 uint32，直接转 long 在 Windows（32 位 long）
+                // 上会截断；超大声明一律拒绝（合法 fmt 块远小于此）。
+                if (chunk_size - 16 > 0x40000000u ||
+                    std::fseek(f, static_cast<long>(chunk_size) - 16L, SEEK_CUR) != 0) {
+                    break;
+                }
             }
         } else if (std::memcmp(chunk_id, "data", 4) == 0) {
+            // data 块上限 1GiB：既防损坏文件的 chunk_size 触发 bad_alloc，
+            // 也保证后续 long 型 fseek 不截断（1GiB 音频约 17 小时单声道）。
+            if (chunk_size > 0x40000000u) {
+                set_last_error("wav data chunk too large");
+                std::fclose(f);
+                return -1;
+            }
             data.resize(chunk_size);
             if (chunk_size != 0 && std::fread(data.data(), chunk_size, 1, f) != 1) {
                 break;
             }
         } else {
-            if (std::fseek(f, static_cast<long>(chunk_size), SEEK_CUR) != 0) {
+            if (chunk_size > 0x40000000u ||
+                std::fseek(f, static_cast<long>(chunk_size), SEEK_CUR) != 0) {
                 break;
             }
         }
         if (chunk_size % 2 != 0) {
-            std::fseek(f, 1, SEEK_CUR);
+            if (std::fseek(f, 1, SEEK_CUR) != 0) {
+                break;
+            }
         }
     }
     std::fclose(f);
@@ -530,7 +556,8 @@ int audiocpp_audio_load_wav(const char * path, int * sample_rate, int * channels
         set_last_error("out of memory");
         return -1;
     }
-    if (audio_format == 3) {
+    // float 格式（format 3）必须是 32 位，否则步进错位会越界读。
+    if (audio_format == 3 && bits_per_sample == 32) {
         for (size_t i = 0; i < n; ++i) {
             float v;
             std::memcpy(&v, data.data() + i * bytes_per_sample, sizeof(float));
@@ -562,8 +589,36 @@ int audiocpp_audio_load_wav(const char * path, int * sample_rate, int * channels
     }
     if (samples != nullptr) {
         *samples = out;
+    } else {
+        // 调用方不取缓冲时自行释放，避免泄漏。
+        std::free(out);
     }
     return 0;
+}
+
+// 导出的 WAV 入口：参数校验 + 全函数异常保护（resize / malloc /
+// filesystem 相关操作均可抛，绝不能穿过 C 边界）。
+int audiocpp_audio_load_wav(const char * path, int * sample_rate, int * channels,
+                            size_t * count, float ** samples) {
+    if (samples != nullptr) {
+        *samples = nullptr;
+    }
+    if (count != nullptr) {
+        *count = 0;
+    }
+    if (path == nullptr) {
+        set_last_error("null wav path");
+        return -1;
+    }
+    try {
+        return audio_load_wav_impl(path, sample_rate, channels, count, samples);
+    } catch (const std::exception & ex) {
+        set_last_error(std::string("wav load failed: ") + ex.what());
+        return -1;
+    } catch (...) {
+        set_last_error("wav load failed: unknown error");
+        return -1;
+    }
 }
 
 void audiocpp_audio_free(float * samples) {
@@ -717,14 +772,14 @@ int audiocpp_registry_families_json(const audiocpp_registry * reg, char ** out_j
         set_last_error("null out_json or registry");
         return -1;
     }
-    *out_json = nullptr;
+        *out_json = nullptr;
     try {
         json::Value::Array arr;
         for (const auto & family : reg->storage.families()) {
             arr.push_back(json::Value::make_string(family));
         }
-        *out_json = dup_string(json::stringify(json::Value::make_array(std::move(arr))));
-        return 0;
+        return dup_out(out_json, json::stringify(json::Value::make_array(std::move(arr))),
+                       "audiocpp_registry_families_json");
     } catch (const std::exception & ex) {
         set_last_error(ex.what());
         return -1;
@@ -756,8 +811,8 @@ int audiocpp_registry_loaders_json(const audiocpp_registry * reg, char ** out_js
             arr.push_back(json::Value::make_object(std::move(item)));
         }
         root.emplace("loaders", json::Value::make_array(std::move(arr)));
-        *out_json = dup_string(json::stringify(json::Value::make_object(std::move(root))));
-        return 0;
+        return dup_out(out_json, json::stringify(json::Value::make_object(std::move(root))),
+                       "audiocpp_registry_loaders_json");
     } catch (const std::exception & ex) {
         set_last_error(ex.what());
         return -1;
@@ -783,8 +838,8 @@ int audiocpp_registry_devices_json(char ** out_json) {
             item.emplace("type", json::Value::make_string(dev.type));
             arr.push_back(json::Value::make_object(std::move(item)));
         }
-        *out_json = dup_string(json::stringify(json::Value::make_array(std::move(arr))));
-        return 0;
+        return dup_out(out_json, json::stringify(json::Value::make_array(std::move(arr))),
+                       "audiocpp_registry_devices_json");
     } catch (const std::exception & ex) {
         set_last_error(ex.what());
         return -1;
@@ -795,18 +850,19 @@ int audiocpp_registry_devices_json(char ** out_json) {
 }
 
 int audiocpp_registry_supports_family(const audiocpp_registry * reg, const char * family) {
+    // 返回 1 支持、0 不支持、-1 出错（传参非法或内部异常，详情见 last_error）。
     if (reg == nullptr || family == nullptr) {
         set_last_error("null reg or family");
-        return 0;
+        return -1;
     }
     try {
         return reg->storage.supports_family(std::string(family)) ? 1 : 0;
     } catch (const std::exception & ex) {
         set_last_error(ex.what());
-        return 0;
+        return -1;
     } catch (...) {
         set_last_error("unknown exception in audiocpp_registry_supports_family");
-        return 0;
+        return -1;
     }
 }
 
@@ -820,8 +876,8 @@ int audiocpp_registry_inspect_json(const audiocpp_registry * reg,
     *out_json = nullptr;
     try {
         auto inspection = reg->storage.inspect(std::filesystem::path(model_path));
-        *out_json = dup_string(json::stringify(dump_inspection(inspection)));
-        return 0;
+        return dup_out(out_json, json::stringify(dump_inspection(inspection)),
+                       "audiocpp_registry_inspect_json");
     } catch (const std::exception & ex) {
         set_last_error(ex.what());
         return -1;
@@ -885,8 +941,8 @@ int audiocpp_model_metadata_json(const audiocpp_model * model, char ** out_json)
     }
     *out_json = nullptr;
     try {
-        *out_json = dup_string(json::stringify(dump_metadata(model->storage->metadata())));
-        return 0;
+        return dup_out(out_json, json::stringify(dump_metadata(model->storage->metadata())),
+                       "audiocpp_model_metadata_json");
     } catch (const std::exception & ex) {
         set_last_error(ex.what());
         return -1;
@@ -903,8 +959,8 @@ int audiocpp_model_capabilities_json(const audiocpp_model * model, char ** out_j
     }
     *out_json = nullptr;
     try {
-        *out_json = dup_string(json::stringify(dump_capabilities(model->storage->capabilities())));
-        return 0;
+        return dup_out(out_json, json::stringify(dump_capabilities(model->storage->capabilities())),
+                       "audiocpp_model_capabilities_json");
     } catch (const std::exception & ex) {
         set_last_error(ex.what());
         return -1;
@@ -955,7 +1011,7 @@ audiocpp_session * audiocpp_model_create_task_session(const audiocpp_model * mod
         }
 
         auto session = model->storage->create_task_session(spec, opts);
-        auto * wrapper = new audiocpp_session{std::move(session), nullptr, {}, {}, {}};
+        auto * wrapper = new audiocpp_session{std::move(session), EventSink{}, {}, {}, {}};
         wrapper->family = wrapper->storage->family();
         wrapper->task_kind = engine::runtime::to_string(wrapper->storage->task_kind());
         wrapper->run_mode = engine::runtime::to_string(wrapper->storage->run_mode());
@@ -1020,8 +1076,8 @@ int audiocpp_session_streaming_policy_json(audiocpp_session * session, char ** o
         obj.emplace("preferred_audio_chunk_samples",
                     json::Value::make_number(static_cast<double>(policy.preferred_audio_chunk_samples)));
         obj.emplace("preferred_audio_chunk_seconds", json::Value::make_number(policy.preferred_audio_chunk_seconds));
-        *out_json = dup_string(json::stringify(json::Value::make_object(std::move(obj))));
-        return 0;
+        return dup_out(out_json, json::stringify(json::Value::make_object(std::move(obj))),
+                       "audiocpp_session_streaming_policy_json");
     } catch (const std::exception & ex) {
         set_last_error(ex.what());
         return -1;
@@ -1071,7 +1127,8 @@ int audiocpp_session_run_offline(audiocpp_session * session,
         session->storage->prepare(engine::runtime::build_preparation_request(request));
         const TaskResult result = offline->run(request);
         if (out_json != nullptr) {
-            *out_json = dup_string(json::stringify(dump_task_result(result)));
+            return dup_out(out_json, json::stringify(dump_task_result(result)),
+                           "audiocpp_session_run_offline");
         }
         return 0;
     } catch (const std::exception & ex) {
@@ -1084,28 +1141,39 @@ int audiocpp_session_run_offline(audiocpp_session * session,
 }
 
 void audiocpp_session_set_event_sink(audiocpp_session * session,
-                                     audiocpp_stream_event_cb cb,
-                                     void * user_data) {
+                                      audiocpp_stream_event_cb cb,
+                                      void * user_data) {
     if (session == nullptr) {
+        set_last_error("null session in audiocpp_session_set_event_sink");
         return;
     }
-    session->sink.cb = cb;
-    session->sink.user_data = user_data;
-    auto * streaming = dynamic_cast<IStreamingVoiceTaskSession *>(session->storage.get());
-    if (streaming == nullptr) {
-        return;
-    }
-    if (cb == nullptr) {
-        streaming->set_stream_event_sink(nullptr);
-        return;
-    }
-    EventSink * sink = &session->sink;
-    streaming->set_stream_event_sink([sink](const StreamEvent & event) {
-        if (sink->cb != nullptr) {
-            const std::string json_str = json::stringify(dump_stream_event(event));
-            sink->cb(sink->user_data, json_str.c_str(), event.is_final ? 1 : 0);
+    try {
+        std::lock_guard<std::mutex> lock(session->sink.mu);
+        session->sink.cb = cb;
+        session->sink.user_data = user_data;
+        auto * streaming = dynamic_cast<IStreamingVoiceTaskSession *>(session->storage.get());
+        if (streaming == nullptr) {
+            return;
         }
-    });
+        if (cb == nullptr) {
+            streaming->set_stream_event_sink(nullptr);
+            return;
+        }
+        EventSink * sink = &session->sink;
+        streaming->set_stream_event_sink([sink](const StreamEvent & event) {
+            // 派发期间持有锁：set(None) 返回后必无在途回调引用旧 user_data。
+            // 因此回调内不得再调回会话方法（会自死锁），见 capi.h。
+            std::lock_guard<std::mutex> dispatch_lock(sink->mu);
+            if (sink->cb != nullptr) {
+                const std::string json_str = json::stringify(dump_stream_event(event));
+                sink->cb(sink->user_data, json_str.c_str(), event.is_final ? 1 : 0);
+            }
+        });
+    } catch (const std::exception & ex) {
+        set_last_error(ex.what());
+    } catch (...) {
+        set_last_error("unknown exception in audiocpp_session_set_event_sink");
+    }
 }
 
 int audiocpp_session_start(audiocpp_session * session, const char * request_json) {
@@ -1157,10 +1225,14 @@ int audiocpp_session_process_audio(audiocpp_session * session,
         chunk.sample_rate = sample_rate;
         chunk.channels = channels;
         chunk.start_sample = start_sample;
-        chunk.samples.assign(samples, samples + count);
+        // count==0 时不触碰 samples（可能为 null 的空 slice 指针）。
+        if (count != 0) {
+            chunk.samples.assign(samples, samples + count);
+        }
         const StreamEvent event = streaming->process_audio_chunk(chunk);
         if (out_event_json != nullptr) {
-            *out_event_json = dup_string(json::stringify(dump_stream_event(event)));
+            return dup_out(out_event_json, json::stringify(dump_stream_event(event)),
+                           "audiocpp_session_process_audio");
         }
         return 0;
     } catch (const std::exception & ex) {
@@ -1188,7 +1260,8 @@ int audiocpp_session_finish(audiocpp_session * session, char ** out_json) {
         }
         const TaskResult result = streaming->finish_stream();
         if (out_json != nullptr) {
-            *out_json = dup_string(json::stringify(dump_task_result(result)));
+            return dup_out(out_json, json::stringify(dump_task_result(result)),
+                           "audiocpp_session_finish");
         }
         return 0;
     } catch (const std::exception & ex) {
@@ -1200,18 +1273,22 @@ int audiocpp_session_finish(audiocpp_session * session, char ** out_json) {
     }
 }
 
-void audiocpp_session_reset(audiocpp_session * session) {
+int audiocpp_session_reset(audiocpp_session * session) {
     if (session == nullptr) {
-        return;
+        set_last_error("null session in audiocpp_session_reset");
+        return -1;
     }
     try {
         auto * streaming = dynamic_cast<IStreamingVoiceTaskSession *>(session->storage.get());
         if (streaming != nullptr) {
             streaming->reset();
         }
+        return 0;
     } catch (const std::exception & ex) {
         set_last_error(ex.what());
+        return -1;
     } catch (...) {
         set_last_error("unknown exception in audiocpp_session_reset");
+        return -1;
     }
 }

@@ -64,11 +64,13 @@ Registry::new()                # 枚举已编译的模型族/loader/设备
          ├─ 离线:     session.run_offline(Request) → TaskResult
          └─ 流式:     session.set_event_callback(cb)
                       session.start(Request) → process_audio(&[f32], ...) → ... → finish() → TaskResult
-                      session.reset()     # 复用会话开始新一轮
+                       session.reset()     # 复用会话开始新一轮（返回 Result，示例中为伪代码省略了 ?）
 ```
 
 各对象持有 C 句柄并在 `Drop` 中释放；`Model` 不管理 `Registry` 的生命周期，
-注册表应存活于所有派生模型的使用期之内。
+注册表应存活于所有派生模型的使用期之内。`Session` 独立于 `Model`/`Registry`
+存活（会话持有权重/资产的共享所有权，创建后可释放 `Model`/`Registry`，
+见 lib.rs 资源生命周期节）。
 
 所有请求都用类型化的 [`Request`](src/request.rs) 枚举构造（也可直接传 JSON
 字符串透传）：每个任务一种变体、携带各自参数，无需手工拼接或转义 JSON，
@@ -160,7 +162,7 @@ for block in wav.samples.chunks(chunk) {
     session.process_audio(&padded, wav.sample_rate, wav.channels, 0)?;
 }
 let result = session.finish()?;   // 最终语音片段
-session.reset();                  // 复用会话重新开始
+session.reset()?;                 // 复用会话重新开始
 ```
 
 > **注意**：silero_vad 流式要求每块**恰好** `preferred_audio_chunk_samples`
@@ -222,13 +224,13 @@ for block in wav.samples.chunks(chunk) {
     session.process_audio(block, wav.sample_rate, wav.channels, 0)?;
 }
 let result = session.finish()?;   // 最终完整文本
-session.reset();
+session.reset()?;
 ```
 
 > **注意**：`preferred_audio_chunk_samples` 可能为 0，Qwen3 ASR 只填
 > `preferred_audio_chunk_seconds`，分块大小按 `秒数 × 采样率` 换算即可。
 
-### 6. 离线 TTS（MOSS-TTS-Nano，需 custom-models 构建）
+### 6. 离线 TTS（MOSS-TTS-Nano，需 `model-moss`，或 custom-models + AUDIOCPP_MODELS=moss_tts_nano）
 
 ```rust
 use audio_cpp::{Backend, ModelFamily, Registry, Request, RunMode, TaskKind};

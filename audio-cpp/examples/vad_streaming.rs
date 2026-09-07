@@ -88,7 +88,7 @@ fn main() -> Result<(), audio_cpp::Error> {
 
     // 5. 结束流式会话，取回最终结果。
     let result = session.finish()?;
-    session.reset();
+    session.reset()?;
 
     let events = events.lock().unwrap();
     println!("=== 流式事件 ===");

@@ -14,6 +14,7 @@
 
 use std::ffi::{CStr, c_char, c_void};
 use std::os::raw::c_int;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::ptr;
 use std::sync::{Arc, Mutex};
 
@@ -34,6 +35,9 @@ struct EventSinkInner {
 ///
 /// `user_data` 指向 `EventSinkInner`。事件 JSON 由 shim 一次性构造，转为
 /// Rust 类型后交给用户闭包。
+///
+/// 用户闭包中的 panic 会被捕获并忽略，**不会**向上传播：panic 穿过
+/// `extern "C"` 是未定义行为，回调内 panic 一律在此截停。
 unsafe extern "C" fn stream_event_cb(
     user_data: *mut c_void,
     event_json: *const c_char,
@@ -54,7 +58,7 @@ unsafe extern "C" fn stream_event_cb(
     // SAFETY: 同上，inner 在会话生命周期内有效（EventSink 析构前回调已解绑）。
     let mut guard =
         unsafe { (*inner).cb.lock() }.unwrap_or_else(std::sync::PoisonError::into_inner);
-    (guard)(event);
+    let _ = catch_unwind(AssertUnwindSafe(|| (guard)(event)));
 }
 
 /// 任务会话。
@@ -64,6 +68,10 @@ pub struct Session {
     /// 用 `Mutex` 保护指针本身，使 `set_event_callback` 能以 `&self` 调用
     /// （内部可变性），从而在持有 `&Session` 的线程上注册回调。
     event_sink: Mutex<Option<*mut EventSinkInner>>,
+    /// 串行化回调的装配 / 拆除 / 析构全过程：`set_event_callback` 与
+    /// `Drop` 都先持有它再动 `event_sink` 与 C 侧绑定，避免两线程并发
+    /// replace 造成“引擎指向 A、Rust 存 B”或 Box 泄漏。
+    sink_swap: Mutex<()>,
 }
 
 // Session 持有回调 box（要求 Send）与 C 句柄。跨线程转移所有权是安全的，
@@ -76,6 +84,7 @@ impl Session {
         Self {
             raw,
             event_sink: Mutex::new(None),
+            sink_swap: Mutex::new(()),
         }
     }
 
@@ -148,7 +157,9 @@ impl Session {
     /// 注册流式事件回调；调用 `None` 清除。
     ///
     /// 回调会在每次流事件产生时被调用（可能来自 C++ 侧线程），其内容是
-    /// 解析为 [`StreamEvent`] 的对象。回调内不得再调用本会话的方法。
+    /// 解析为 [`StreamEvent`] 的对象。回调内不得再调用本会话的方法
+    /// （含 `set_event_callback`/`reset`，否则可能死锁）；回调内的 panic
+    /// 会被捕获忽略，不会传播。
     ///
     /// 以 `&self` 提供（内部有 `Mutex` 保护），因此可在持有 `&Session`
     /// 的任意线程上注册 / 更换回调。同一个会话只保留一份回调。
@@ -156,6 +167,10 @@ impl Session {
     where
         F: FnMut(StreamEvent) + Send + 'static,
     {
+        let _swap = self
+            .sink_swap
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // 先清理旧回调，保证 C 侧不再引用旧的 user_data。
         let old = self.event_sink_take();
         if let Some(old) = old {
@@ -213,10 +228,16 @@ impl Session {
         start_sample: i64,
     ) -> Result<Option<StreamEvent>, Error> {
         let mut out: *mut c_char = ptr::null_mut();
+        // 空输入显式传 null，避免对悬垂指针做算术（C++ 侧视 count==0 跳过读取）。
+        let ptr = if samples.is_empty() {
+            ptr::null()
+        } else {
+            samples.as_ptr()
+        };
         ffi::check_rc(unsafe {
             audiocpp_session_process_audio(
                 self.raw,
-                samples.as_ptr(),
+                ptr,
                 samples.len(),
                 sample_rate,
                 channels,
@@ -236,20 +257,12 @@ impl Session {
     /// # Errors
     ///
     /// C ABI 调用失败或返回的 JSON 无法解析时返回对应 [`Error`] 变体。
+    /// `check_rc` 通过却无 payload 属于 shim 违约，同样报错而非伪造空结果。
     pub fn finish(&self) -> Result<TaskResult, Error> {
         let mut out: *mut c_char = ptr::null_mut();
         ffi::check_rc(unsafe { audiocpp_session_finish(self.raw, &mut out) })?;
         if out.is_null() {
-            return Ok(TaskResult {
-                speech_segments: Vec::new(),
-                speaker_turns: Vec::new(),
-                text_output: None,
-                audio_output: None,
-                named_audio_outputs: Vec::new(),
-                word_timestamps: Vec::new(),
-                artifact_output: None,
-                output_artifacts: Vec::new(),
-            });
+            return Err(Error::Ffi(ffi::last_error()));
         }
         let json = unsafe { ffi::take_string(out)? };
         serde_json::from_str(&json).map_err(Error::from)
@@ -278,10 +291,12 @@ impl Session {
     }
 
     /// 重置流式会话内部状态（可复用会话对象重新开始）。
-    pub fn reset(&self) {
-        unsafe {
-            audiocpp_session_reset(self.raw);
-        }
+    ///
+    /// # Errors
+    ///
+    /// C ABI 调用失败时返回对应 [`Error`] 变体。
+    pub fn reset(&self) -> Result<(), Error> {
+        ffi::check_rc(unsafe { audiocpp_session_reset(self.raw) })
     }
 
     /// 取出并归还事件回调指针（内部用；调用方负责释放）。
@@ -295,6 +310,13 @@ impl Session {
 
 impl Drop for Session {
     fn drop(&mut self) {
+        // 与 set_event_callback 互斥：先解绑再释放，避免并发 replace 错配。
+        // 注意：析构时必须已无在途回调（调用方不得在流式调用并发时 drop），
+        // 否则 C++ 工作线程的在途回调仍可能引用已释放的 user_data。
+        let _swap = self
+            .sink_swap
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // 先清除事件回调，避免 C 侧在会话析构后再引用 user_data。
         if let Some(inner) = self.event_sink_take() {
             unsafe {
@@ -324,7 +346,7 @@ impl Drop for Session {
 /// )?;
 /// let mut stream = StreamingSession::from_session(session);
 ///
-/// stream.start(Request::stream().option("language", "auto"))?;
+/// stream.start(Request::stream_asr().option("language", "auto"))?;
 /// // 每块音频送入后，取出该块触发的全部事件（partial_text / is_final）
 /// let samples: Vec<f32> = vec![0.0; 512];
 /// let events = stream.push_audio(&samples, 16000, 1, 0)?;
@@ -434,15 +456,24 @@ impl StreamingSession {
     }
 
     /// 重置会话（等价于 [`Session::reset`]），并清空内部缓冲。
-    pub fn reset(&self) {
-        self.session.reset();
+    ///
+    /// # Errors
+    ///
+    /// C ABI 调用失败时返回对应 [`Error`] 变体。
+    pub fn reset(&self) -> Result<(), Error> {
+        self.session.reset()?;
         self.events
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clear();
+        Ok(())
     }
 
     /// 底层会话引用。
+    ///
+    /// 注意：经此引用调用 [`Session::set_event_callback`] 会替换
+    /// [`StreamingSession`] 的内部事件收集器，导致 `push_audio` 收不到事件。
+    /// 如需自定义回调，请直接使用 [`Session`] 而非本包装。
     pub fn session(&self) -> &Session {
         &self.session
     }

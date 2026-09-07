@@ -5,11 +5,13 @@
 
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// 任务种类（映射 `audiocpp_model_create_task_session` 的 `task` 参数）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+///
+/// serde 表示与 [`TaskKind::as_str`] 一致（`"sep"` 而非 `"sourceseparation"`），
+/// 与 C 边界字符串一一对应。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TaskKind {
     /// 语音活动检测（VAD）
     Vad,
@@ -59,6 +61,41 @@ impl TaskKind {
             TaskKind::SpeakerRecognition => "spk",
             TaskKind::Svc => "svc",
             TaskKind::Midi => "midi",
+        }
+    }
+}
+
+impl Serialize for TaskKind {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for TaskKind {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "vad" => Ok(TaskKind::Vad),
+            "asr" => Ok(TaskKind::Asr),
+            "diar" => Ok(TaskKind::Diar),
+            "sep" => Ok(TaskKind::SourceSeparation),
+            "gen" => Ok(TaskKind::AudioGeneration),
+            "tts" => Ok(TaskKind::Tts),
+            "clon" => Ok(TaskKind::VoiceCloning),
+            "vc" => Ok(TaskKind::VoiceConversion),
+            "s2s" => Ok(TaskKind::SpeechToSpeech),
+            "align" => Ok(TaskKind::Alignment),
+            "vdes" => Ok(TaskKind::VoiceDesign),
+            "spk" => Ok(TaskKind::SpeakerRecognition),
+            "svc" => Ok(TaskKind::Svc),
+            "midi" => Ok(TaskKind::Midi),
+            other => Err(serde::de::Error::unknown_variant(
+                other,
+                &[
+                    "vad", "asr", "diar", "sep", "gen", "tts", "clon", "vc", "s2s", "align",
+                    "vdes", "spk", "svc", "midi",
+                ],
+            )),
         }
     }
 }
@@ -301,6 +338,10 @@ impl ModelFamily {
             ("marblenet", ModelFamily::MarblenetVad),
             ("qwen3_asr", ModelFamily::Qwen3Asr),
             ("qwen3-asr", ModelFamily::Qwen3Asr),
+            ("qwen3_tts", ModelFamily::Qwen3Tts),
+            ("qwen3-tts", ModelFamily::Qwen3Tts),
+            ("qwen3_forced_aligner", ModelFamily::Qwen3ForcedAligner),
+            ("qwen3-forced-aligner", ModelFamily::Qwen3ForcedAligner),
             ("qwen3", ModelFamily::Qwen3Asr),
             ("citrinet", ModelFamily::CitrinetAsr),
             ("sense_asr", ModelFamily::SenseAsr),
@@ -334,8 +375,6 @@ impl ModelFamily {
             ("firered_tts3", ModelFamily::Fireredtts3),
             ("firered-tts3", ModelFamily::Fireredtts3),
             ("vibevoice", ModelFamily::Vibevoice),
-            ("qwen3_tts", ModelFamily::Qwen3Tts),
-            ("qwen3-tts", ModelFamily::Qwen3Tts),
             ("confucius", ModelFamily::Confucius4Tts),
             ("dots_tts", ModelFamily::DotsTts),
             ("dots-tts", ModelFamily::DotsTts),
@@ -433,7 +472,6 @@ impl ModelFamily {
             ("dramabox", ModelFamily::Dramabox),
             ("heartmula", ModelFamily::Heartmula),
             ("inflect", ModelFamily::InflectV2),
-            ("qwen3_forced_aligner", ModelFamily::Qwen3ForcedAligner),
             ("mms_forced_aligner", ModelFamily::MmsForcedAligner),
             ("mms", ModelFamily::MmsForcedAligner),
             ("forced-aligner", ModelFamily::Qwen3ForcedAligner),
@@ -580,6 +618,7 @@ impl From<&str> for ModelFamily {
             "sopro_v2" => ModelFamily::SoproTts,
             "sopro_v2_turbo" => ModelFamily::SoproTts,
             "mira_tts" => ModelFamily::MiraTts,
+            "miratts" => ModelFamily::MiraTts,
             "mira" => ModelFamily::MiraTts,
             "MiraTTS" => ModelFamily::MiraTts,
             "cosyvoice3" => ModelFamily::Cosyvoice3,
@@ -637,7 +676,8 @@ impl std::fmt::Display for ModelFamily {
 }
 
 /// 计算后端（映射 `audiocpp_model_create_task_session` 的 `backend` 参数）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Backend {
     /// CPU
     Cpu,
@@ -1050,6 +1090,7 @@ mod tests {
             Muscriptor,
             Omnivoice,
             StableAudio,
+            MinimaxMusic3,
             Supertonic,
             VoxtralRealtime,
             Audiosr,
@@ -1124,6 +1165,19 @@ mod tests {
             ModelFamily::from_path("moss-tts-nano-q8_0.gguf"),
             Some(ModelFamily::MossTtsNano)
         );
+        // 精确规则优先于裸关键词：qwen3-tts / qwen3-forced-aligner 不能判成 Qwen3Asr
+        assert_eq!(
+            ModelFamily::from_path("qwen3-tts-12hz-0.6b-base-q8_0.gguf"),
+            Some(ModelFamily::Qwen3Tts)
+        );
+        assert_eq!(
+            ModelFamily::from_path("qwen3-forced-aligner-q8_0.gguf"),
+            Some(ModelFamily::Qwen3ForcedAligner)
+        );
+        assert_eq!(
+            ModelFamily::from_path("mira-tts-q8_0.gguf"),
+            Some(ModelFamily::MiraTts)
+        );
         assert_eq!(
             ModelFamily::from_path("htdemucs-6s-q8_0.gguf"),
             Some(ModelFamily::Htdemucs)
@@ -1133,10 +1187,14 @@ mod tests {
             ModelFamily::from_path("Qwen3-ASR.Q8_0.GGUF"),
             Some(ModelFamily::Qwen3Asr)
         );
-        // #family= 显式覆盖优先于关键词
+        // #family= 显式覆盖优先于关键词（大小写不敏感）
         assert_eq!(
             ModelFamily::from_path("model.gguf#family=citrinet_asr"),
             Some(ModelFamily::CitrinetAsr)
+        );
+        assert_eq!(
+            ModelFamily::from_path("model.gguf#family=MiraTTS"),
+            Some(ModelFamily::MiraTts)
         );
         assert_eq!(
             ModelFamily::from_path("model.gguf#family=qwen3_tts"),
@@ -1168,6 +1226,34 @@ mod tests {
         for (k, want) in cases {
             assert_eq!(k.as_str(), want);
         }
+    }
+
+    #[test]
+    fn task_kind_serde_roundtrip() {
+        // serde 表示必须与 as_str（C 边界字符串）一致，而非变体名的
+        // 小写形式（如 "sep" 而非 "sourceseparation"）。
+        let all = [
+            TaskKind::Vad,
+            TaskKind::Asr,
+            TaskKind::Diar,
+            TaskKind::SourceSeparation,
+            TaskKind::AudioGeneration,
+            TaskKind::Tts,
+            TaskKind::VoiceCloning,
+            TaskKind::VoiceConversion,
+            TaskKind::SpeechToSpeech,
+            TaskKind::Alignment,
+            TaskKind::VoiceDesign,
+            TaskKind::SpeakerRecognition,
+            TaskKind::Svc,
+            TaskKind::Midi,
+        ];
+        for k in all {
+            let s = serde_json::to_string(&k).unwrap();
+            assert_eq!(s, format!("\"{}\"", k.as_str()));
+            assert_eq!(serde_json::from_str::<TaskKind>(&s).unwrap(), k);
+        }
+        assert!(serde_json::from_str::<TaskKind>("\"sourceseparation\"").is_err());
     }
 
     #[test]

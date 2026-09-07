@@ -12,7 +12,8 @@
   1. CMake + **Ninja** 构建上游 `engine_runtime` 静态库（submodule at `audio-cpp-sys/audio.cpp`）；
   2. `cc` 编译 C shim（`capi.h` / `capi.cpp`）；
   3. `bindgen` 生成绑定，输出到 `OUT_DIR/bindings.rs`，由 `src/lib.rs` 用 `include!` 引入。
-- **`audio-cpp/`** — 高层安全封装 crate（当前为骨架，仅有模块占位）。
+- **`audio-cpp/`** — 高层安全封装 crate（Registry / Model / Session，离线 + 流式，
+  类型化请求与 serde 类型，见 `audio-cpp/README.md`）。
 
 `links = "audio-cpp"` 声明在 `audio-cpp-sys/Cargo.toml`，防止同一程序出现两份本地运行时。
 
@@ -54,11 +55,14 @@
 |---|---|
 | `core-models`（默认） | `AUDIOCPP_MODEL_SET=core` |
 | `full-models` | `AUDIOCPP_MODEL_SET=full` |
-| `cuda` | `ENGINE_ENABLE_CUDA=ON`（与 `hip` 互斥） |
+| `custom-models` | `AUDIOCPP_MODEL_SET=custom`（与 `model-*` feature / `AUDIOCPP_MODELS` 取并集） |
+| `model-<族>`（40+ 个） | custom 并集中的一项（build.rs 扫描 `CARGO_FEATURE_MODEL_*` 自动映射，无需改 build.rs） |
+| `prebuilt` | 启用预编译自动下载（tag 默认 `v{version}`，见预编译节） |
+| `cuda` | `ENGINE_ENABLE_CUDA=ON`（与 `hip` 互斥，build.rs 已硬校验） |
 | `hip` | `ENGINE_ENABLE_HIP=ON` |
 | `vulkan` | `ENGINE_ENABLE_VULKAN=ON` |
-| `metal` | `ENGINE_ENABLE_METAL=ON`（Apple 默认） |
-| `openmp` | `ENGINE_ENABLE_OPENMP=ON` |
+| `metal` | `ENGINE_ENABLE_METAL=ON`（Apple 默认；非 Apple 可用 `AUDIOCPP_FORCE_METAL=1` 强制） |
+| `openmp` | `ENGINE_ENABLE_OPENMP=ON`（同步 `GGML_OPENMP`；crt-static 下强制关闭） |
 | `native` | `ENGINE_ENABLE_NATIVE_CPU=ON` |
 
 ### 6. 发布 / 标签 / Release 操作需显式授权
@@ -80,12 +84,15 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
    返回的字符串须与上游 loader 族名一致）+ `from_path()` 关键词表 + Cargo.toml 新增
    `model-*` feature（如适用）。若只是现有 loader 的行为/选项变化（如 dots_tts 新增
    edit 推理），枚举无需动，但需评估高层类型/示例是否要暴露新能力。
-3. **C ABI 边界**：capi.cpp 只依赖 `engine/framework/runtime/*`（backend.h / json.h /
-   model.h / registry.h / session.h）与 `engine/framework/io/json.h`。diff 这些头文件：
+3. **C ABI 边界**：capi.cpp 只依赖 5 个头（`engine/framework/core/backend.h` /
+   `engine/framework/io/json.h` /
+   `engine/framework/runtime/{model,registry,session}.h`）。diff 这些头文件：
    公共 API（session/request/types/registry）改了就要同步 capi.h / capi.cpp / build.rs
    bindgen allowlist（`audiocpp_.*`）。新增异常类型必须派生自 `std::exception`
    （shim 统一 `catch (const std::exception&)` 转 `audiocpp_last_error`）；上游新增的
    `engine::runtime::CapacityError`（请求过大应归 400 而非 500）按需在 shim 里映射。
+   新 loader 须确认其 session 自持资产（`shared_ptr`），否则高层 `Session` 独立于
+   `Model` 存活的保证不成立（见 `audio-cpp/src/lib.rs` 资源生命周期节）。
 4. **请求/响应 JSON 结构**：上游 `app/server/runtime.cpp` 或模型 `request.cpp` 新增
    task 类型 / 选项键 / 输出字段时，检查 C ABI `dump_task_result` / `dump_stream_event`
    / `dump_audio_buffer` 是否要补字段，以及高层 `types.rs` 的 serde 结构（两端 serde
@@ -131,10 +138,27 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     `sopro_v2` / `sopro_v2_turbo` / `mira` / `MiraTTS`）；并在
     `audio-cpp-sys/Cargo.toml` 与 `audio-cpp/Cargo.toml` 新增
     `model-sanotts` / `model-sopro-tts` / `model-mira-tts` /
-    `model-cosyvoice3` / `model-breeze-tts` / `model-vibeasr` 六个
+    `model-cosyvoice3` / `model-breeze-tts` /     `model-vibeasr` 六个
     `model-*` feature（build.rs 按 `model-<target>` 约定自动映射 CMake
     target，无需改 build.rs）。`model_family_roundtrip` 等测试已覆盖新变体
     （23 项全过）。
+- **补记（历史漏记）**：`Audio8Asr`（`as_str()` → `"audio8_asr"`，含 `arkasr`
+  别名）+ `model-audio8-asr` feature 在代码侧早已收录，但从未出现在升级历史中。
+  经核对上游 `eb82b18 feat: Add Audio8-ASR-0.1B community model port (#337)`
+  早于 `ee7be93` 即已合入，系 `d2ff370`→`ee7be93`（或更早）审查时漏记，功能本身
+  无缺失，本次核对确认无误。
+- **全仓审查修复**（f6277c1 之后未动 submodule，纯本仓改动）：4 组并行审查共
+  报告 30+ 项，已复核并全部修复。含 3 个高严重度：流回调加 `catch_unwind`
+  （`session.rs`）、`audiocpp_audio_load_wav` 全函数 try/catch + 格式/大小校验
+  （`capi.cpp`）、macOS 默认构建请求 `metal` 预编译资产（`prebuilt_download.rs`）；
+  破坏性变更仅 2 处：`Session::reset()` / `StreamingSession::reset()` 改返回
+  `Result<(), Error>`、`Request::stream()` 改名 `stream_asr()`（旧名 deprecated
+  保留）；`supports_family` 的 `bool` 语义不变（出错仍为 false，另新增
+  `try_supports_family` 区分出错）。
+  验证：`cargo fmt --check` + `clippy --all-targets` 零警告 + `cargo build --workspace`
+  + `cargo test --workspace`（26 lib + 9 doc）+ `vad_offline` / `vad_streaming`
+  示例端到端通过。另实测 `prebuilt` 下载链路：404 即标 `[non-retryable]` 直接
+  回落（无重试拖延），资产名拼写正确（v0.4.0 尚无 Release，故回落源码构建，符合预期）。
 - **升级 `3497b7c`→`2269821`（main）审查结论**：
   - diff 共 45 文件（+3.7k/-84），涉及 1 个新 loader 族 + Chatterbox Turbo TTS
     社区模型 + Qwen3 ASR 标点输出 + Fish Audio HIP Fast-AR + alignment 端点：
@@ -260,7 +284,7 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
       比把参考音频塞进顶层 `audio` 更语义化。
   - 默认 `core-models` 构建约 1.5 分钟（win32/MSVC，增量）编译链接通过；22 个
     types/registry/request 单元测试全部通过。
-- **bindgen 已升级到 0.72**，crate 版本升至 **0.3.1**（workspace 统一，由 0.3.0 升上来；0.3.0 / 0.3.1 均已发布到 crates.io，预编译资产随 0.3.1 发布到 `v0.3.1`）。
+- **bindgen 已升级到 0.72**，crate 版本升至 **0.4.0**（workspace 统一；0.3.0 / 0.3.1 均已发布到 crates.io，预编译资产随 0.3.1 发布到 `v0.3.1`，旧版 Release 保留可寻址）。
 - **build.rs 已跟踪 submodule HEAD 指针**：`cargo build` 的 rerun-if-changed 加入
   父仓库 `.git/modules/audio-cpp-sys/audio.cpp/HEAD`（cargo 无法精准跟踪整个
   submodule 目录，对目录会退化为总是重跑、每次多花几分钟）。`git submodule update`
@@ -312,7 +336,7 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
   **GGUF 同样无法自动探测族别**，须显式 `family_hint="citrinet_asr"`（否则误判
   silero_vad 报 missing tensor）。
 - 上游 CMake 支持 `AUDIOCPP_MODEL_SET=custom` + `AUDIOCPP_MODELS`（逗号分隔
-  model targets）按需编译，避免 full 全量 44+ 模型族的编译成本；引擎核心 +
+  model targets）按需编译，避免 full 全量 72 个 loader 族的编译成本；引擎核心 +
   内置 VAD 始终编入。build.rs 的 `custom-models` feature 透传该机制。
 - 请求 JSON 里的 `audio_path` 若为 Windows 路径，反斜杠必须转义（`\\`），
   `\a` 等非法转义会导致 shim 解析失败（"failed to parse json"），改用正斜杠最省事。
@@ -401,8 +425,8 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
   抖动重试 3 次带退避（404 等 4xx 为确定性失败不重试），仍失败回落源码。
   `AUDIOCPP_PREBUILT_DIR` 显式目录优先级高于自动下载。
 - **CI 预编译资产**：`.github/workflows/prebuilt-audio-cpp.yml` 在 `v*` tag、
-  `workflow_dispatch` 时构建（linux 3 / windows 2 / macos 1 矩阵，full ×
-  cpu/vulkan/metal）。**main 开发期推送不触发，submodule 指针变动也不触发**——
+  `workflow_dispatch` 时构建（linux 4 / windows 4（cpu/vulkan 各×md/mt）/ macos 1，
+  共 9 cell，full × cpu/vulkan/metal）。**main 开发期推送不触发，submodule 指针变动也不触发**——
   重新发布预编译资产属「发布 / Release 操作」，须由用户显式下达发布命令（见第 6 节）。
   用 `.github/scripts/collect-unix-prebuilt.sh` 与
   `collect-windows-prebuilt.sh` 从 `target/**/out`（及 Windows 长路径重定向的
@@ -417,7 +441,8 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
   后，Rust 侧 std 与 cc 编译的 C shim（capi.o）均为 `/MT`，而 CMake 默认（及
   预编译资产）是 `/MD`，混链接报 LNK2038（RuntimeLibrary 不匹配）+ LNK2019
   （`__imp_*` 无法解析）。build.rs 检测 `CARGO_CFG_TARGET_FEATURE` 含
-  `crt-static` 时：跳过预编译（资产为 `/MD`，强制回退源码构建），并给 CMake
+   `crt-static` 时：跳过 `/MD` 预编译资产，改请求 `-mt` 资产（CI windows 矩阵含
+   mt 构建），无匹配才回落源码构建；并给 CMake
   注入 `CMAKE_POLICY_DEFAULT_CMP0091=NEW` + `CMAKE_MSVC_RUNTIME_LIBRARY`
   （`MultiThreaded`/`MultiThreadedDebug`，按 `AUDIOCPP_LIB_PROFILE` 取）全目标
   `/MT`——注意 sentencepiece 等子目录 cmake_minimum_required 低（3.5），

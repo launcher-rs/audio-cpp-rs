@@ -76,7 +76,7 @@ fn main() -> Result<(), audio_cpp::Error> {
     // 3. 开流：请求携带 audio_path 建立音频契约（Qwen3 ASR 的 streaming
     //    prepare 需要契约），随后再逐块 process_audio 送入同样的音频。
     //    纯 options 场景（如仅传 language、无需契约的模型族）可用
-    //    `Request::stream()` 构造。
+    //    `Request::stream_asr()` 构造。
     stream.start(Request::asr(wav_path).option("audio_chunk_seconds", 3.0))?;
 
     // 4. 分块送入音频，每块取回该块触发的全部事件（partial_text / is_final）。
@@ -110,7 +110,7 @@ fn main() -> Result<(), audio_cpp::Error> {
 
     // 5. 结束流式会话，取回最终完整结果。
     let result = stream.finish()?;
-    stream.reset();
+    stream.reset()?;
 
     println!("=== 部分转录 ===");
     for t in &partial {

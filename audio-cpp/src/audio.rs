@@ -67,6 +67,12 @@ pub fn load_wav(path: &str) -> Result<WavAudio, Error> {
         return Err(Error::Ffi("WAV 读取返回空缓冲".to_string()));
     }
     let n = count;
+    // 纵深防御：C 侧谎报超大 count 会导致 from_raw_parts 越界读。
+    // WAV 容器上限 4GiB，f32 采样数不可能超过 u32::MAX。
+    if n > u32::MAX as usize {
+        unsafe { audiocpp_audio_free(samples) };
+        return Err(Error::Ffi(format!("WAV 采样数异常过大: {n}")));
+    }
     let data = unsafe { std::slice::from_raw_parts(samples, n) }.to_vec();
     unsafe { audiocpp_audio_free(samples) };
     Ok(WavAudio {

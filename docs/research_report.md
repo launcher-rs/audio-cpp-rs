@@ -3,6 +3,9 @@
 > 目标：将 [audio.cpp](https://github.com/0xShug0/audio.cpp)（C++ 音频推理框架）封装为 Rust 库，供 Rust 生态直接使用。
 > 参考：`temp/llama-cpp-rs`（llama-cpp-sys-2 / llama-cpp-2）、`temp/llama-cpp-rs4`（llama-cpp-sys-4 / llama-cpp-4）。
 > 日期：2026-08-12 · 版本基线：audio.cpp `last-docker-build-31-g55eab3c`（Release 0.6 WIP）
+>
+> 注：本文为 2026-08-12 基线快照，部分数量/路径已演进（如 `links="audio-cpp"`、
+> `capi.h`/`capi.cpp` 在 crate 根、`model-*` feature 已 40+ 个），以现行代码为准。
 
 ---
 

@@ -53,7 +53,8 @@ prebuilt = []
 # vendored 在 audio.cpp/assets/framework/models/，无需下载任何权重。
 # 这也是编译最快、开箱即用的最小编译集，适合仅用 VAD 或验证绑定链路的场景。
 core-models = []
-# 全量编译 audio.cpp 支持的 44+ 模型族。注意：全量编译耗时很长且生成
+# 全量编译 audio.cpp 支持的 72 个 loader 族（随上游增长，以
+# audio.cpp/CMakeLists.txt 的 make_*_loader 为准）。注意：全量编译耗时很长且生成
 # 的静态库很大；并不等于"能运行任意模型"，权重文件仍需自行下载。
 # 日常建议优先用模型族 feature 或 custom-models 按需编译，只有需要一次
 # 备齐全部能力时才用本项。
@@ -67,8 +68,9 @@ custom-models = []
 # model-qwen3-asr` 与 `model-qwen3_asr` 均可；build.rs 会扫描被启用的
 # `CARGO_FEATURE_MODEL_*`，把后缀大写→小写即为上游 CMake target 名，
 # 因此新增族 feature 时无需改动 build.rs。
-# 其余未列出的模型族（roformer、htdemucs、outetts、glm_tts、pocket_tts、
-# sortformer_diar 等）仍用 custom-models + AUDIOCPP_MODELS 环境变量调用。
+# 其余未列出的模型族仍用 custom-models + AUDIOCPP_MODELS 环境变量调用
+# （如 voxcpm2、qwen3_forced_aligner 等；上游族名以 audio.cpp/CMakeLists.txt
+# 的 audiocpp_add_model 为准，build.rs 会自动映射）。
 model-citrinet-asr = ["custom-models"]   # ASR：英/多语语音识别
 model-fun-asr-nano = ["custom-models"]   # ASR：FunASR 轻量识别
 model-hviske-asr = ["custom-models"]     # ASR：Hviske 识别

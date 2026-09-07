@@ -30,7 +30,8 @@ typedef struct audiocpp_session audiocpp_session;
 /* ------------------------------------------------------------------ */
 
 /* 返回最近一次错误的描述信息；若无错误则返回 NULL。
-   返回的指针在下一次任何 audiocpp_* 调用前有效。 */
+   线程局部：仅在同一线程的下一次 audiocpp_* 调用前有效，跨线程读无意义。
+   成功路径不清除旧错误，因此仅在失败后读取才有意义。 */
 const char * audiocpp_last_error(void);
 
 /* 释放由任意 audiocpp_* 函数返回的字符串。 */
@@ -52,7 +53,8 @@ int audiocpp_registry_loaders_json(const audiocpp_registry * reg, char ** out_js
 /* JSON 数组：所有后端可用的计算设备列表。 */
 int audiocpp_registry_devices_json(char ** out_json);
 
-/* 判断某模型族是否已编译进引擎（加载前预检，避免盲 load 失败）。*/
+/* 判断某模型族是否已编译进引擎（加载前预检，避免盲 load 失败）。
+   返回 1 支持、0 不支持、-1 出错（传参非法或内部异常，详情见 last_error）。 */
 int audiocpp_registry_supports_family(const audiocpp_registry * reg, const char * family);
 
 /* 预检模型：返回 metadata / capabilities / cli 选项 / 发现资产（JSON）。*/
@@ -98,6 +100,8 @@ void audiocpp_model_free(audiocpp_model * model);
 
 void audiocpp_session_free(audiocpp_session * session);
 
+/* 借用的指针：调用方不得释放；在 session 释放前有效；session 释放后继续
+   使用属未定义行为。跨线程同时读与释放/重建会话同样未定义。 */
 const char * audiocpp_session_family(audiocpp_session * session);      /* 借用的指针 */
 const char * audiocpp_session_task_kind(audiocpp_session * session);   /* 借用的指针 */
 const char * audiocpp_session_run_mode(audiocpp_session * session);    /* 借用的指针 */
@@ -115,8 +119,10 @@ int audiocpp_session_run_offline(audiocpp_session * session,
                                  char ** out_json);
 
 /* 流式事件回调。cb 可传 NULL 以清除。
-   回调由 C++ 侧以 JSON StreamEvent 内容触发；回调内不得再调用回会话。
-   user_data 原样透传。 */
+   回调由 C++ 侧以 JSON StreamEvent 内容触发；回调内不得再调用回会话
+   （派发期间持有内部锁，重入会自死锁）。user_data 原样透传。
+   本函数失败只记 last_error（无返回值）；set(NULL) 返回后必无在途回调
+   再引用旧 user_data，此时释放 user_data 安全。 */
 typedef void (*audiocpp_stream_event_cb)(void * user_data, const char * event_json, int is_final);
 
 void audiocpp_session_set_event_sink(audiocpp_session * session,
@@ -138,14 +144,17 @@ int audiocpp_session_process_audio(audiocpp_session * session,
 /* 结束流式会话，返回最终 TaskResult 的 JSON。 */
 int audiocpp_session_finish(audiocpp_session * session, char ** out_json);
 
-/* 重置流式会话内部状态（可复用会话对象重新开始）。 */
-void audiocpp_session_reset(audiocpp_session * session);
+/* 重置流式会话内部状态（可复用会话对象重新开始）。
+   返回 0 成功，非 0 出错（详情见 last_error）。 */
+int audiocpp_session_reset(audiocpp_session * session);
 
 /* ------------------------------------------------------------------ */
 /* 音频辅助函数（便捷封装）                                            */
 /* ------------------------------------------------------------------ */
 
 /* 将 RIFF/WAVE 文件读为 float 采样（取值范围 -1..1）。
+   支持 PCM 16/32 位与 IEEE float 32 位；data 块超过 1GiB 时拒绝
+   （防损坏文件触发超大分配）。
    调用方持有返回的缓冲区，必须用 audiocpp_audio_free 释放。 */
 int audiocpp_audio_load_wav(const char * path, int * sample_rate, int * channels,
                             size_t * count, float ** samples);

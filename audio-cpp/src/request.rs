@@ -282,6 +282,22 @@ impl TtsRequest {
 /// 对应 capi.cpp `parse_task_request` 读取的顶层 JSON 字段（`text` /
 /// `language` / `audio` / `audio_path` / `options`）。按任务种类区分变体，
 /// 每个变体携带自己的参数；序列化时统一展开为上述 JSON 形状。
+///
+/// 任务种类本身由 [`crate::Model::create_task_session`] 的 `task` 参数决定，
+/// 变体只决定请求形状（音频型 / 文本型 / 原始 JSON）。`TaskKind` 到构造器的
+/// 推荐映射：
+///
+/// | 任务 | 构造器 |
+/// |---|---|
+/// | `Vad` / `Asr` / `Diar` / `SourceSeparation` | `vad` / `asr` / `diar` / `source_separation`（音频型） |
+/// | `Tts`（含 `VoiceCloning`/`VoiceConversion`/`VoiceDesign` 等文本型任务） | `tts`（文本型，可带参考音频/风格） |
+/// | `AudioGeneration`（音乐生成，文本提示） | `tts`（文本型）或 `json` |
+/// | `SpeechToSpeech` / `Svc` / `Alignment` / `SpeakerRecognition`（音频型） | 形状相同的任一音频型变体，或 `json` |
+/// | 其他 / 形状特殊 | `json`（原始 JSON 透传） |
+///
+/// 音频型四个变体（`Vad`/`Asr`/`Diar`/`SourceSeparation`）序列化形状完全
+/// 相同，选用时以语义就近为准；形状特殊（如对齐需同时传音频与文本）时
+/// 请用 [`Request::json`] 手拼。
 #[derive(Debug, Clone)]
 pub enum Request {
     /// 语音活动检测：需音频输入，可配 `vad_threshold` / `threshold` 等。
@@ -318,11 +334,20 @@ impl Request {
     /// 例如：
     /// ```
     /// use audio_cpp::Request;
-    /// let req = Request::stream().option("language", "auto").option("audio_chunk_seconds", 3.0);
+    /// let req = Request::stream_asr().option("language", "auto").option("audio_chunk_seconds", 3.0);
     /// assert_eq!(req.to_json().unwrap(), r#"{"options":{"audio_chunk_seconds":3.0,"language":"auto"}}"#);
     /// ```
-    pub fn stream() -> Self {
+    pub fn stream_asr() -> Self {
         Request::Asr(AudioRequest::options_only())
+    }
+
+    /// [`Request::stream_asr`] 的旧名（保留兼容，请用 `stream_asr`）。
+    #[deprecated(
+        since = "0.4.0",
+        note = "请改用 `Request::stream_asr`（原名易被误用于 TTS 流式）"
+    )]
+    pub fn stream() -> Self {
+        Self::stream_asr()
     }
 
     /// 说话人分离请求：以音频输入构造。
@@ -347,7 +372,8 @@ impl Request {
 
     /// 设置一个选项键值（等价于 JSON `options` 里的一个字段）。
     ///
-    /// 对 [`Request::Json`] 无效（原始 JSON 不经序列化改动）。
+    /// **注意**：对 [`Request::Json`] 调用将被**静默忽略**（原始 JSON
+    /// 不经序列化改动）。如需给透传 JSON 加选项，请直接改 JSON 字符串。
     pub fn option<V: Into<Value>>(self, key: impl Into<String>, value: V) -> Self {
         let key = key.into();
         let value = value.into();
@@ -361,7 +387,7 @@ impl Request {
         }
     }
 
-    /// 批量设置选项。对 [`Request::Json`] 无效。
+    /// 批量设置选项。对 [`Request::Json`] 调用将被**静默忽略**（见 [`Request::option`]）。
     pub fn options<K, V>(self, opts: impl IntoIterator<Item = (K, V)>) -> Self
     where
         K: Into<String>,
@@ -381,7 +407,7 @@ impl Request {
         }
     }
 
-    /// 设置说话人参考音频（仅对 [`Request::Tts`] 有意义，其余变体忽略）。
+    /// 设置说话人参考音频（仅对 [`Request::Tts`] 有效，其余变体**静默忽略**）。
     pub fn reference(self, audio: impl Into<AudioInput>) -> Self {
         match self {
             Request::Tts(r) => Request::Tts(Box::new(r.reference(audio))),
@@ -389,7 +415,7 @@ impl Request {
         }
     }
 
-    /// 设置参考音频的文本转写（仅对 [`Request::Tts`] 有意义，其余变体忽略）。
+    /// 设置参考音频的文本转写（仅对 [`Request::Tts`] 有效，其余变体**静默忽略**）。
     pub fn reference_text(self, text: impl Into<String>) -> Self {
         match self {
             Request::Tts(r) => Request::Tts(Box::new(r.reference_text(text))),
@@ -397,7 +423,7 @@ impl Request {
         }
     }
 
-    /// 设置说话人参考 / 风格条件（仅对 [`Request::Tts`] 有意义，其余变体忽略）。
+    /// 设置说话人参考 / 风格条件（仅对 [`Request::Tts`] 有效，其余变体**静默忽略**）。
     pub fn voice(self, voice: VoiceCondition) -> Self {
         match self {
             Request::Tts(r) => Request::Tts(Box::new(r.voice(voice))),
@@ -405,7 +431,7 @@ impl Request {
         }
     }
 
-    /// 设置文本语言（仅对 [`Request::Tts`] 有意义，其余变体忽略）。
+    /// 设置文本语言（仅对 [`Request::Tts`] 有效，其余变体**静默忽略**）。
     pub fn language(self, language: impl Into<String>) -> Self {
         match self {
             Request::Tts(r) => Request::Tts(Box::new(r.language(language))),
@@ -527,8 +553,14 @@ fn serialize_voice(voice: &VoiceCondition) -> Value {
     }
 
     let mut voice_obj = serde_json::Map::new();
-    voice_obj.insert("speaker".into(), Value::Object(speaker));
-    voice_obj.insert("style".into(), Value::Object(style));
+    // 上游 `parse_task_request` 对缺失的 speaker/style 对象同样容忍（find
+    // 为空即跳过），故空对象直接省略，减少噪音。
+    if !speaker.is_empty() {
+        voice_obj.insert("speaker".into(), Value::Object(speaker));
+    }
+    if !style.is_empty() {
+        voice_obj.insert("style".into(), Value::Object(style));
+    }
     Value::Object(voice_obj)
 }
 
@@ -589,7 +621,7 @@ mod tests {
 
     #[test]
     fn stream_start_options_only() {
-        let req = Request::stream()
+        let req = Request::stream_asr()
             .option("language", "auto")
             .option("audio_chunk_seconds", 3.0);
         assert_eq!(
@@ -601,8 +633,19 @@ mod tests {
     #[test]
     fn stream_start_empty() {
         // 无音频、无选项的流式 start 请求等价于空对象。
-        let req = Request::stream();
+        let req = Request::stream_asr();
         assert_eq!(json(&req.to_json().unwrap()), json(r#"{}"#));
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn stream_deprecated_alias() {
+        // 旧名 stream() 与 stream_asr() 等价（保留兼容）。
+        let req = Request::stream().option("language", "auto");
+        assert_eq!(
+            json(&req.to_json().unwrap()),
+            json(r#"{"options":{"language":"auto"}}"#)
+        );
     }
 
     #[test]
@@ -689,12 +732,22 @@ mod tests {
     }
 
     #[test]
+    fn tts_voice_empty_style_omitted() {
+        // speaker/style 为空对象时直接省略（上游容忍缺失）。
+        let req = Request::tts("Hi").voice(VoiceCondition::default());
+        assert_eq!(
+            json(&req.to_json().unwrap()),
+            json(r#"{"text":"Hi","voice":{}}"#)
+        );
+    }
+
+    #[test]
     fn tts_voice_cached_id() {
         // 复用已缓存音色：仅传 cached_voice_id。
         let req = Request::tts("Hi").voice(VoiceCondition::cached("spk_abc"));
         assert_eq!(
             json(&req.to_json().unwrap()),
-            json(r#"{"text":"Hi","voice":{"speaker":{"cached_voice_id":"spk_abc"},"style":{}}}"#)
+            json(r#"{"text":"Hi","voice":{"speaker":{"cached_voice_id":"spk_abc"}}}"#)
         );
     }
 

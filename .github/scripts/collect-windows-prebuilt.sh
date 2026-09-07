@@ -16,7 +16,9 @@ mkdir -p "$ROOT/lib" "$ROOT/lib64" "$ROOT/bin"
 is_audio_lib_name() {
   local base="$1"
   case "$base" in
-    engine_runtime.lib|ggml*.lib|sentencepiece.lib|cjson_vendor.lib|yaml_vendor.lib) return 0 ;;
+    # 注意 sentencepiece 在 MSVC 下产物可能是 sentencepiece-static.lib，
+    # 必须收进包，否则消费端报 LNK1181（build.rs 按剥 -static 后缀链接）。
+    engine_runtime.lib|ggml*.lib|sentencepiece*.lib|cjson_vendor.lib|yaml_vendor.lib) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -51,6 +53,22 @@ if [[ "$COUNT" -lt 1 ]]; then
   echo "::error::No libraries collected"
   echo "::group::Debug: .lib files under target"
   find target -type f -name '*.lib' 2>/dev/null | head -50 || true
+  echo "::endgroup::"
+  exit 1
+fi
+
+# 关键归档断言：缺 engine_runtime / sentencepiece / ggml 任一，消费端必链接失败。
+# 这里失败比发一个坏包出去更容易定位（对应 build.rs 的 sentencepiece 警告）。
+missing=0
+for need in 'engine_runtime.lib' 'sentencepiece*.lib' 'ggml*.lib'; do
+  if ! compgen -G "$ROOT/lib/$need" > /dev/null; then
+    echo "::error::Missing key archive: $need"
+    missing=1
+  fi
+done
+if [[ "$missing" -ne 0 ]]; then
+  echo "::group::Debug: collected files"
+  find "$ROOT/lib" -type f 2>/dev/null || true
   echo "::endgroup::"
   exit 1
 fi

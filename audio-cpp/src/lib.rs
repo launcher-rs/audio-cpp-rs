@@ -45,9 +45,9 @@
 //! - [`Registry`]、[`Model`]、[`Session`] 各自持有 C 句柄并在 `Drop` 中释放；
 //! - `Model` 不管理 `Registry` 的生命周期：注册表应存活于所有派生模型的
 //!   使用期之内；
-//! - **`Session` 独立于 `Model` 存活**：上游会话持有权重/资产的共享所有权
-//!   （`shared_ptr`），会话创建后释放 `Model`（乃至 `Registry`）不影响其
-//!   继续工作。因此可以：
+//! - **`Session` 独立于 `Model` 存活**（已验证族）：上游会话持有权重/资产的共享所有权
+//!   （`shared_ptr`，如 silero_vad 与 spec_backed 系列），会话创建后释放 `Model`
+//!   （乃至 `Registry`）不影响其继续工作。因此可以：
 //!   ```no_run
 //!   use audio_cpp::{Backend, Registry, Request, RunMode, TaskKind};
 //!   // 会话创建后，model / registry 可被释放
@@ -61,6 +61,9 @@
 //!   let _ = session.run_offline(Request::asr("./sample.wav"))?;
 //!   # Ok::<(), audio_cpp::Error>(())
 //!   ```
+//!   注意这是各上游 loader 的实现选择而非类型系统保证：若未来某 loader
+//!   返回借用模型内存的会话，本签名无法在编译期拦截。升级上游 loader 时须
+//!   确认新会话自持资产（见 AGENTS.md 升级检查清单）。
 //! - 流式会话的事件回调要求 `Send` 闭包，回调可来自 C++ 侧线程。
 //!
 //! ## 便捷封装

@@ -60,7 +60,12 @@ impl Registry {
         ffi::check_rc(unsafe { audiocpp_registry_loaders_json(self.raw, &mut out) })?;
         let json = unsafe { ffi::take_string(out)? };
         let root: serde_json::Value = serde_json::from_str(&json)?;
-        Ok(serde_json::from_value(root["loaders"].clone())?)
+        let loaders = root.get("loaders").ok_or_else(|| {
+            Error::Other(format!(
+                "注册表 loaders JSON 缺少 `loaders` 顶层字段: {json}"
+            ))
+        })?;
+        serde_json::from_value(loaders.clone()).map_err(Error::from)
     }
 
     /// 枚举所有后端可用的计算设备。
@@ -80,6 +85,9 @@ impl Registry {
     /// 用于加载前的预检：返回 `false` 说明该族未启（需对应 `model-*` feature
     /// 或 `full-models` 重新编译），直接 `load` 会失败。
     ///
+    /// 注意：`false` 同时涵盖“内部出错”（此时详情见 C 侧 `last_error`，但本
+    /// 签名无法传出）；需区分时请用 [`Registry::try_supports_family`]。
+    ///
     /// # Examples
     ///
     /// ```no_run
@@ -90,12 +98,26 @@ impl Registry {
     /// assert!(!registry.supports_family("definitely_not_a_family"));
     /// ```
     pub fn supports_family(&self, family: &str) -> bool {
-        let Ok(family_c) = ffi::cstring(family) else {
-            return false;
+        self.try_supports_family(family).unwrap_or(false)
+    }
+
+    /// 与 [`Registry::supports_family`] 同义，但区分“不支持”与“出错”。
+    ///
+    /// C ABI 在传参非法或内部异常时返回 `-1`（`supports_family` 把它折成
+    /// `false`）；本方法此时返回 `Err` 并携带 `last_error` 文本。
+    ///
+    /// # Errors
+    ///
+    /// 字符串含 NUL，或 C ABI 内部出错时返回对应 [`Error`] 变体。
+    pub fn try_supports_family(&self, family: &str) -> Result<bool, Error> {
+        let family_c = ffi::cstring(family)?;
+        let rc = unsafe {
+            audiocpp_registry_supports_family(self.raw, family_c.as_ptr() as *const c_char)
         };
-        unsafe {
-            audiocpp_registry_supports_family(self.raw, family_c.as_ptr() as *const c_char) != 0
+        if rc < 0 {
+            return Err(Error::Ffi(ffi::last_error()));
         }
+        Ok(rc != 0)
     }
 
     /// 预检模型文件：无需真正加载即可获得 metadata / capabilities / 支持的

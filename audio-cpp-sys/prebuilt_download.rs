@@ -2,19 +2,22 @@
 //!
 //! 资产由 CI（.github/workflows/prebuilt-audio-cpp.yml）在打 tag 时生成并上传到
 //! GitHub Releases，命名约定：
-//! `audio-cpp-prebuilt-{linux|macos|windows}-{target}-{backend}[-{crt}]-{modelset}-{static|dynamic}.tar.gz`
+//! `audio-cpp-prebuilt-{os}-{target}-{backend}[-{crt}]-{modelset}-static-{commit}.tar.gz`
 //! 其中：
 //!   - `backend`：cpu / vulkan / metal（cuda / hip 暂不发布预编译）；
+//!     macOS 默认构建即 Metal（与 build.rs 的 `metal_on` 同口径），故 mac 只有 metal 资产；
+//!   - `commit`：本地 audio.cpp submodule 完整 SHA 的前 12 位（精确寻址，见 `local_audio_commit`）；
 //!   - `crt`：**仅 Windows**。`md`（动态 CRT，默认）/ `mt`（静态 CRT，
 //!     crt-static）。其他平台无此段；
 //!   - `modelset`：core / full / custom-<族1>-<族2>...（与 feature 组合对应）。
+//!   - 实际只发布 static 归档（`use_shared_libs` 的 dynamic 分支保留接口，未使用）。
 //!
 //! 身份校验：归档内的 `metadata.json` 记录 `audio_commit`（打包时 audio.cpp
 //! submodule 的 HEAD）。消费端比对本地 submodule HEAD，不符则视为不可用并回落
 //! 源码构建（与 llama-cpp-rs 对 patches 的 fail-closed 同理）。
 //!
 //! 环境变量（均可在 build.rs 侧通过 rerun-if-env-changed 触发重新构建）：
-//!   - `AUDIOCPP_PREBUILT_OFF`：非空真值（1/true/on）禁用自动下载，直接源码构建；
+//!   - `AUDIOCPP_PREBUILT_OFF`：真值（1/true/yes/on，大小写不敏感）禁用自动下载，直接源码构建；
 //!   - `AUDIOCPP_PREBUILT_DIR`：显式本地目录，优先级高于自动下载（见 build.rs）；
 //!   - `AUDIOCPP_PREBUILT_TAG`：GitHub Release tag，默认 `v{version}`；
 //!   - `AUDIOCPP_PREBUILT_REPO`：GitHub 仓库，默认 `launcher-rs/audio-cpp-rs`；
@@ -39,10 +42,10 @@ const DEFAULT_REPO: &str = "launcher-rs/audio-cpp-rs";
 /// 由 `metadata.json` 校验）。
 pub fn asset_name(target: &str, use_shared_libs: bool, commit: &str) -> Option<String> {
     let os = platform_os(target)?;
-    let backend = backend_suffix()?;
+    let backend = backend_suffix(target)?;
     let modelset = modelset_suffix()?;
     let library_type = if use_shared_libs { "dynamic" } else { "static" };
-    let crt = crt_suffix();
+    let crt = crt_suffix(target);
     Some(asset_name_of(
         &os,
         target,
@@ -102,7 +105,7 @@ fn fetch_prebuilt(
         .map(|s| s.to_string())
         .or_else(modelset_suffix)?;
     let os = platform_os(target)?;
-    let backend = backend_suffix()?;
+    let backend = backend_suffix(target)?;
     let library_type = if use_shared_libs { "dynamic" } else { "static" };
     let asset = asset_name_of(
         &os,
@@ -110,16 +113,22 @@ fn fetch_prebuilt(
         &backend,
         &modelset,
         &library_type,
-        crt_suffix().as_deref(),
+        crt_suffix(target).as_deref(),
         commit,
     );
     let tag = release_tag();
-    let cache_root = cache_root()?;
+    let cache_root = cache_root().or_else(|| {
+        // 非标准 target 目录布局时无法定位缓存：明示原因而非静默回落。
+        println!(
+            "cargo:warning=无法定位预编译缓存目录（OUT_DIR/PROFILE 布局非标准），跳过预编译下载"
+        );
+        None
+    })?;
     let extract_dir = cache_root
         .join(tag.trim_start_matches('v'))
         .join(asset.strip_suffix(".tar.gz").unwrap_or(&asset));
 
-    if is_valid_prebuilt_root(&extract_dir) && identity_matches(&extract_dir) {
+    if is_valid_prebuilt_root(&extract_dir) && identity_matches(&extract_dir, target) {
         println!(
             "cargo:warning=使用缓存中的 audio.cpp 预编译库：{}",
             extract_dir.display()
@@ -134,7 +143,7 @@ fn fetch_prebuilt(
         Ok(()) if is_valid_prebuilt_root(&extract_dir) => {
             // 身份校验：归档内的 audio.cpp commit 须与本地 submodule 一致，
             // 否则 ABI 可能与当前 bindgen 生成的绑定不符，回落到源码构建。
-            if !identity_matches(&extract_dir) {
+            if !identity_matches(&extract_dir, target) {
                 println!(
                     "cargo:warning=预编译归档的 audio.cpp commit 与本地 submodule 不符，回落到源码构建"
                 );
@@ -196,8 +205,11 @@ pub fn ensure_prebuilt(target: &str, use_shared_libs: bool) -> Option<PathBuf> {
 
 fn is_disabled() -> bool {
     matches!(
-        env::var("AUDIOCPP_PREBUILT_OFF").as_deref(),
-        Ok("1") | Ok("true") | Ok("TRUE") | Ok("on") | Ok("ON")
+        env::var("AUDIOCPP_PREBUILT_OFF")
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str(),
+        "1" | "true" | "yes" | "on"
     )
 }
 
@@ -221,6 +233,14 @@ fn github_repo() -> String {
 /// GitHub Releases。`file://` 前缀表示本地归档，交给下载层按文件复制处理。
 fn download_url(tag: &str, asset: &str) -> String {
     if let Ok(template) = env::var("AUDIOCPP_PREBUILT_URL") {
+        if !template.contains("{tag}") && !template.contains("{asset}") {
+            // 无占位符的完整地址：tag/asset 全部被忽略，多配置会共用同一
+            // URL 与同一缓存键，易互相误导，明确提示。
+            println!(
+                "cargo:warning=AUDIOCPP_PREBUILT_URL 不含 {{tag}}/{{asset}} 占位符，\
+                 tag={tag} asset={asset} 均被忽略，共用固定地址"
+            );
+        }
         return template.replace("{tag}", tag).replace("{asset}", asset);
     }
     format!(
@@ -259,12 +279,15 @@ fn platform_os(target: &str) -> Option<&'static str> {
 }
 
 /// 把启用的计算后端 feature 映射为 CI 资产名里的 backend 后缀。
-fn backend_suffix() -> Option<String> {
+///
+/// 口径与 build.rs 的 `metal_on` 一致：显式 `metal` feature，或 Apple
+/// target（macOS 默认即 Metal 构建，CI 也只发布 macos-metal 资产）。
+fn backend_suffix(target: &str) -> Option<String> {
     if cfg!(feature = "cuda") || cfg!(feature = "hip") {
         // 尚无这些后端的预编译资产（仍需本地 SDK 链接，收益有限）。
         return None;
     }
-    if cfg!(feature = "metal") {
+    if cfg!(feature = "metal") || target.contains("apple") {
         return Some("metal".to_string());
     }
     if cfg!(feature = "vulkan") {
@@ -278,8 +301,9 @@ fn backend_suffix() -> Option<String> {
 /// 预编译资产区分 CRT 运行时库：`crt-static`（`-C target-feature=+crt-static`）
 /// 开启时 Rust/cc 侧用 `/MT`，须下载 `-mt` 资产；否则 `/MD` 用 `-md` 资产。
 /// 仅 Windows 有此维度，其余平台返回 `None`（资产名不含 crt 段）。
-fn crt_suffix() -> Option<String> {
-    if std::env::consts::OS != "windows" {
+/// 注意按 target（而非宿主 OS）判断，否则交叉编译时资产名对不上。
+fn crt_suffix(target: &str) -> Option<String> {
+    if !target.contains("windows") {
         return None;
     }
     let static_crt = env::var("CARGO_CFG_TARGET_FEATURE")
@@ -328,18 +352,21 @@ fn modelset_suffix() -> Option<String> {
 }
 
 /// 校验归档内的 `metadata.json.audio_commit` 与本地 submodule HEAD 一致。
-fn identity_matches(root: &Path) -> bool {
+///
+/// fail-closed：任一侧 commit 取不到、无 metadata、读失败或解析失败都返回
+/// false（回落源码构建），损坏的缓存不会被信任链接。另校验 `msvc_ver`。
+fn identity_matches(root: &Path, target: &str) -> bool {
     let local_commit = local_audio_commit();
     let metadata_path = root.join("metadata.json");
     if local_commit.is_none() || !metadata_path.is_file() {
-        // 无法取得任一侧 commit 时不做强校验（保守放行）。
-        return true;
+        // 任一侧 commit 缺失：无法证明等价，不放行。
+        return false;
     }
     let Ok(text) = fs::read_to_string(&metadata_path) else {
-        return true;
+        return false;
     };
     let Ok(json) = serde_json::from_str::<Value>(&text) else {
-        return true;
+        return false;
     };
     match json.get("audio_commit").and_then(|v| v.as_str()) {
         Some(recorded) => {
@@ -347,11 +374,16 @@ fn identity_matches(root: &Path) -> bool {
                 return false;
             }
         }
-        None => {}
+        // 无 audio_commit 记录：无法证明等价，不放行。
+        None => return false,
     }
     // MSVC 静态库与工具集版本强绑定：新版编译器编译的库无法被旧版链接器
     // 使用（STL/CRT 内部符号如 __std_unique_8 随版本新增）。归档记录了生产者
     // 的 _MSC_VER（如 1944），本地 MSVC 版本不足则不可用，回落到源码构建。
+    // 非 Windows target 直接跳过本项。
+    if !target.contains("windows") {
+        return true;
+    }
     if let Some(recorded_msvc) = json.get("msvc_ver").and_then(|v| v.as_i64()) {
         if recorded_msvc > 0 {
             if let Some(local_msvc) = local_msvc_ver() {
@@ -495,6 +527,8 @@ fn is_audio_lib_name(name: &str) -> bool {
         .split('.')
         .next()
         .unwrap_or(name);
+    // 归档里可能是 sentencepiece-static.lib 形态，去掉 -static 后缀再比对。
+    let base = base.strip_suffix("-static").unwrap_or(base);
     matches!(
         base,
         "engine_runtime"
@@ -530,8 +564,19 @@ fn download_file(url: &str, dest: &Path) -> Result<(), String> {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     if let Some(local) = url.strip_prefix("file://") {
-        // 本地归档：直接复制，绕开网络。
-        let src = PathBuf::from(local);
+        // 本地归档：直接复制，绕开网络。Windows 下 file:///C:/... 会剩前导
+        // `/`，遇到盘符路径（X:/...）时剥掉它。
+        let src = match local.strip_prefix('/') {
+            Some(stripped) => {
+                let mut c = stripped.chars();
+                if matches!(c.next(), Some(d) if d.is_ascii_alphabetic()) && c.next() == Some(':') {
+                    PathBuf::from(stripped)
+                } else {
+                    PathBuf::from(local)
+                }
+            }
+            None => PathBuf::from(local),
+        };
         if !src.is_file() {
             return Err(format!("本地归档不存在：{}", src.display()));
         }
@@ -567,7 +612,14 @@ fn download_with_retry(url: &str, partial: &Path) -> Result<(), String> {
 }
 
 /// 判断下载错误是否不可重试：HTTP 4xx（除 429 限流外）为确定性失败。
+///
+/// 判定依据是 `try_download` 打上的 `[non-retryable]` 标记（直接取自
+/// ureq 的状态码，不依赖错误文本格式）；旧格式的 "status code NNN" 串
+/// 仍兼容解析。
 fn is_non_retryable(err: &str) -> bool {
+    if err.contains("[non-retryable]") {
+        return true;
+    }
     // 错误串形如 "HTTP GET {url}: https://...: status code 404"。
     if let Some(pos) = err.rfind("status code ") {
         if let Some(code) = err[pos + "status code ".len()..].split_whitespace().next() {
@@ -580,9 +632,19 @@ fn is_non_retryable(err: &str) -> bool {
 }
 
 fn try_download(url: &str, partial: &Path) -> Result<(), String> {
-    let response = ureq::get(url)
-        .call()
-        .map_err(|e| format!("HTTP GET {url}: {e}"))?;
+    // 超时：网络挂起时不能无限卡住构建（连接/读取整体 60 秒）。
+    let result = ureq::get(url)
+        .timeout(std::time::Duration::from_secs(60))
+        .call();
+    let response = match result {
+        Ok(resp) => resp,
+        // ureq 2.x 对 HTTP 错误状态直接返回 Err(Status)：4xx（除限流）
+        // 是确定性失败，打标记免重试；其他错误走重试。
+        Err(ureq::Error::Status(code, _)) if (400..500).contains(&code) && code != 429 => {
+            return Err(format!("HTTP {code} for {url} [non-retryable]"));
+        }
+        Err(e) => return Err(format!("HTTP GET {url}: {e}")),
+    };
     if !(200..300).contains(&response.status()) {
         return Err(format!("HTTP {} for {url}", response.status()));
     }
