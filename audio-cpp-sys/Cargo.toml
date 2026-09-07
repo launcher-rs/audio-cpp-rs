@@ -104,6 +104,12 @@ model-audio8-asr = ["custom-models"]            # Audio8 ASR（社区模型）
 model-audio8-tts = ["custom-models"]            # Audio8 TTS（社区模型）
 model-midashenglm-gen = ["custom-models"]      # 生成式音频：MIdashengLM
 model-chatterbox-turbo = ["custom-models"]  # TTS：Chatterbox Turbo（快速推理变体）
+model-sanotts = ["custom-models"]            # TTS：sanoTTS（社区模型，en/vi/id）
+model-sopro-tts = ["custom-models"]          # TTS：Sopro V2 Turbo
+model-mira-tts = ["custom-models"]           # TTS：MiraTTS（社区模型）
+model-cosyvoice3 = ["custom-models"]         # TTS：CosyVoice3
+model-breeze-tts = ["custom-models"]         # TTS：BreezeTTS
+model-vibeasr = ["custom-models"]            # ASR：VibeASR（社区 INT8/ternary）
 
 # ------------------------------------------------------------------------
 # 计算后端 feature（可叠加，映射 engine 的 ENGINE_ENABLE_*_CPU 选项）。

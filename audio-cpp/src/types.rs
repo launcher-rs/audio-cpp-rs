@@ -129,6 +129,8 @@ pub enum ModelFamily {
     Audio8Asr,
     /// Audio8 TTS（社区 TTS 模型）
     Audio8Tts,
+    /// VibeASR（社区 INT8/ternary ASR）
+    Vibeasr,
 
     // ---- TTS ----
     /// Qwen3 TTS
@@ -171,6 +173,16 @@ pub enum ModelFamily {
     Personaplex,
     /// MiniMax H3
     MinimaxH3,
+    /// SanoTTS（社区 TTS，en/vi/id 共 7 个声音）
+    Sanotts,
+    /// Sopro V2 Turbo TTS
+    SoproTts,
+    /// MiraTTS（社区 TTS）
+    MiraTts,
+    /// CosyVoice3 TTS
+    Cosyvoice3,
+    /// BreezeTTS
+    BreezeTts,
     /// Soprano TTS
     SopranoTts,
     /// Echo TTS
@@ -358,6 +370,24 @@ impl ModelFamily {
             ("echo", ModelFamily::EchoTts),
             ("voxcpm1", ModelFamily::Voxcpm1),
             ("voxcpm-1", ModelFamily::Voxcpm1),
+            ("sanotts", ModelFamily::Sanotts),
+            ("sano-tts", ModelFamily::Sanotts),
+            ("sano_tts", ModelFamily::Sanotts),
+            ("sopro_tts", ModelFamily::SoproTts),
+            ("sopro-tts", ModelFamily::SoproTts),
+            ("sopro", ModelFamily::SoproTts),
+            ("mira_tts", ModelFamily::MiraTts),
+            ("mira-tts", ModelFamily::MiraTts),
+            ("miratts", ModelFamily::MiraTts),
+            ("mira", ModelFamily::MiraTts),
+            ("cosyvoice3", ModelFamily::Cosyvoice3),
+            ("cosyvoice-3", ModelFamily::Cosyvoice3),
+            ("cosyvoice", ModelFamily::Cosyvoice3),
+            ("breeze_tts", ModelFamily::BreezeTts),
+            ("breeze-tts", ModelFamily::BreezeTts),
+            ("breeze", ModelFamily::BreezeTts),
+            ("vibeasr", ModelFamily::Vibeasr),
+            ("vibe-asr", ModelFamily::Vibeasr),
             ("minimax_h3", ModelFamily::MinimaxH3),
             ("minimax-h3", ModelFamily::MinimaxH3),
             ("sortformer-diar", ModelFamily::SortformerDiar),
@@ -433,6 +463,7 @@ impl ModelFamily {
             ModelFamily::Granite5Asr => "granite5asr",
             ModelFamily::Audio8Asr => "audio8_asr",
             ModelFamily::Audio8Tts => "audio8_tts",
+            ModelFamily::Vibeasr => "vibeasr",
             ModelFamily::Qwen3Tts => "qwen3_tts",
             ModelFamily::Confucius4Tts => "confucius4_tts",
             ModelFamily::DotsTts => "dots_tts",
@@ -456,6 +487,11 @@ impl ModelFamily {
             ModelFamily::EchoTts => "echo_tts",
             ModelFamily::Voxcpm1 => "voxcpm1",
             ModelFamily::MinimaxH3 => "minimax_h3",
+            ModelFamily::Sanotts => "sanotts",
+            ModelFamily::SoproTts => "sopro_tts",
+            ModelFamily::MiraTts => "mira_tts",
+            ModelFamily::Cosyvoice3 => "cosyvoice3",
+            ModelFamily::BreezeTts => "breeze_tts",
             ModelFamily::SortformerDiar => "sortformer_diar",
             ModelFamily::SeedVc => "seed_vc",
             ModelFamily::Rvc => "rvc",
@@ -514,6 +550,7 @@ impl From<&str> for ModelFamily {
             "audio8_asr" => ModelFamily::Audio8Asr,
             "arkasr" => ModelFamily::Audio8Asr,
             "audio8_tts" => ModelFamily::Audio8Tts,
+            "vibeasr" => ModelFamily::Vibeasr,
             "qwen3_tts" => ModelFamily::Qwen3Tts,
             "confucius4_tts" => ModelFamily::Confucius4Tts,
             "dots_tts" => ModelFamily::DotsTts,
@@ -537,6 +574,16 @@ impl From<&str> for ModelFamily {
             "echo_tts" => ModelFamily::EchoTts,
             "voxcpm1" => ModelFamily::Voxcpm1,
             "minimax_h3" => ModelFamily::MinimaxH3,
+            "sanotts" => ModelFamily::Sanotts,
+            "sopro_tts" => ModelFamily::SoproTts,
+            "sopro" => ModelFamily::SoproTts,
+            "sopro_v2" => ModelFamily::SoproTts,
+            "sopro_v2_turbo" => ModelFamily::SoproTts,
+            "mira_tts" => ModelFamily::MiraTts,
+            "mira" => ModelFamily::MiraTts,
+            "MiraTTS" => ModelFamily::MiraTts,
+            "cosyvoice3" => ModelFamily::Cosyvoice3,
+            "breeze_tts" => ModelFamily::BreezeTts,
             "sortformer_diar" => ModelFamily::SortformerDiar,
             "seed_vc" => ModelFamily::SeedVc,
             "rvc" => ModelFamily::Rvc,
@@ -957,6 +1004,7 @@ mod tests {
             Granite5Asr,
             Audio8Asr,
             Audio8Tts,
+            Vibeasr,
             // TTS
             Qwen3Tts,
             Confucius4Tts,
@@ -981,6 +1029,11 @@ mod tests {
             EchoTts,
             Voxcpm1,
             MinimaxH3,
+            Sanotts,
+            SoproTts,
+            MiraTts,
+            Cosyvoice3,
+            BreezeTts,
             // 分离 / 转换 / 音乐
             SortformerDiar,
             SeedVc,

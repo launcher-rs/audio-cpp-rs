@@ -104,9 +104,37 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `2269821`（origin/main；从
-  `3497b7c` 快进，`cargo build --workspace` +
-  `cargo test -p audio-cpp --lib`（23 项）+ 带 `model-chatterbox-turbo` 的 custom-models 构建在 win32/MSVC 已验证通过）。历史升级记录见下方逐条。
+- 当前 submodule HEAD = `f6277c1`（origin/main；从
+  `2269821` 快进，`cargo fmt --check` + `cargo build --workspace` +
+  `cargo test -p audio-cpp --lib`（23 项）在 win32/MSVC 已验证通过）。历史升级记录见下方逐条。
+- **升级 `2269821`→`f6277c1`（main）审查结论**：
+  - diff 共 214 文件（+33.9k/-1k，34 个提交），涉及 6 个新 loader 族 +
+    PocketTTS 流式 + server 转录详情端点 + ggml INT8/ternary（VibeASR）：
+    `audio.cpp/CMakeLists.txt` 新增 `make_sanotts_loader`（sanoTTS 社区 TTS，
+    7 声音 en/vi/id）/ `make_sopro_tts_loader`（Sopro V2 Turbo TTS，离线+流式）
+    / `make_mira_tts_loader`（MiraTTS 社区 TTS）/ `make_cosyvoice3_loader`
+    / `make_breeze_tts_loader`（BreezeTTS，含 voice design）/
+    `make_vibeasr_loader`（VibeASR 社区 INT8/ternary ASR）。上游 loader 清单共 72 个。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 5 个头（`framework/core/backend.h` /
+    `framework/io/json.h` / `framework/runtime/{model,registry,session}.h`）本次
+    diff **零改动**（framework 下仅新增内部 `core/attention_fallback.h`）。
+    `capi.h` / `capi.cpp` / build.rs bindgen allowlist 保持原样。
+  - 无新 task 类型 / 输出字段：新模型均用既有 `tts` / `asr`（breeze 另用既有
+    `clon` / `vdes`）；server 新增 `/v1/audio/transcriptions/details` 只是把
+    既有 segments/speaker_turns/words 字段复用到新 HTTP 端点，`dump_task_result`
+    早已导出这些字段；PocketTTS 新增流式走既有流式 ABI。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 6 个枚举变体
+    `Sanotts` / `SoproTts` / `MiraTts` / `Cosyvoice3` / `BreezeTts` /
+    `Vibeasr`（`as_str()` → `sanotts` / `sopro_tts` / `mira_tts` /
+    `cosyvoice3` / `breeze_tts` / `vibeasr`，与上游 loader 族名一致）+
+    `from_path()` 关键词表 + `From<&str>`（含上游别名 `sopro` /
+    `sopro_v2` / `sopro_v2_turbo` / `mira` / `MiraTTS`）；并在
+    `audio-cpp-sys/Cargo.toml` 与 `audio-cpp/Cargo.toml` 新增
+    `model-sanotts` / `model-sopro-tts` / `model-mira-tts` /
+    `model-cosyvoice3` / `model-breeze-tts` / `model-vibeasr` 六个
+    `model-*` feature（build.rs 按 `model-<target>` 约定自动映射 CMake
+    target，无需改 build.rs）。`model_family_roundtrip` 等测试已覆盖新变体
+    （23 项全过）。
 - **升级 `3497b7c`→`2269821`（main）审查结论**：
   - diff 共 45 文件（+3.7k/-84），涉及 1 个新 loader 族 + Chatterbox Turbo TTS
     社区模型 + Qwen3 ASR 标点输出 + Fish Audio HIP Fast-AR + alignment 端点：
