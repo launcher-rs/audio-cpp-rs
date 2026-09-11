@@ -158,6 +158,9 @@ pub enum ModelFamily {
     ParakeetTdt,
     /// Vibevoice ASR
     VibevoiceAsr,
+    /// VibeVoice ASR 流式 7B（离线+流式；与 VibevoiceAsr 同属
+    /// `vibevoice_asr` CMake target，用 `model-vibevoice-asr` feature 编译）
+    VibevoiceAsrStreaming,
     /// FireRed Audio（语音理解 / 生成，含 Qwen3.5 运行时）
     FireredAudio,
     /// Granite 5 ASR（IBM Granite Speech 5.0 470M TurboCTC ASR，社区模型）
@@ -230,6 +233,9 @@ pub enum ModelFamily {
     // ---- 说话人分离 / 语音转换 / 音乐生成 ----
     /// SortFormer 说话人分离（Diar）
     SortformerDiar,
+    /// SortFormer v2.1 说话人分离（离线+流式，社区模型；
+    /// CMake target `sortformer_diar_v2`，用 `model-sortformer-diar-v2` feature 编译）
+    SortformerDiarV2,
     /// Seed VC（语音转换）
     SeedVc,
     /// RVC（语音转换）
@@ -357,6 +363,14 @@ impl ModelFamily {
             ("kroko", ModelFamily::KrokoAsr),
             ("nemotron", ModelFamily::NemotronAsr),
             ("parakeet", ModelFamily::ParakeetTdt),
+            (
+                "vibevoice_asr_streaming",
+                ModelFamily::VibevoiceAsrStreaming,
+            ),
+            (
+                "vibevoice-asr-streaming",
+                ModelFamily::VibevoiceAsrStreaming,
+            ),
             ("vibevoice_asr", ModelFamily::VibevoiceAsr),
             ("firered_audio", ModelFamily::FireredAudio),
             ("firered-audio", ModelFamily::FireredAudio),
@@ -429,8 +443,10 @@ impl ModelFamily {
             ("vibe-asr", ModelFamily::Vibeasr),
             ("minimax_h3", ModelFamily::MinimaxH3),
             ("minimax-h3", ModelFamily::MinimaxH3),
-            ("sortformer-diar", ModelFamily::SortformerDiar),
+            ("sortformer_diar_v2", ModelFamily::SortformerDiarV2),
+            ("sortformer-diar-v2", ModelFamily::SortformerDiarV2),
             ("sortformer_diar", ModelFamily::SortformerDiar),
+            ("sortformer-diar", ModelFamily::SortformerDiar),
             ("sortformer", ModelFamily::SortformerDiar),
             ("seed_vc", ModelFamily::SeedVc),
             ("seed-vc", ModelFamily::SeedVc),
@@ -497,6 +513,7 @@ impl ModelFamily {
             ModelFamily::NemotronAsr => "nemotron_asr",
             ModelFamily::ParakeetTdt => "parakeet_tdt",
             ModelFamily::VibevoiceAsr => "vibevoice_asr",
+            ModelFamily::VibevoiceAsrStreaming => "vibevoice_asr_streaming",
             ModelFamily::FireredAudio => "firered_audio",
             ModelFamily::Granite5Asr => "granite5asr",
             ModelFamily::Audio8Asr => "audio8_asr",
@@ -531,6 +548,7 @@ impl ModelFamily {
             ModelFamily::Cosyvoice3 => "cosyvoice3",
             ModelFamily::BreezeTts => "breeze_tts",
             ModelFamily::SortformerDiar => "sortformer_diar",
+            ModelFamily::SortformerDiarV2 => "sortformer_diar_v2",
             ModelFamily::SeedVc => "seed_vc",
             ModelFamily::Rvc => "rvc",
             ModelFamily::Meanvc2 => "meanvc2",
@@ -580,6 +598,7 @@ impl From<&str> for ModelFamily {
             "nemotron_asr" => ModelFamily::NemotronAsr,
             "parakeet_tdt" => ModelFamily::ParakeetTdt,
             "vibevoice_asr" => ModelFamily::VibevoiceAsr,
+            "vibevoice_asr_streaming" => ModelFamily::VibevoiceAsrStreaming,
             "firered_audio" => ModelFamily::FireredAudio,
             "granite5asr" => ModelFamily::Granite5Asr,
             "granite_speech5_asr" => ModelFamily::Granite5Asr,
@@ -624,6 +643,7 @@ impl From<&str> for ModelFamily {
             "cosyvoice3" => ModelFamily::Cosyvoice3,
             "breeze_tts" => ModelFamily::BreezeTts,
             "sortformer_diar" => ModelFamily::SortformerDiar,
+            "sortformer_diar_v2" => ModelFamily::SortformerDiarV2,
             "seed_vc" => ModelFamily::SeedVc,
             "rvc" => ModelFamily::Rvc,
             "meanvc2" => ModelFamily::Meanvc2,
@@ -1040,6 +1060,7 @@ mod tests {
             NemotronAsr,
             ParakeetTdt,
             VibevoiceAsr,
+            VibevoiceAsrStreaming,
             FireredAudio,
             Granite5Asr,
             Audio8Asr,
@@ -1076,6 +1097,7 @@ mod tests {
             BreezeTts,
             // 分离 / 转换 / 音乐
             SortformerDiar,
+            SortformerDiarV2,
             SeedVc,
             Rvc,
             Meanvc2,
@@ -1181,6 +1203,15 @@ mod tests {
         assert_eq!(
             ModelFamily::from_path("htdemucs-6s-q8_0.gguf"),
             Some(ModelFamily::Htdemucs)
+        );
+        // 流式/新变体不被其前缀家族吞掉（子串匹配顺序）
+        assert_eq!(
+            ModelFamily::from_path("vibevoice-asr-streaming-7b-q8_0.gguf"),
+            Some(ModelFamily::VibevoiceAsrStreaming)
+        );
+        assert_eq!(
+            ModelFamily::from_path("sortformer-diar-v2-q8_0.gguf"),
+            Some(ModelFamily::SortformerDiarV2)
         );
         // 大小写不敏感
         assert_eq!(

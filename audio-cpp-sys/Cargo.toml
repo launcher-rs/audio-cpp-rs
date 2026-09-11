@@ -87,6 +87,7 @@ model-fish-audio = ["custom-models"]     # TTS/Voice：Fish Speech/Cloning
 model-demucs = ["custom-models"]          # 音频分离：Demucs 源分离（alias htdemucs）
 model-roformer = ["custom-models"]        # 音频分离：Mel-Band RoFormer 源分离（alias mel_band_roformer）
 model-sortformer-diar = ["custom-models"] # 说话人分离：SortFormer Diar 4spk
+model-sortformer-diar-v2 = ["custom-models"] # 说话人分离：SortFormer v2.1（离线+流式，社区模型）
 model-minimax-music3 = ["custom-models"]  # 音乐生成：MiniMax Music3（预览）
 model-soprano-tts = ["custom-models"]      # TTS：Soprano TTS
 model-echo-tts = ["custom-models"]         # TTS：Echo TTS

@@ -111,9 +111,57 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `f6277c1`（origin/main；从
-  `2269821` 快进，`cargo fmt --check` + `cargo build --workspace` +
-  `cargo test -p audio-cpp --lib`（23 项）在 win32/MSVC 已验证通过）。历史升级记录见下方逐条。
+- 当前 submodule HEAD = `78d4770`（origin/main；从
+  `f6277c1` 快进，待本次升级验证结论写入）。历史升级记录见下方逐条。
+- **升级 `f6277c1`→`78d4770`（main）审查结论**：
+  - diff 共 136 文件（+10.8k/-0.8k，26 个提交）：新增 1 个 CMake target
+    `sortformer_diar_v2`（族 `sortformer_diar_v2`，Sortformer v2.1 流式说话人分离，
+    离线+流式）+ `vibevoice_asr` target 新增第二 loader
+    `make_vibevoice_asr_streaming_loader`（族 `vibevoice_asr_streaming`，
+    VibeVoice ASR Streaming 7B，离线+流式）；其余为 sanotts 增声/mira 加速/
+    BreezeTTS 流式收紧/VeVo2 音频分块/VoxCPM2 无状态分块策略/Fish HIP fast-sampler
+    改独立 HIP target/GTCRN 降噪工具/eSpeak-ng 共享音素器/server 分块传输体解析等内部改进。
+    上游 model target 共 71 个（+1）。
+  - **C ABI 边界无需改动**：`framework/runtime/*`、`framework/io/json.h`、
+    `framework/core/backend.h` 本次 diff **零改动**（framework 下仅新增
+    `audio/{espeak_phonemizer,espeak_data,gtcrn}.{h,cpp}` 内部工具 +
+    `utility_api.cpp` 的 GTCRN 降噪模型分发（字符串透传，无 ABI 影响））。
+    `capi.h` / `capi.cpp` / build.rs bindgen allowlist 保持原样。
+  - 无新 task 类型 / 输出字段：两新族均用既有 `diar` / `asr`（及既有流式 ABI）；
+    高层 `types.rs` serde 结构无需改。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 2 个枚举变体
+    `SortformerDiarV2`（`as_str()` → `"sortformer_diar_v2"`）/
+    `VibevoiceAsrStreaming`（`as_str()` → `"vibevoice_asr_streaming"`）+
+    `from_path()` 关键词表（流式/新变体置于其前缀家族之前，避免子串误判）+
+    `From<&str>`；并在 `audio-cpp-sys/Cargo.toml` 与 `audio-cpp/Cargo.toml`
+    新增 `model-sortformer-diar-v2` feature（build.rs 自动映射 CMake target）。
+    注意：`vibevoice_asr_streaming` **不**是独立 CMake target/alias（与
+    `vibevoice_asr` 同 target），故**不**新增 `model-vibevoice-asr-streaming`
+    feature——用既有 `model-vibevoice-asr` 即可编入其 loader（否则 CMake 报
+    Unknown AUDIOCPP_MODELS entry），枚举变体文档已注明。
+  - 验证：`cargo fmt --check` + `cargo build --workspace`（build.rs 跟踪
+    submodule HEAD 正常触发 CMake 重编，`engine_runtime` 链接通过）+
+    `cargo test --workspace`（26 lib + 9 doc 全过）+ `clippy --workspace
+    --all-targets` 零警告。新增 `audio-cpp/examples/asr_streaming_vibevoice.rs`
+   （仿 `asr_streaming`，`model-vibevoice-asr` feature，0.25s 分块偏好 + start
+    带 `audio_path` 建契约 + `language` 选项；编译 + clippy 通过，无本地权重，
+    端到端待补）。`sortformer_diar_v2` 暂无示例（无公开 GGUF，需本地转 `.nemo`）。
+  - 全面复核（26 commit 逐项）确认无遗漏：`make_*_loader` 新增确为上述 2 个；
+    sanotts/mira/pocket/qwen/attention/flashsr 均无新选项键；Vevo2 音频分块
+    （`audio_chunk_duration_sec`/`cross_fade_duration_sec`）、VoxCPM2
+    `chunk_strategy=stateless`、BreezeTTS 流式（`stream_frames_per_event`/
+    `stream_lookahead_margin`，且 streaming 增量默认开）的新选项全部走通用
+    options 字符串透传，无需 Rust 改动；vibevoice `audio_chunk_seconds` 改名
+    框架侧保留旧键兼容（`chunking.cpp` 别名链），无破坏；eSpeak 共享化后默认
+    仍动态加载（`AUDIOCPP_STATIC_ESPEAK` 默认 OFF 且涉 GPL 静态链接义务，不启用）；
+    Fish HIP 独立 target 仅影响 HIP 构建（`emit_hip_links` 已覆盖运行时链接）。
+    新能力（需权重，均经既有 ABI 可达）：`sortformer_diar_v2` 离线+流式
+    diar（mono 16kHz，无公开 GGUF，需本地转 `.nemo`，NVIDIA 许可）/
+    `vibevoice_asr_streaming` 离线+流式 ASR（公开 GGUF
+    `audio-cpp/VibeVoice-ASR-Streaming-7B-GGUF`，流式偏好 0.25s 分块，
+    `prepare` 需 audio contract，无 timestamps 输出）/ `breeze_tts` 新增
+    streaming 模式。GTCRN 降噪仅 server/CLI 可达，capi 从未暴露 audio-utility
+    API（deepfilternet/rnnoise 同理），属既有缺口非本次回归，未来要暴露需新 C ABI。
 - **升级 `2269821`→`f6277c1`（main）审查结论**：
   - diff 共 214 文件（+33.9k/-1k，34 个提交），涉及 6 个新 loader 族 +
     PocketTTS 流式 + server 转录详情端点 + ggml INT8/ternary（VibeASR）：

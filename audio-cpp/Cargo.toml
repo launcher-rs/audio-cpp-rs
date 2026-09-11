@@ -61,6 +61,7 @@ model-fish-audio = ["audio-cpp-sys/model-fish-audio"]       # TTS/声音克隆�
 model-demucs = ["audio-cpp-sys/model-demucs"]               # 音频分离：Demucs
 model-roformer = ["audio-cpp-sys/model-roformer"]           # 音频分离：RoFormer
 model-sortformer-diar = ["audio-cpp-sys/model-sortformer-diar"] # 说话人分离：SortFormer
+model-sortformer-diar-v2 = ["audio-cpp-sys/model-sortformer-diar-v2"] # 说话人分离：SortFormer v2.1
 model-minimax-music3 = ["audio-cpp-sys/model-minimax-music3"]   # 音乐生成：MiniMax Music3
 model-soprano-tts = ["audio-cpp-sys/model-soprano-tts"]          # TTS：Soprano TTS
 model-echo-tts = ["audio-cpp-sys/model-echo-tts"]               # TTS：Echo TTS
