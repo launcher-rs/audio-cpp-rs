@@ -39,7 +39,7 @@ default = ["core-models"]
 prebuilt = ["audio-cpp-sys/prebuilt"]
 # 转发给 audio-cpp-sys 的模型组合 / 后端 feature。
 core-models = ["audio-cpp-sys/core-models"]   # 引擎核心 + 内置 VAD（默认，最小编译集）
-full-models = ["audio-cpp-sys/full-models"]   # 全量 72 个 loader 族（编译慢）
+full-models = ["audio-cpp-sys/full-models"]   # 全量 75 个 loader 族（编译慢）
 # 按需编译：可直接启用 `model-<族>` feature（推荐），或设置环境变量
 # `$env:AUDIOCPP_MODELS="qwen3_asr,citrinet_asr"` 后用本开关。
 # 示例：cargo run --features model-qwen3-asr
@@ -87,6 +87,10 @@ model-mira-tts = ["audio-cpp-sys/model-mira-tts"]            # TTS：MiraTTS（�
 model-cosyvoice3 = ["audio-cpp-sys/model-cosyvoice3"]        # TTS：CosyVoice3
 model-breeze-tts = ["audio-cpp-sys/model-breeze-tts"]        # TTS：BreezeTTS
 model-vibeasr = ["audio-cpp-sys/model-vibeasr"]              # ASR：VibeASR（社区模型）
+model-moonshine-asr = ["audio-cpp-sys/model-moonshine-asr"]  # ASR：Moonshine 流式 ASR（社区模型）
+model-niagara-asr = ["audio-cpp-sys/model-niagara-asr"]      # ASR：Niagara 批处理 ASR
+model-kokoro-tts = ["audio-cpp-sys/model-kokoro-tts"]        # TTS：Kokoro 82M
+model-builtin-audio-utils = ["audio-cpp-sys/model-builtin-audio-utils"]  # 音频工具：内置降噪/增强/超分
 cuda = ["audio-cpp-sys/cuda"]     # NVIDIA CUDA（需 CUDA Toolkit）
 hip = ["audio-cpp-sys/hip"]       # AMD HIP/ROCm（与 cuda 互斥）
 vulkan = ["audio-cpp-sys/vulkan"] # Vulkan 通用后端（需 Vulkan SDK）

@@ -35,11 +35,11 @@
 cargo add audio-cpp-sys
 ```
 
-或手工在 `Cargo.toml` 指定（当前版本 `0.4.0`）：
+或手工在 `Cargo.toml` 指定（当前版本 `0.5.0`）：
 
 ```toml
 [dependencies]
-audio-cpp-sys = "0.4.0"
+audio-cpp-sys = "0.5.0"
 ```
 
 构建默认的 `core-models`（引擎核心 + 内置 VAD）：
@@ -73,7 +73,7 @@ cargo build
 
 ```toml
     [dependencies]
-    audio-cpp-sys = { version = "0.4.0", features = ["prebuilt"] }
+    audio-cpp-sys = { version = "0.5.0", features = ["prebuilt"] }
     ```
 
 ```bash
@@ -131,8 +131,8 @@ commit 不符时白下整包。
 
 **版本与预编译的对应关系（长期可寻址）**：消费端查找的 Release tag 是它**自身依赖的
 crate 版本**（`AUDIOCPP_PREBUILT_TAG` 默认 `v{CARGO_PKG_VERSION}`），不是“最新发版”。
-因此 `audio-cpp-sys = "0.4.0"` 永远查 `v0.4.0`，将来发新版后 `0.4` 消费者仍从该旧
-Release 取预编译——只要旧 Release 不被删除，历史预编译长期可寻址（旧版 0.3.x
+因此 `audio-cpp-sys = "0.5.0"` 永远查 `v0.5.0`，将来发新版后 `0.5` 消费者仍从该旧
+Release 取预编译——只要旧 Release 不被删除，历史预编译长期可寻址（旧版 0.3.x / 0.4.x
 资产仍保留可寻址）。两层隔离保证 ABI
 安全：tag 隔离 crate 版本（`capi.h` 随版本走），资产名里的 commit 隔离 submodule 修订。
 跨版本不会混用，也不存在“全局 latest”覆盖旧资产的问题（`--clobber` 只覆盖同名资产）。

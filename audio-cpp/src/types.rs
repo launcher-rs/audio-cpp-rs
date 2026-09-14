@@ -171,6 +171,10 @@ pub enum ModelFamily {
     Audio8Tts,
     /// VibeASR（社区 INT8/ternary ASR）
     Vibeasr,
+    /// Moonshine ASR（社区流式 ASR，离线+流式）
+    MoonshineAsr,
+    /// Niagara ASR（ABR Niagara 英文批处理 ASR，仅离线）
+    NiagaraAsr,
 
     // ---- TTS ----
     /// Qwen3 TTS
@@ -229,6 +233,8 @@ pub enum ModelFamily {
     EchoTts,
     /// VoxCPM1 TTS
     Voxcpm1,
+    /// Kokoro TTS（Kokoro 82M 多语 TTS，仅离线）
+    KokoroTts,
 
     // ---- 说话人分离 / 语音转换 / 音乐生成 ----
     /// SortFormer 说话人分离（Diar）
@@ -274,6 +280,10 @@ pub enum ModelFamily {
     VoxtralRealtime,
     /// AudioSR（语音/音频超分辨率）
     Audiosr,
+    /// 内置音频工具（降噪/增强/超分：deepfilternet2、rnnoise、zipenhancer、
+    /// gtcrn 系列、flashsr；task 为 `s2s` 仅离线；加载时 `model_path`
+    /// 直接传工具 ID 字符串如 `"deepfilternet2"`，无需权重文件路径）
+    BuiltinAudioUtils,
     /// ControlFoley（可控电影音效生成）
     ControlFoley,
     /// MidoAudio / MIdashengLM 生成式音频
@@ -421,6 +431,9 @@ impl ModelFamily {
             ("echo_tts", ModelFamily::EchoTts),
             ("echo-tts", ModelFamily::EchoTts),
             ("echo", ModelFamily::EchoTts),
+            ("kokoro_tts", ModelFamily::KokoroTts),
+            ("kokoro-tts", ModelFamily::KokoroTts),
+            ("kokoro", ModelFamily::KokoroTts),
             ("voxcpm1", ModelFamily::Voxcpm1),
             ("voxcpm-1", ModelFamily::Voxcpm1),
             ("sanotts", ModelFamily::Sanotts),
@@ -441,6 +454,12 @@ impl ModelFamily {
             ("breeze", ModelFamily::BreezeTts),
             ("vibeasr", ModelFamily::Vibeasr),
             ("vibe-asr", ModelFamily::Vibeasr),
+            ("moonshine_asr", ModelFamily::MoonshineAsr),
+            ("moonshine-asr", ModelFamily::MoonshineAsr),
+            ("moonshine", ModelFamily::MoonshineAsr),
+            ("niagara_asr", ModelFamily::NiagaraAsr),
+            ("niagara-asr", ModelFamily::NiagaraAsr),
+            ("niagara", ModelFamily::NiagaraAsr),
             ("minimax_h3", ModelFamily::MinimaxH3),
             ("minimax-h3", ModelFamily::MinimaxH3),
             ("sortformer_diar_v2", ModelFamily::SortformerDiarV2),
@@ -483,6 +502,13 @@ impl ModelFamily {
             ("midashenglm_gen", ModelFamily::MidashEnglmGen),
             ("midashenglm-gen", ModelFamily::MidashEnglmGen),
             ("midashen", ModelFamily::MidashEnglmGen),
+            ("builtin_audio_utils", ModelFamily::BuiltinAudioUtils),
+            ("builtin-audio-utils", ModelFamily::BuiltinAudioUtils),
+            ("deepfilternet", ModelFamily::BuiltinAudioUtils),
+            ("rnnoise", ModelFamily::BuiltinAudioUtils),
+            ("zipenhancer", ModelFamily::BuiltinAudioUtils),
+            ("gtcrn", ModelFamily::BuiltinAudioUtils),
+            ("flashsr", ModelFamily::BuiltinAudioUtils),
             ("miocodec", ModelFamily::Miocodec),
             ("miotts", ModelFamily::Miotts),
             ("dramabox", ModelFamily::Dramabox),
@@ -519,6 +545,8 @@ impl ModelFamily {
             ModelFamily::Audio8Asr => "audio8_asr",
             ModelFamily::Audio8Tts => "audio8_tts",
             ModelFamily::Vibeasr => "vibeasr",
+            ModelFamily::MoonshineAsr => "moonshine_asr",
+            ModelFamily::NiagaraAsr => "niagara_asr",
             ModelFamily::Qwen3Tts => "qwen3_tts",
             ModelFamily::Confucius4Tts => "confucius4_tts",
             ModelFamily::DotsTts => "dots_tts",
@@ -541,6 +569,7 @@ impl ModelFamily {
             ModelFamily::SopranoTts => "soprano_tts",
             ModelFamily::EchoTts => "echo_tts",
             ModelFamily::Voxcpm1 => "voxcpm1",
+            ModelFamily::KokoroTts => "kokoro_tts",
             ModelFamily::MinimaxH3 => "minimax_h3",
             ModelFamily::Sanotts => "sanotts",
             ModelFamily::SoproTts => "sopro_tts",
@@ -567,6 +596,7 @@ impl ModelFamily {
             ModelFamily::Supertonic => "supertonic",
             ModelFamily::VoxtralRealtime => "voxtral_realtime",
             ModelFamily::Audiosr => "audiosr",
+            ModelFamily::BuiltinAudioUtils => "builtin_audio_utils",
             ModelFamily::ControlFoley => "controlfoley",
             ModelFamily::MidashEnglmGen => "midashenglm_gen",
             ModelFamily::Miocodec => "miocodec",
@@ -608,6 +638,8 @@ impl From<&str> for ModelFamily {
             "arkasr" => ModelFamily::Audio8Asr,
             "audio8_tts" => ModelFamily::Audio8Tts,
             "vibeasr" => ModelFamily::Vibeasr,
+            "moonshine_asr" => ModelFamily::MoonshineAsr,
+            "niagara_asr" => ModelFamily::NiagaraAsr,
             "qwen3_tts" => ModelFamily::Qwen3Tts,
             "confucius4_tts" => ModelFamily::Confucius4Tts,
             "dots_tts" => ModelFamily::DotsTts,
@@ -630,6 +662,7 @@ impl From<&str> for ModelFamily {
             "soprano_tts" => ModelFamily::SopranoTts,
             "echo_tts" => ModelFamily::EchoTts,
             "voxcpm1" => ModelFamily::Voxcpm1,
+            "kokoro_tts" => ModelFamily::KokoroTts,
             "minimax_h3" => ModelFamily::MinimaxH3,
             "sanotts" => ModelFamily::Sanotts,
             "sopro_tts" => ModelFamily::SoproTts,
@@ -662,6 +695,7 @@ impl From<&str> for ModelFamily {
             "supertonic" => ModelFamily::Supertonic,
             "voxtral_realtime" => ModelFamily::VoxtralRealtime,
             "audiosr" => ModelFamily::Audiosr,
+            "builtin_audio_utils" => ModelFamily::BuiltinAudioUtils,
             "controlfoley" => ModelFamily::ControlFoley,
             "midashenglm_gen" => ModelFamily::MidashEnglmGen,
             "miocodec" => ModelFamily::Miocodec,
@@ -1066,6 +1100,8 @@ mod tests {
             Audio8Asr,
             Audio8Tts,
             Vibeasr,
+            MoonshineAsr,
+            NiagaraAsr,
             // TTS
             Qwen3Tts,
             Confucius4Tts,
@@ -1089,6 +1125,7 @@ mod tests {
             SopranoTts,
             EchoTts,
             Voxcpm1,
+            KokoroTts,
             MinimaxH3,
             Sanotts,
             SoproTts,
@@ -1116,6 +1153,7 @@ mod tests {
             Supertonic,
             VoxtralRealtime,
             Audiosr,
+            BuiltinAudioUtils,
             ControlFoley,
             MidashEnglmGen,
             // 其他
@@ -1212,6 +1250,23 @@ mod tests {
         assert_eq!(
             ModelFamily::from_path("sortformer-diar-v2-q8_0.gguf"),
             Some(ModelFamily::SortformerDiarV2)
+        );
+        assert_eq!(
+            ModelFamily::from_path("kokoro-tts-82m-q8_0.gguf"),
+            Some(ModelFamily::KokoroTts)
+        );
+        assert_eq!(
+            ModelFamily::from_path("moonshine-tiny-q8_0.gguf"),
+            Some(ModelFamily::MoonshineAsr)
+        );
+        assert_eq!(
+            ModelFamily::from_path("niagara-asr-q8_0.gguf"),
+            Some(ModelFamily::NiagaraAsr)
+        );
+        // 内置音频工具：model_path 直接传工具 ID 也能映射到族。
+        assert_eq!(
+            ModelFamily::from_path("deepfilternet2"),
+            Some(ModelFamily::BuiltinAudioUtils)
         );
         // 大小写不敏感
         assert_eq!(

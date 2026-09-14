@@ -111,8 +111,57 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `78d4770`（origin/main；从
-  `f6277c1` 快进，待本次升级验证结论写入）。历史升级记录见下方逐条。
+- 当前 submodule HEAD = `1bab32a`（origin/main；从
+  `78d4770` 快进）。历史升级记录见下方逐条。
+- **升级 `78d4770`→`1bab32a`（main）审查结论**：
+  - diff 共 116 文件（+18.4k/-162，29 个提交）：新增 4 个 CMake target
+    `kokoro_tts`（族 `kokoro_tts`，Kokoro 82M 多语 TTS，仅离线）/
+    `moonshine_asr`（族 `moonshine_asr`，Moonshine 流式 ASR，离线+流式）/
+    `niagara_asr`（族 `niagara_asr`，ABR Niagara 英文批处理 ASR，仅离线）/
+    `builtin_audio_utils`（族 `builtin_audio_utils`，内置降噪/增强/超分工具，
+    task `s2s` 仅离线）；其余为 Orukeet r3 权重变体（仍属 `parakeet_tdt` 族，
+    无新 loader）、parakeet 长音频 session 修复、VibeVoice 流式 flash 注意力
+    性能优化、server 前端模块解耦（`server_frontends.cmake` + 可选 HTTPS
+    前端监听器）/转录端点调试日志/Sortformer v2 本地包路径修复、上游 opt-in
+    共享库 C API（`include/audiocpp.h` + `src/capi`，`AUDIOCPP_BUILD_C_API`
+    默认 OFF，与本仓 `capi.h` shim 无关）等。上游 model target 共 75 个（+4）。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 5 个头（`framework/core/backend.h` /
+    `framework/io/json.h` / `framework/runtime/{model,registry,session}.h`）本次
+    diff **零改动**。`framework` 下其余变更均为内部加法：`runtime/kv_cache.h`
+    新增 ring 模式选项（`ring_mode` / `ring_pinned_steps`，默认关闭）+
+    `slot_for_position()` + 自由函数 `ring_stored_position()`；
+    `modules/weight_binding.h` 新增 `linear_from_transposed_named_source`
+    模板重载（原 `hf_conv1d_linear_from_source` 转调它，行为不变）；
+    `audio/utility_api.h` 新增内置工具清单 API（`list/find/require/
+    resolve_builtin_audio_utility` + `default_audio_utility_assets_root`），
+    shim 从不依赖它。`capi.h` / `capi.cpp` / build.rs bindgen allowlist 保持原样。
+  - 无新 task 类型 / 输出字段：4 新族均用既有 `tts` / `asr` / `s2s`
+    （`builtin_audio_utils` capabilities 为 `s2s/audio_enhancement`）；
+    server `runtime.cpp` diff 仅为前端转接层 + 转录调试日志，无新端点/字段；
+    高层 `types.rs` serde 结构无需改。新选项（kokoro `weight_type` /
+    `text_chunk_size` / `seed`、moonshine `max_tokens`、niagara `language` /
+    `audio_chunk_mode`）全部走通用 options 字符串透传，无需 Rust 改动。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 4 个枚举变体
+    `KokoroTts`（`as_str()` → `"kokoro_tts"`）/ `MoonshineAsr`
+    （→ `"moonshine_asr"`）/ `NiagaraAsr`（→ `"niagara_asr"`）/
+    `BuiltinAudioUtils`（→ `"builtin_audio_utils"`，文档注明 task `s2s` +
+    `model_path` 直接传工具 ID）+ `from_path()` 关键词表（含工具 ID
+    `deepfilternet` / `rnnoise` / `zipenhancer` / `gtcrn` / `flashsr` →
+    `BuiltinAudioUtils`，`Registry::load(model_path: &str)` 传 ID 字符串即可，
+    Rust 侧无需改）+ `From<&str>`；并在 `audio-cpp-sys/Cargo.toml` 与
+    `audio-cpp/Cargo.toml` 新增 `model-kokoro-tts` / `model-moonshine-asr` /
+    `model-niagara-asr` / `model-builtin-audio-utils` 四个 `model-*` feature
+    （build.rs 自动映射 CMake target）；full-models 注释 72→75。
+    `model_family_roundtrip` 等测试已覆盖新变体（26 lib + 9 doc 全过）。
+  - 验证：`cargo fmt --check` + `cargo build --workspace`（增量重编约 1.5 分钟，
+    `engine_runtime` 链接通过；4 新族不在 core 集，默认构建不编译它们，
+    与既往升级一致）+ `cargo test --workspace`（26 lib + 9 doc 全过）+
+    `clippy --workspace --all-targets` 零警告。新族 session 均自持资产
+    （kokoro/moonshine/niagara 持 `shared_ptr` assets；builtin session 按值
+    持有 `UtilityRuntime`），`Session` 独立于 `Model` 存活的保证成立。
+  - 注意：`registry.cpp` 的 `validate_request` 放宽为 family_hint 为
+    `builtin_audio_utils` 且 `model_path` 为已知工具 ID 时免路径存在性校验，
+    属上游配合该族“ID 即路径”的设计，无 ABI 影响。
 - **升级 `f6277c1`→`78d4770`（main）审查结论**：
   - diff 共 136 文件（+10.8k/-0.8k，26 个提交）：新增 1 个 CMake target
     `sortformer_diar_v2`（族 `sortformer_diar_v2`，Sortformer v2.1 流式说话人分离，

@@ -53,7 +53,7 @@ prebuilt = []
 # vendored 在 audio.cpp/assets/framework/models/，无需下载任何权重。
 # 这也是编译最快、开箱即用的最小编译集，适合仅用 VAD 或验证绑定链路的场景。
 core-models = []
-# 全量编译 audio.cpp 支持的 72 个 loader 族（随上游增长，以
+# 全量编译 audio.cpp 支持的 75 个 loader 族（随上游增长，以
 # audio.cpp/CMakeLists.txt 的 make_*_loader 为准）。注意：全量编译耗时很长且生成
 # 的静态库很大；并不等于"能运行任意模型"，权重文件仍需自行下载。
 # 日常建议优先用模型族 feature 或 custom-models 按需编译，只有需要一次
@@ -113,6 +113,10 @@ model-mira-tts = ["custom-models"]           # TTS：MiraTTS（社区模型）
 model-cosyvoice3 = ["custom-models"]         # TTS：CosyVoice3
 model-breeze-tts = ["custom-models"]         # TTS：BreezeTTS
 model-vibeasr = ["custom-models"]            # ASR：VibeASR（社区 INT8/ternary）
+model-moonshine-asr = ["custom-models"]      # ASR：Moonshine 流式 ASR（社区模型，离线+流式）
+model-niagara-asr = ["custom-models"]        # ASR：Niagara 批处理 ASR（英文，仅离线）
+model-kokoro-tts = ["custom-models"]         # TTS：Kokoro 82M 多语 TTS（仅离线）
+model-builtin-audio-utils = ["custom-models"] # 音频工具：内置降噪/增强/超分（deepfilternet2/rnnoise/zipenhancer/gtcrn/flashsr）
 
 # ------------------------------------------------------------------------
 # 计算后端 feature（可叠加，映射 engine 的 ENGINE_ENABLE_*_CPU 选项）。
