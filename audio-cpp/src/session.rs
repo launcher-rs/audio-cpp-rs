@@ -23,6 +23,7 @@ use audio_cpp_sys::*;
 use crate::error::Error;
 use crate::ffi;
 use crate::model::Model;
+use crate::registry::RegistryGuard;
 use crate::request::IntoRequest;
 use crate::types::{Backend, RunMode, StreamEvent, StreamingPolicy, TaskKind, TaskResult};
 
@@ -72,19 +73,23 @@ pub struct Session {
     /// `Drop` 都先持有它再动 `event_sink` 与 C 侧绑定，避免两线程并发
     /// replace 造成“引擎指向 A、Rust 存 B”或 Box 泄漏。
     sink_swap: Mutex<()>,
+    /// 共享持有 C 注册表：`Model` / `Registry` 先释放不影响会话继续工作。
+    _guard: RegistryGuard,
 }
 
 // Session 持有回调 box（要求 Send）与 C 句柄。跨线程转移所有权是安全的，
 // 但用户应避免同时对同一会话做流式调用与回调锁内嵌套调用。
+// （`_guard` 本身是 Send 而非 Sync，`Session` 的 auto-trait 与之前一致。）
 unsafe impl Send for Session {}
 
 impl Session {
     /// 从原始 C 句柄包装（仅内部使用）。
-    pub(crate) fn from_raw(raw: *mut audiocpp_session) -> Self {
+    pub(crate) fn from_raw(raw: *mut audiocpp_session, guard: RegistryGuard) -> Self {
         Self {
             raw,
             event_sink: Mutex::new(None),
             sink_swap: Mutex::new(()),
+            _guard: guard,
         }
     }
 

@@ -62,13 +62,10 @@ fn main() -> Result<(), audio_cpp::Error> {
     );
 
     // 4. 构造请求并离线执行。
-    //    不同 VAD 的阈值选项键不同：silero_vad 用 vad_threshold，marblenet 用 threshold。
-    let threshold_key = if session.family() == "marblenet_vad" {
-        "threshold"
-    } else {
-        "vad_threshold"
-    };
-    let result = session.run_offline(Request::vad(wav_path).option(threshold_key, 0.5))?;
+    //    silero_vad 与 marblenet_vad 的阈值选项键都是 `threshold`
+    //   （`vad_threshold` 在上游从未存在，传它会被静默忽略）。
+    let result = session
+        .run_offline(Request::vad(wav_path).option(audio_cpp::options::request::THRESHOLD, 0.5))?;
 
     // 5. 打印语音片段。
     println!("=== 语音片段 ===");

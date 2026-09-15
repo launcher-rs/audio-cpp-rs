@@ -53,7 +53,7 @@ prebuilt = []
 # vendored 在 audio.cpp/assets/framework/models/，无需下载任何权重。
 # 这也是编译最快、开箱即用的最小编译集，适合仅用 VAD 或验证绑定链路的场景。
 core-models = []
-# 全量编译 audio.cpp 支持的 75 个 loader 族（随上游增长，以
+# 全量编译 audio.cpp 支持的 77 个 loader 族（随上游增长，以
 # audio.cpp/CMakeLists.txt 的 make_*_loader 为准）。注意：全量编译耗时很长且生成
 # 的静态库很大；并不等于"能运行任意模型"，权重文件仍需自行下载。
 # 日常建议优先用模型族 feature 或 custom-models 按需编译，只有需要一次
@@ -69,7 +69,7 @@ custom-models = []
 # `CARGO_FEATURE_MODEL_*`，把后缀大写→小写即为上游 CMake target 名，
 # 因此新增族 feature 时无需改动 build.rs。
 # 其余未列出的模型族仍用 custom-models + AUDIOCPP_MODELS 环境变量调用
-# （如 voxcpm2、qwen3_forced_aligner 等；上游族名以 audio.cpp/CMakeLists.txt
+# （如 voxcpm2 等；上游族名以 audio.cpp/CMakeLists.txt
 # 的 audiocpp_add_model 为准，build.rs 会自动映射）。
 model-citrinet-asr = ["custom-models"]   # ASR：英/多语语音识别
 model-fun-asr-nano = ["custom-models"]   # ASR：FunASR 轻量识别
@@ -98,6 +98,7 @@ model-personaplex = ["custom-models"]      # 多角色对话语音：PersonaPlex
 model-moss-voicegen = ["custom-models"]    # 语音生成：MOSS VoiceGen
 model-meanvc2 = ["custom-models"]          # 语音转换：MeanVC2
 model-mms-forced-aligner = ["custom-models"]  # 强制对齐：MMS Forced Aligner（社区模型）
+model-qwen3-forced-aligner = ["custom-models"]  # 强制对齐：Qwen3 Forced Aligner（11 语种，离线）
 model-audiosr = ["custom-models"]              # 音频超分辨率：AudioSR
 model-controlfoley = ["custom-models"]        # 可控音效生成：ControlFoley
 model-firered-audio = ["custom-models"]       # 语音理解/生成：FireRed Audio
@@ -117,6 +118,8 @@ model-moonshine-asr = ["custom-models"]      # ASR：Moonshine 流式 ASR（社�
 model-niagara-asr = ["custom-models"]        # ASR：Niagara 批处理 ASR（英文，仅离线）
 model-kokoro-tts = ["custom-models"]         # TTS：Kokoro 82M 多语 TTS（仅离线）
 model-builtin-audio-utils = ["custom-models"] # 音频工具：内置降噪/增强/超分（deepfilternet2/rnnoise/zipenhancer/gtcrn/flashsr）
+model-yue2 = ["custom-models"]                  # 音乐生成：YuE2（符号 ABC 规划 + 语义 codec，仅离线）
+model-sheetsage2 = ["custom-models"]            # 音频转谱：SheetSage2（录音转 ABC 乐谱，仅离线）
 
 # ------------------------------------------------------------------------
 # 计算后端 feature（可叠加，映射 engine 的 ENGINE_ENABLE_*_CPU 选项）。

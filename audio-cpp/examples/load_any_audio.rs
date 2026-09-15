@@ -134,14 +134,10 @@ fn main() -> Result<(), audio_cpp::Error> {
 
     // 4. 把解码出的采样经 AudioInput::Buffer 交给请求。
     //    若音频采样率非 16k，VAD 模型可能不适用（silero 固定 16k）；
-    //    用其它模型族时可先自行重采样。
-    let threshold_key = if session.family() == "marblenet_vad" {
-        "threshold"
-    } else {
-        "vad_threshold"
-    };
-    let result =
-        session.run_offline(Request::vad(AudioInput::Buffer(wav)).option(threshold_key, 0.5))?;
+    //    用其它模型族时可先自行重采样。VAD 阈值键统一为 `threshold`。
+    let result = session.run_offline(
+        Request::vad(AudioInput::Buffer(wav)).option(audio_cpp::options::request::THRESHOLD, 0.5),
+    )?;
 
     // 5. 打印语音片段。
     println!("=== 语音片段 ===");

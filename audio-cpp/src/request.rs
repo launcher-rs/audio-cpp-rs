@@ -10,8 +10,8 @@
 //! ```rust
 //! use audio_cpp::Request;
 //!
-//! // 离线 VAD：音频 + 阈值选项
-//! let r1 = Request::vad("./speech.wav").option("vad_threshold", 0.5);
+//! // 离线 VAD：音频 + 阈值选项（silero/marblenet 均用 `threshold`）
+//! let r1 = Request::vad("./speech.wav").option("threshold", 0.5);
 //! // 离线 / 流式 ASR
 //! let r2 = Request::asr("./speech.wav");
 //! let r3 = Request::asr("./speech.wav").option("audio_chunk_seconds", 3.0);
@@ -80,7 +80,7 @@ impl From<PathBuf> for AudioInput {
 pub struct AudioRequest {
     /// 音频输入（文件路径或内嵌数据）。
     pub audio: Option<AudioInput>,
-    /// 附加选项键值（如 VAD 的 `vad_threshold` / `threshold`、流式 ASR 的
+    /// 附加选项键值（如 VAD 的 `threshold`、流式 ASR 的
     /// `audio_chunk_seconds`）。非字符串值由 shim 字符串化后交给上游。
     pub options: BTreeMap<String, Value>,
 }
@@ -277,6 +277,57 @@ impl TtsRequest {
     }
 }
 
+/// 强制对齐（Alignment）的请求参数：音频 + 待对齐文本 + 文本语言。
+///
+/// 序列化形状为顶层 `audio`（或 `audio_path`）+ `text` + `language`（+ 可选
+/// `options`），对应 shim `parse_task_request` 填充的上游 `TaskRequest` 的
+/// `audio_input` + `text_input{ text, language }`。两对齐族（`qwen3_forced_aligner` /
+/// `mms_forced_aligner`）均要求文本与语言非空，否则上游抛错。
+#[derive(Debug, Clone)]
+pub struct AlignRequest {
+    /// 待对齐音频（文件路径或内嵌数据）。
+    pub audio: Option<AudioInput>,
+    /// 待对齐的文本转写（需与音频内容一致，越贴合时间戳越准）。
+    pub text: String,
+    /// 文本语言（必填，上游不支持 `"auto"`，见 [`Request::align`]）。
+    pub language: String,
+    /// 附加选项键值（如 `clamp_timestamps_to_audio`）。
+    pub options: BTreeMap<String, Value>,
+}
+
+impl AlignRequest {
+    /// 以音频、待对齐文本、文本语言构造请求。
+    pub fn new(
+        audio: impl Into<AudioInput>,
+        text: impl Into<String>,
+        language: impl Into<String>,
+    ) -> Self {
+        Self {
+            audio: Some(audio.into()),
+            text: text.into(),
+            language: language.into(),
+            options: BTreeMap::new(),
+        }
+    }
+
+    /// 设置一个选项键值（等价于 JSON `options` 里的一个字段）。
+    pub fn option<V: Into<Value>>(mut self, key: impl Into<String>, value: V) -> Self {
+        self.options.insert(key.into(), value.into());
+        self
+    }
+
+    /// 批量设置选项。
+    pub fn options<K, V>(mut self, opts: impl IntoIterator<Item = (K, V)>) -> Self
+    where
+        K: Into<String>,
+        V: Into<Value>,
+    {
+        self.options
+            .extend(opts.into_iter().map(|(k, v)| (k.into(), v.into())));
+        self
+    }
+}
+
 /// 一次任务请求。
 ///
 /// 对应 capi.cpp `parse_task_request` 读取的顶层 JSON 字段（`text` /
@@ -291,16 +342,17 @@ impl TtsRequest {
 /// |---|---|
 /// | `Vad` / `Asr` / `Diar` / `SourceSeparation` | `vad` / `asr` / `diar` / `source_separation`（音频型） |
 /// | `Tts`（含 `VoiceCloning`/`VoiceConversion`/`VoiceDesign` 等文本型任务） | `tts`（文本型，可带参考音频/风格） |
-/// | `AudioGeneration`（音乐生成，文本提示） | `tts`（文本型）或 `json` |
-/// | `SpeechToSpeech` / `Svc` / `Alignment` / `SpeakerRecognition`（音频型） | 形状相同的任一音频型变体，或 `json` |
+/// | `AudioGeneration`（音乐生成，如 YuE2：歌词 + `style` 选项） | `tts`（文本型）或 `json` |
+/// | `Alignment`（强制对齐：音频 + 文本 + 语言） | `align` |
+/// | `Midi`（音频转谱，如 SheetSage2：音频型，结果在产物字段） | 形状相同的任一音频型变体，或 `json` |
+/// | `SpeechToSpeech` / `Svc` / `SpeakerRecognition`（音频型） | 形状相同的任一音频型变体，或 `json` |
 /// | 其他 / 形状特殊 | `json`（原始 JSON 透传） |
 ///
 /// 音频型四个变体（`Vad`/`Asr`/`Diar`/`SourceSeparation`）序列化形状完全
-/// 相同，选用时以语义就近为准；形状特殊（如对齐需同时传音频与文本）时
-/// 请用 [`Request::json`] 手拼。
+/// 相同，选用时以语义就近为准。
 #[derive(Debug, Clone)]
 pub enum Request {
-    /// 语音活动检测：需音频输入，可配 `vad_threshold` / `threshold` 等。
+    /// 语音活动检测：需音频输入，可配 `threshold` 等。
     Vad(AudioRequest),
     /// 语音识别：需音频输入，流式时用 `audio_chunk_seconds` 控制窗口。
     Asr(AudioRequest),
@@ -312,6 +364,10 @@ pub enum Request {
     ///
     /// 用 [`Box`] 包裹以缩小枚举整体体积（`TtsRequest` 远大于其他变体）。
     Tts(Box<TtsRequest>),
+    /// 强制对齐：需音频 + 待对齐文本 + 文本语言。
+    ///
+    /// 用 [`Box`] 包裹以缩小枚举整体体积。
+    Align(Box<AlignRequest>),
     /// 原始 JSON 字符串透传（不经任何序列化改动）。
     Json(String),
 }
@@ -365,6 +421,36 @@ impl Request {
         Request::Tts(Box::new(TtsRequest::new(text)))
     }
 
+    /// 强制对齐请求：以音频、待对齐文本、文本语言构造。
+    ///
+    /// 序列化为 `{"audio_path"|"audio", "text", "language", "options?"}`，
+    /// 配 [`TaskKind::Alignment`] 会话使用，结果的逐词时间戳在
+    /// [`crate::TaskResult::word_timestamps`]。例如：
+    /// ```
+    /// use audio_cpp::Request;
+    /// let req = Request::align("./speech.wav", "你好世界", "zh")
+    ///     .option("clamp_timestamps_to_audio", true);
+    /// let v: serde_json::Value = serde_json::from_str(&req.to_json().unwrap()).unwrap();
+    /// assert_eq!(v["text"], "你好世界");
+    /// assert_eq!(v["language"], "zh");
+    /// ```
+    ///
+    /// # 语言代码（上游要求非空，不支持 `"auto"`）
+    ///
+    /// - `qwen3_forced_aligner`：`zh` / `en` / `yue` / `fr` / `de` / `it` /
+    ///   `ja` / `ko` / `pt` / `ru` / `es`（11 语种，见上游
+    ///   `model_specs/qwen3_forced_aligner.json`）；错配不报错，只产出劣质时间戳。
+    /// - `mms_forced_aligner`：`nl`（`nld`）/ `en`（`eng`）拉丁文本；非拉丁输入
+    ///   直接拒绝（可用 `text_normalization=pre_romanized` 传调用方自备的 ASCII
+    ///   罗马化文本）。权重为 CC-BY-NC-4.0，禁止分发。
+    pub fn align(
+        audio: impl Into<AudioInput>,
+        text: impl Into<String>,
+        language: impl Into<String>,
+    ) -> Self {
+        Request::Align(Box::new(AlignRequest::new(audio, text, language)))
+    }
+
     /// 原始 JSON 字符串透传（不经序列化改动，直接交给 C 边界）。
     pub fn json(s: impl Into<String>) -> Self {
         Request::Json(s.into())
@@ -383,6 +469,7 @@ impl Request {
             Request::Diar(r) => Request::Diar(r.option(key, value)),
             Request::SourceSeparation(r) => Request::SourceSeparation(r.option(key, value)),
             Request::Tts(r) => Request::Tts(Box::new(r.option(key, value))),
+            Request::Align(r) => Request::Align(Box::new(r.option(key, value))),
             Request::Json(_) => self,
         }
     }
@@ -403,6 +490,7 @@ impl Request {
             Request::Diar(r) => Request::Diar(r.options(opts)),
             Request::SourceSeparation(r) => Request::SourceSeparation(r.options(opts)),
             Request::Tts(r) => Request::Tts(Box::new(r.options(opts))),
+            Request::Align(r) => Request::Align(Box::new(r.options(opts))),
             Request::Json(_) => self,
         }
     }
@@ -479,6 +567,20 @@ impl Request {
                 }
                 if let Some(voice) = &r.voice {
                     obj.insert("voice".into(), serialize_voice(voice));
+                }
+            }
+            Request::Align(r) => {
+                // 对齐形状：音频 + 顶层 text/language（shim 填 text_input）。
+                obj.insert("text".into(), Value::String(r.text.clone()));
+                obj.insert("language".into(), Value::String(r.language.clone()));
+                if let Some(audio) = &r.audio {
+                    write_audio(&mut obj, audio);
+                }
+                if !r.options.is_empty() {
+                    obj.insert(
+                        "options".into(),
+                        Value::Object(r.options.clone().into_iter().collect()),
+                    );
                 }
             }
         }
@@ -650,10 +752,10 @@ mod tests {
 
     #[test]
     fn vad_offline() {
-        let req = Request::vad("./a.wav").option("vad_threshold", 0.5);
+        let req = Request::vad("./a.wav").option("threshold", 0.5);
         assert_eq!(
             json(&req.to_json().unwrap()),
-            json(r#"{"audio_path":"./a.wav","options":{"vad_threshold":0.5}}"#)
+            json(r#"{"audio_path":"./a.wav","options":{"threshold":0.5}}"#)
         );
     }
 
@@ -711,6 +813,35 @@ mod tests {
         assert_eq!(
             json(&req.to_json().unwrap()),
             json(r#"{"audio_path":"./song.wav","options":{"stem":"vocals"}}"#)
+        );
+    }
+
+    #[test]
+    fn align_offline() {
+        // 对齐形状：音频 + 顶层 text/language + 可选 options。
+        let req = Request::align("./speech.wav", "你好世界", "zh")
+            .option("clamp_timestamps_to_audio", true);
+        assert_eq!(
+            json(&req.to_json().unwrap()),
+            json(
+                r#"{"audio_path":"./speech.wav","text":"你好世界","language":"zh","options":{"clamp_timestamps_to_audio":true}}"#
+            )
+        );
+    }
+
+    #[test]
+    fn align_embedded_audio() {
+        let buf = WavAudio {
+            sample_rate: 16000,
+            channels: 1,
+            samples: vec![0.0, 0.5],
+        };
+        let req = Request::align(AudioInput::Buffer(buf), "hello", "en");
+        assert_eq!(
+            json(&req.to_json().unwrap()),
+            json(
+                r#"{"text":"hello","language":"en","audio":{"sample_rate":16000,"channels":1,"samples":[0.0,0.5]}}"#
+            )
         );
     }
 

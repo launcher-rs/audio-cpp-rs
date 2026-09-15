@@ -67,8 +67,9 @@ Registry::new()                # 枚举已编译的模型族/loader/设备
                        session.reset()     # 复用会话开始新一轮（返回 Result，示例中为伪代码省略了 ?）
 ```
 
-各对象持有 C 句柄并在 `Drop` 中释放；`Model` 不管理 `Registry` 的生命周期，
-注册表应存活于所有派生模型的使用期之内。`Session` 独立于 `Model`/`Registry`
+各对象持有 C 句柄并在 `Drop` 中释放；所有权内部共享：`Model` 共享持有
+C 注册表，`Session` 亦然——加载/建会话后即可释放上游持有者，无需三件套
+持有。`Session` 独立于 `Model`/`Registry`
 存活（会话持有权重/资产的共享所有权，创建后可释放 `Model`/`Registry`，
 见 lib.rs 资源生命周期节）。
 
@@ -79,7 +80,7 @@ Windows 路径也不需要转义反斜杠。
 ```rust
 use audio_cpp::Request;
 
-let r1 = Request::vad(".\\speech.wav").option("vad_threshold", 0.5); // VAD：音频 + 阈值
+let r1 = Request::vad(".\\speech.wav").option(audio_cpp::options::request::THRESHOLD, 0.5); // VAD：音频 + 阈值
 let r2 = Request::asr(".\\speech.wav");                              // ASR / 分离等：音频
 let r3 = Request::asr(".\\speech.wav").option("audio_chunk_seconds", 3.0); // 流式窗口
 let r4 = Request::tts("Hello!");                                     // TTS：文本
@@ -87,7 +88,8 @@ let r5 = Request::tts("Hello!").reference(".\\ref.wav")              // TTS 声�
                                   .reference_text("参考文本转写");
 let r6 = Request::diar(".\\speech.wav");       // 说话人分离
 let r7 = Request::source_separation(".\\song.wav"); // 音乐源分离
-let r8 = Request::json(r#"{"audio_path":"x.wav"}"#); // 原始 JSON 透传
+let r8 = Request::align(".\\speech.wav", "你好世界", "zh"); // 强制对齐：音频 + 文本 + 语言
+let r9 = Request::json(r#"{"audio_path":"x.wav"}"#); // 原始 JSON 透传
 
 let json = r1.to_json()?;   // 序列化为 JSON 字符串
 ```
@@ -122,7 +124,7 @@ let session = model.create_task_session(
     TaskKind::Vad, RunMode::Offline, Backend::Cpu, 0, 4, None,
 )?;
 let result = session.run_offline(
-    Request::vad("./sample.wav").option("vad_threshold", 0.5),
+    Request::vad("./sample.wav").option(audio_cpp::options::request::THRESHOLD, 0.5),
 )?;
 
 for seg in &result.speech_segments {
@@ -256,7 +258,8 @@ println!("{}Hz {}ch {} 采样", audio.sample_rate, audio.channels, samples.len()
 | [`Registry`](src/registry.rs) | 枚举模型族 / loader / 设备；`load()` 加载模型 |
 | [`Model`](src/model.rs) | 已加载模型：`metadata()` / `capabilities()` / `create_task_session()` |
 | [`Session`](src/session.rs) | 任务会话：离线 `run_offline()`；流式 `start`/`process_audio`/`finish`/`reset` |
-| [`Request`](src/request.rs) | 类型化请求枚举：`Request::vad` / `asr` / `diar` / `source_separation` / `tts` / `json`；`option(...)` / `reference(...)` |
+| [`Request`](src/request.rs) | 类型化请求枚举：`Request::vad` / `asr` / `diar` / `source_separation` / `tts` / `align` / `json`；`option(...)` / `reference(...)` |
+| [`options`](src/options.rs) | 核实过的选项键常量（`request` / `session`）与 `SessionOptions` 会话选项构造器 |
 | [`TaskKind`](src/types.rs) | `Vad` / `Asr` / `Tts` / `Diar` / `SourceSeparation` |
 | [`ModelFamily`](src/types.rs) | 模型族枚举（`Qwen3Asr` / `CitrinetAsr` / `Htdemucs` / …；未收录族用 `Custom(String)`） |
 | [`RunMode`](src/types.rs) | `Offline` / `Streaming` |
@@ -276,7 +279,14 @@ println!("{}Hz {}ch {} 采样", audio.sample_rate, audio.channels, samples.len()
   无法被引擎自动探测族别，会误判为 silero_vad，必须显式传 `family_hint`。
   用 [`ModelFamily`](src/types.rs) 枚举代替裸字符串（如
   `Some(ModelFamily::Qwen3Asr)`）可避免拼写错误；内置 silero_vad 可省略。
-- **阈值选项键**：silero_vad 用 `vad_threshold`，marblenet_vad 用 `threshold`。
+- **阈值选项键**：silero_vad 与 marblenet_vad 统一用 `threshold`
+  （`vad_threshold` 在上游从未存在，传它会被静默忽略；建议用
+  `options::request::THRESHOLD` 常量）。
+- **词级时间戳**：Qwen3 ASR 默认不输出，需请求选项 `return_timestamps=true`
+  + 建会话时配好对齐模型（`SessionOptions::qwen3_aligner_model_path`）；
+  强制对齐（`Request::align`）直接输出。
+- **对齐语言**：`Request::align` 的语言必填且无 `auto` 档（Qwen3 对齐器支持
+  zh/en/yue/fr/de/it/ja/ko/pt/ru/es；MMS 仅 nl/en 拉丁文本）。
 - **Windows 路径**：用 [`Request`](src/request.rs) 构造器时反斜杠无需转义；
   若直接传 JSON 字符串，则反斜杠必须转义（`\\`），`\a` 等非法转义会让 shim
   解析失败。

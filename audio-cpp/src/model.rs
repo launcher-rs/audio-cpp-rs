@@ -8,25 +8,29 @@ use audio_cpp_sys::*;
 
 use crate::error::Error;
 use crate::ffi;
+use crate::registry::RegistryGuard;
 use crate::session::Session;
 use crate::types::{Backend, Capabilities, ModelMetadata, RunMode, TaskKind};
 
 /// 已加载的模型。
 ///
-/// 由 [`crate::Registry::load`] 创建，持有一个 C 句柄。模型不会自行
-/// 释放注册表；注册表的生命周期通常覆盖所用模型的全部使用时段。
+/// 由 [`crate::Registry::load`] 创建，持有一个 C 句柄，并共享持有
+/// C 注册表的所有权——`Registry` 释放后模型仍可继续使用。
 pub struct Model {
     raw: *mut audiocpp_model,
+    // 共享持有 C 注册表：最后一个派生句柄释放时 C 注册表才释放。
+    _guard: RegistryGuard,
 }
 
 // C ABI 句柄本身不要求 Send/Sync。C 侧 model 内部无锁，多线程共享同一模型
 // 并发建会话属于并发访问，行为未定义。因此只实现 Send，不实现 Sync。
+// （`_guard` 本身是 Send 而非 Sync，`Model` 的 auto-trait 与之前一致。）
 unsafe impl Send for Model {}
 
 impl Model {
     /// 从原始 C 句柄包装（仅内部使用）。
-    pub(crate) fn from_raw(raw: *mut audiocpp_model) -> Self {
-        Self { raw }
+    pub(crate) fn from_raw(raw: *mut audiocpp_model, guard: RegistryGuard) -> Self {
+        Self { raw, _guard: guard }
     }
 
     /// 模型元数据（family / variant / description / 候选配置与权重）。
@@ -56,6 +60,8 @@ impl Model {
     /// 在模型上创建一次任务会话。
     ///
     /// 可从 `metadata()` / `capabilities()` 确认模型是否支持目标任务与模式。
+    /// 返回的 [`Session`] 同样共享持有 C 注册表的所有权；会话创建后释放
+    /// `Model`（乃至 `Registry`）不影响其继续工作。
     ///
     /// # Errors
     ///
@@ -91,7 +97,7 @@ impl Model {
         if raw.is_null() {
             return Err(Error::NullHandle(ffi::last_error()));
         }
-        Ok(Session::from_raw(raw))
+        Ok(Session::from_raw(raw, self._guard.clone()))
     }
 }
 

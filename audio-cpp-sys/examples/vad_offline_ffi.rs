@@ -112,8 +112,9 @@ fn main() {
     });
 
     // 4. 构造请求 JSON：通过 audio_path 传入 WAV 文件。
+    //    VAD 阈值键为 `threshold`（`vad_threshold` 在上游从未存在）。
     let request_json = format!(
-        r#"{{"audio_path":"{}","options":{{"vad_threshold":0.5}}}}"#,
+        r#"{{"audio_path":"{}","options":{{"threshold":0.5}}}}"#,
         wav_path.replace('\\', "\\\\").replace('"', "\\\"")
     );
     let request_c = CString::new(request_json).expect("请求含 NUL");

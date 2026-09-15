@@ -276,6 +276,12 @@ pub enum ModelFamily {
     MinimaxMusic3,
     /// Supertonic（音乐生成）
     Supertonic,
+    /// YuE2（音乐生成：符号 ABC 规划 + 语义 codec + NAR 声学流合成；
+    /// 仅离线，task 为 `gen`；请求为纯文本（歌词）+ `style` 选项，不消费音频）
+    Yue2,
+    /// SheetSage2（音频转符号谱：输入录音，输出 ABC 乐谱产物；
+    /// 仅离线，task 为 `midi`；结果在 `artifact_output` / `output_artifacts`）
+    Sheetsage2,
     /// Voxtral Realtime
     VoxtralRealtime,
     /// AudioSR（语音/音频超分辨率）
@@ -493,6 +499,11 @@ impl ModelFamily {
             ("minimax_music3", ModelFamily::MinimaxMusic3),
             ("minimax-music3", ModelFamily::MinimaxMusic3),
             ("supertonic", ModelFamily::Supertonic),
+            ("yue2", ModelFamily::Yue2),
+            ("yue-2", ModelFamily::Yue2),
+            ("sheetsage2", ModelFamily::Sheetsage2),
+            ("sheetsage-2", ModelFamily::Sheetsage2),
+            ("sheetsage", ModelFamily::Sheetsage2),
             ("voxtral-realtime", ModelFamily::VoxtralRealtime),
             ("voxtral", ModelFamily::VoxtralRealtime),
             ("audiosr", ModelFamily::Audiosr),
@@ -594,6 +605,8 @@ impl ModelFamily {
             ModelFamily::StableAudio => "stable_audio",
             ModelFamily::MinimaxMusic3 => "minimax_music3",
             ModelFamily::Supertonic => "supertonic",
+            ModelFamily::Yue2 => "yue2",
+            ModelFamily::Sheetsage2 => "sheetsage2",
             ModelFamily::VoxtralRealtime => "voxtral_realtime",
             ModelFamily::Audiosr => "audiosr",
             ModelFamily::BuiltinAudioUtils => "builtin_audio_utils",
@@ -693,6 +706,8 @@ impl From<&str> for ModelFamily {
             "stable_audio" => ModelFamily::StableAudio,
             "minimax_music3" => ModelFamily::MinimaxMusic3,
             "supertonic" => ModelFamily::Supertonic,
+            "yue2" => ModelFamily::Yue2,
+            "sheetsage2" => ModelFamily::Sheetsage2,
             "voxtral_realtime" => ModelFamily::VoxtralRealtime,
             "audiosr" => ModelFamily::Audiosr,
             "builtin_audio_utils" => ModelFamily::BuiltinAudioUtils,
@@ -1000,7 +1015,16 @@ pub struct TaskResult {
     pub audio_output: Option<AudioBufferInfo>,
     /// 命名音频输出列表。
     pub named_audio_outputs: Vec<NamedAudioOutput>,
-    /// 词级时间戳（ASR 逐词对齐，存在时）。
+    /// 词级时间戳（存在时）。
+    ///
+    /// 是否输出按模型族而定，空数组只表示"本次无词戳"，先查选项再报缺口：
+    /// - Qwen3 ASR：默认**不**输出；需请求选项 `return_timestamps=true`（见
+    ///   [`crate::options::request::RETURN_TIMESTAMPS`]），且建会话时经会话选项
+    ///   配好对齐模型（见
+    ///   [`crate::options::session::QWEN3_ASR_FORCED_ALIGNER_MODEL_PATH`]），
+    ///   上游用对齐器内部回填。流式模式不支持词戳（直接抛错）。
+    /// - 强制对齐族（`qwen3_forced_aligner` / `mms_forced_aligner`，task
+    ///   `align`）直接输出；ASR 主文本 + 对齐回填是无词戳族的常规降级链。
     #[serde(default)]
     pub word_timestamps: Vec<WordTimestamp>,
     /// 单个产物输出（存在时，如 voice-clone 的 cached_voice_id）。
@@ -1026,7 +1050,8 @@ pub struct StreamEvent {
     /// 说话人分段（流式说话人分离等，存在时）。
     #[serde(default)]
     pub speaker_turns: Vec<SpeakerTurn>,
-    /// 词级时间戳（流式 ASR 逐词对齐，存在时）。
+    /// 词级时间戳（仅产出词戳的族才有；Qwen3 ASR 流式不支持词戳，
+    /// 见 [`TaskResult::word_timestamps`]）。
     #[serde(default)]
     pub word_timestamps: Vec<WordTimestamp>,
     /// 产物输出（流式产出 embedding / 状态等，存在时）。
@@ -1151,6 +1176,8 @@ mod tests {
             StableAudio,
             MinimaxMusic3,
             Supertonic,
+            Yue2,
+            Sheetsage2,
             VoxtralRealtime,
             Audiosr,
             BuiltinAudioUtils,
@@ -1262,6 +1289,14 @@ mod tests {
         assert_eq!(
             ModelFamily::from_path("niagara-asr-q8_0.gguf"),
             Some(ModelFamily::NiagaraAsr)
+        );
+        assert_eq!(
+            ModelFamily::from_path("yue2-music-q8_0.gguf"),
+            Some(ModelFamily::Yue2)
+        );
+        assert_eq!(
+            ModelFamily::from_path("sheetsage2-q8_0.gguf"),
+            Some(ModelFamily::Sheetsage2)
         );
         // 内置音频工具：model_path 直接传工具 ID 也能映射到族。
         assert_eq!(

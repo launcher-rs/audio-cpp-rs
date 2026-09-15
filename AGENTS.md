@@ -111,8 +111,58 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `1bab32a`（origin/main；从
-  `78d4770` 快进）。历史升级记录见下方逐条。
+- 当前 submodule HEAD = `e9ff200`（origin/main；从
+  `1bab32a` 快进）。历史升级记录见下方逐条。
+- **升级 `1bab32a`→`e9ff200`（main）审查结论**：
+  - diff 共 106 文件（+13.7k/-303，约 20 个提交）：新增 2 个 CMake target
+    `yue2`（族 `yue2`，YuE2 音乐生成，task `gen` 仅离线，纯文本请求
+    lyrics+style，不消费音频，输出 `audio_output`）/ `sheetsage2`
+    （族 `sheetsage2`，SheetSage2 音频转 ABC 谱，task `midi` 仅离线，
+    音频输入，输出复用既有 `artifact_output`/`output_artifacts`）；其余为
+    Yue2 AR/NAR 运行时与 Oobleck VAE 框架 codec、Qwen chunked prefill +
+    后端 KV 复用、encoder-decoder 框架模块、task vocabulary 收敛（下述）、
+    各模型 safetensors 文件清单补全、server/UI（Yue2 面板）等。上游 model
+    target 共 77 个（+2），`make_*_loader` 78→80。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 5 个头（`framework/core/backend.h` /
+    `framework/io/json.h` / `framework/runtime/{model,registry,session}.h`）本次
+    diff **零改动**（`session.cpp` 的 `to_string`/`parse_voice_task_kind` 改调
+    新表，`kv_cache.h` 加批内状态查询，均为内部加法）。`capi.h` / `capi.cpp` /
+    build.rs bindgen allowlist 保持原样。
+  - 无新 task 类型：14 种不变，仅把四处手写 task 名单收敛为
+    `framework/runtime/task_vocabulary.{h,cpp}` 单一真源（顺带修了
+    `miocodec.json` 的非法 `"codec"` 与 `moss_voicegen.json` 的 `"vdes"`→
+    `"design"` 别名；上游 opt-in C API `include/audiocpp.h` 新增任务枚举与
+    `audiocpp_request_set_text_language`，与本仓 shim 无关）。
+    高层 `types.rs` 的 `TaskKind` / serde 结构无需改。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 2 个枚举变体
+    `Yue2`（`as_str()` → `"yue2"`）/ `Sheetsage2`（→ `"sheetsage2"`）+
+    `from_path()` 关键词表 + `From<&str>`；并在 `audio-cpp-sys/Cargo.toml` 与
+    `audio-cpp/Cargo.toml` 新增 `model-yue2` / `model-sheetsage2` feature
+    （build.rs 自动映射 CMake target），另补上此前漏建的
+    `model-qwen3-forced-aligner`（G3 关闭：Qwen3 对齐族早有 CMake target，
+    只是缺单选 feature）；full-models 注释 75→77。
+    `model_family_roundtrip` 等测试已覆盖新变体。
+  - 本次顺带关闭 voxkit 缺口 G1–G6（证据均在上游源码核实，非推测）：
+    G1 `Request::align(audio, text, language)`（shim 早已解析顶层
+    `text`/`language`→`text_input`，纯 Rust 侧新增，无需动 C ABI）；
+    G2 `TaskResult::word_timestamps` 文档写明 Qwen3 ASR 需
+    `return_timestamps=true` + 会话选项 `qwen3_asr.forced_aligner_model_path`
+    （流式不支持），空数组先查选项；
+    G4 新增 `audio_cpp::options` 模块（核实过的请求/会话选项键常量 +
+    `SessionOptions` builder），并修掉传了很久的死键 `vad_threshold`
+    （上游从未存在，silero/marblenet 阈值键都是 `threshold`）；
+    G5 `Registry`→`Model`→`Session` 改为内部 `Arc` 共享所有权
+    （`Send` 不变、`!Sync` 不变），调用方可及时释放上游持有者
+    （`model_outlives_registry` 回归测试锁定）；
+    G6 对齐语言码写入 `Request::align` 文档（Qwen3 11 语种 / MMS 仅 nl-en
+    拉丁 + `pre_romanized`，上游无 `auto` 档）。
+  - 验证：`cargo fmt --check` + `cargo build --workspace`（build.rs 跟踪
+    submodule HEAD 正常触发增量重编）+ `cargo test --workspace`
+    （31 lib + 12 doc 全过）+ `clippy --workspace --all-targets` 零警告 +
+    `vad_offline`（silero 内置权重 + sample_16k.wav）端到端通过。
+    新族 session 均自持资产（yue2 持 `shared_ptr<const Yue2Assets>`；
+    sheetsage2 持 assets + contract），`Session` 独立于 `Model` 存活的
+    保证成立。
 - **升级 `78d4770`→`1bab32a`（main）审查结论**：
   - diff 共 116 文件（+18.4k/-162，29 个提交）：新增 4 个 CMake target
     `kokoro_tts`（族 `kokoro_tts`，Kokoro 82M 多语 TTS，仅离线）/
@@ -426,14 +476,15 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
 - 内置 VAD 已双模型验证：silero_vad（离线+流式）与 marblenet_vad（仅离线）。
   marblenet_vad 是 NeMo checkpoint，引擎自动探测会误判成 silero_vad（报
   "missing tensor: stft_conv.weight"），必须显式传 `family_hint="marblenet_vad"`；
-  其阈值选项键是 `threshold`（silero 用 `vad_threshold`）。
+  两模型的阈值选项键统一为 `threshold`（`vad_threshold` 在上游从未存在，
+  传它会被静默忽略，见 `audio_cpp::options::request::THRESHOLD`）。
 - ASR 已用 Citrinet ASR Q8_0 GGUF 验证（`audio-cpp/examples/asr_offline` 跑通，
   sample_16k.wav 转录为 Nature 台词）。Citrinet 不在默认 core-models 集，需
   `custom-models` 或 `full-models`；custom 只需 `$env:AUDIOCPP_MODELS="citrinet_asr"`。
   **GGUF 同样无法自动探测族别**，须显式 `family_hint="citrinet_asr"`（否则误判
   silero_vad 报 missing tensor）。
 - 上游 CMake 支持 `AUDIOCPP_MODEL_SET=custom` + `AUDIOCPP_MODELS`（逗号分隔
-  model targets）按需编译，避免 full 全量 72 个 loader 族的编译成本；引擎核心 +
+  model targets）按需编译，避免 full 全量 77 个 loader 族的编译成本；引擎核心 +
   内置 VAD 始终编入。build.rs 的 `custom-models` feature 透传该机制。
 - 请求 JSON 里的 `audio_path` 若为 Windows 路径，反斜杠必须转义（`\\`），
   `\a` 等非法转义会导致 shim 解析失败（"failed to parse json"），改用正斜杠最省事。

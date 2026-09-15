@@ -39,7 +39,7 @@ default = ["core-models"]
 prebuilt = ["audio-cpp-sys/prebuilt"]
 # 转发给 audio-cpp-sys 的模型组合 / 后端 feature。
 core-models = ["audio-cpp-sys/core-models"]   # 引擎核心 + 内置 VAD（默认，最小编译集）
-full-models = ["audio-cpp-sys/full-models"]   # 全量 75 个 loader 族（编译慢）
+full-models = ["audio-cpp-sys/full-models"]   # 全量 77 个 loader 族（编译慢）
 # 按需编译：可直接启用 `model-<族>` feature（推荐），或设置环境变量
 # `$env:AUDIOCPP_MODELS="qwen3_asr,citrinet_asr"` 后用本开关。
 # 示例：cargo run --features model-qwen3-asr
@@ -72,6 +72,7 @@ model-personaplex = ["audio-cpp-sys/model-personaplex"]        # 多角色对话
 model-moss-voicegen = ["audio-cpp-sys/model-moss-voicegen"]    # 语音生成：MOSS VoiceGen
 model-meanvc2 = ["audio-cpp-sys/model-meanvc2"]                # 语音转换：MeanVC2
 model-mms-forced-aligner = ["audio-cpp-sys/model-mms-forced-aligner"]  # 强制对齐：MMS Forced Aligner
+model-qwen3-forced-aligner = ["audio-cpp-sys/model-qwen3-forced-aligner"]  # 强制对齐：Qwen3 Forced Aligner
 model-audiosr = ["audio-cpp-sys/model-audiosr"]              # 音频超分辨率：AudioSR
 model-controlfoley = ["audio-cpp-sys/model-controlfoley"]    # 可控音效生成：ControlFoley
 model-firered-audio = ["audio-cpp-sys/model-firered-audio"]  # 语音理解/生成：FireRed Audio
@@ -91,6 +92,8 @@ model-moonshine-asr = ["audio-cpp-sys/model-moonshine-asr"]  # ASR：Moonshine �
 model-niagara-asr = ["audio-cpp-sys/model-niagara-asr"]      # ASR：Niagara 批处理 ASR
 model-kokoro-tts = ["audio-cpp-sys/model-kokoro-tts"]        # TTS：Kokoro 82M
 model-builtin-audio-utils = ["audio-cpp-sys/model-builtin-audio-utils"]  # 音频工具：内置降噪/增强/超分
+model-yue2 = ["audio-cpp-sys/model-yue2"]  # 音乐生成：YuE2
+model-sheetsage2 = ["audio-cpp-sys/model-sheetsage2"]  # 音频转谱：SheetSage2
 cuda = ["audio-cpp-sys/cuda"]     # NVIDIA CUDA（需 CUDA Toolkit）
 hip = ["audio-cpp-sys/hip"]       # AMD HIP/ROCm（与 cuda 互斥）
 vulkan = ["audio-cpp-sys/vulkan"] # Vulkan 通用后端（需 Vulkan SDK）

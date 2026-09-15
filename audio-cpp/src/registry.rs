@@ -4,8 +4,11 @@
 //! 一个 `Registry` 持有 C 侧的不透明句柄，可被多个 `Model` 共享，直到
 //! 所有派生句柄释放后才可释放（见各类型的 `Drop`）。
 
+use std::cell::UnsafeCell;
 use std::ffi::c_char;
+use std::marker::PhantomData;
 use std::ptr;
+use std::sync::Arc;
 
 use audio_cpp_sys::*;
 
@@ -14,9 +17,45 @@ use crate::ffi;
 use crate::model::Model;
 use crate::types::{Device, LoaderInfo, ModelFamily, ModelInspection};
 
+/// C 注册表所有权的共享持有者。
+///
+/// `Registry::load` 返回的每个 [`Model`] 都会克隆持有它，因此调用方在
+/// 加载完成后即可释放 `Registry`：C 注册表存活到最后一个派生句柄释放，
+/// 不存在"先 drop registry 即悬垂"。`Send` 而非 `Sync`（C 侧 registry
+/// 内部无锁，并发共享 `&Registry` 仍是未定义行为，与之前一致）。
+#[derive(Clone)]
+// `Arc` 在此仅作共享所有权计数（跨线程只转移所有权、从不并发访问，
+// 与 `Registry: Send + !Sync` 的既有语义一致）。
+pub(crate) struct RegistryGuard {
+    // 仅作所有权计数（Clone/Drop），从不读内容：C 注册表由最后一个
+    // guard 释放，这是刻意设计而非冗余字段。
+    #[allow(dead_code)]
+    inner: Arc<RegistryInner>,
+}
+
+struct RegistryInner {
+    raw: *mut audiocpp_registry,
+    // `*mut` 本身是 Send+Sync，加一个 !Sync 标记保住 `!Sync` 语义。
+    _no_sync: PhantomData<UnsafeCell<()>>,
+}
+
+// SAFETY: guard 只做所有权计数与释放（`Drop` 调 `audiocpp_registry_free`），
+// 不提供并发访问 C 注册表的路径；C 句柄的跨线程转移与之前 `Registry: Send` 一致。
+unsafe impl Send for RegistryGuard {}
+
+impl Drop for RegistryInner {
+    fn drop(&mut self) {
+        unsafe {
+            audiocpp_registry_free(self.raw);
+        }
+    }
+}
+
 /// 模型注册表。
 pub struct Registry {
     raw: *mut audiocpp_registry,
+    // 自持有：`Clone` 出去给 Model，Registry 先 drop 不影响已加载模型。
+    guard: RegistryGuard,
 }
 
 // C ABI 句柄本身不要求 Send/Sync。C 侧 registry 内部无锁，多个线程共享
@@ -30,12 +69,20 @@ impl Registry {
     /// # Errors
     ///
     /// 底层 C ABI 无法创建注册表时返回 [`Error::NullHandle`]。
+    // `Arc` 仅作所有权计数（见 `RegistryGuard`），`!Send` 属刻意设计。
+    #[allow(clippy::arc_with_non_send_sync)]
     pub fn new() -> Result<Self, Error> {
         let raw = unsafe { audiocpp_registry_default() };
         if raw.is_null() {
             return Err(Error::NullHandle(ffi::last_error()));
         }
-        Ok(Self { raw })
+        let guard = RegistryGuard {
+            inner: Arc::new(RegistryInner {
+                raw,
+                _no_sync: PhantomData,
+            }),
+        };
+        Ok(Self { raw, guard })
     }
 
     /// 已注册的模型族列表，例如 `["silero_vad","qwen3_asr"]`。
@@ -156,6 +203,9 @@ impl Registry {
     /// 自动探测族别，须显式指定，见 [`crate::ModelFamily`]）；`load_options`
     /// 可选，例如 `{"weight_id":"..."}`。
     ///
+    /// 返回的 [`Model`] 共享持有 C 注册表的所有权：本 `Registry` 释放后
+    /// 模型仍可继续使用，无需 `_registry` 三件套持有。
+    ///
     /// # Errors
     ///
     /// 路径含 NUL / 非 UTF-8 返回 [`Error::Nul`] 或 [`Error::NonUtf8Path`]；
@@ -188,17 +238,13 @@ impl Registry {
         if raw.is_null() {
             return Err(Error::NullHandle(ffi::last_error()));
         }
-        Ok(Model::from_raw(raw))
+        Ok(Model::from_raw(raw, self.guard.clone()))
     }
 }
 
-impl Drop for Registry {
-    fn drop(&mut self) {
-        unsafe {
-            audiocpp_registry_free(self.raw);
-        }
-    }
-}
+// 注意：`Registry` 没有手动 `Drop` 实现——字段析构即语义：`raw` 是普通指针
+// 无动作，`guard` 的 Arc 计数减一；C 注册表由最后一个存活的 `RegistryGuard`
+// （Registry / Model / Session 任一持有）释放。
 
 #[cfg(test)]
 mod tests {
@@ -212,5 +258,23 @@ mod tests {
         // core 模型集始终包含 silero_vad；明显不存在的族应返回 false 且不报错。
         assert!(reg.supports_family("silero_vad"));
         assert!(!reg.supports_family("definitely_not_a_real_family_xyz"));
+    }
+
+    #[test]
+    fn model_outlives_registry() {
+        // G5：Model 共享持有 C 注册表，Registry 先释放后模型仍可继续使用。
+        // 用上游自带的 silero 内置权重（构建本 crate 必需 submodule，路径稳定）。
+        let weight = "../audio-cpp-sys/audio.cpp/assets/framework/models/silero_vad/silero_vad_16k.safetensors";
+        assert!(
+            std::path::Path::new(weight).exists(),
+            "内置权重缺失，submodule 未补齐？{weight}"
+        );
+        let model = {
+            let reg = Registry::new().unwrap();
+            reg.load(weight, None, None).unwrap()
+        };
+        // Registry 已释放：metadata 走 C 侧 loaded-model，与注册表无关。
+        let meta = model.metadata().unwrap();
+        assert_eq!(meta.family, "silero_vad");
     }
 }

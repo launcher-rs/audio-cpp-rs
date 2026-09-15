@@ -111,14 +111,11 @@ fn main() -> Result<(), audio_cpp::Error> {
                 None,
             )?;
             // 用引擎自带的 sample_16k.wav 验证。
+            // VAD 阈值键统一为 `threshold`（`vad_threshold` 在上游从未存在）。
             let wav = "audio-cpp-sys/audio.cpp/assets/resources/sample_16k.wav";
-            let threshold_key = if session.family() == "marblenet_vad" {
-                "threshold"
-            } else {
-                "vad_threshold"
-            };
-            let result =
-                session.run_offline(audio_cpp::Request::vad(wav).option(threshold_key, 0.5))?;
+            let result = session.run_offline(
+                audio_cpp::Request::vad(wav).option(audio_cpp::options::request::THRESHOLD, 0.5),
+            )?;
             println!(
                 "VAD 验证（{wav}）：检测到 {} 段语音",
                 result.speech_segments.len()
