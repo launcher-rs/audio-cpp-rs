@@ -288,7 +288,8 @@ pub enum ModelFamily {
     Audiosr,
     /// 内置音频工具（降噪/增强/超分：deepfilternet2、rnnoise、zipenhancer、
     /// gtcrn 系列、flashsr；task 为 `s2s` 仅离线；加载时 `model_path`
-    /// 直接传工具 ID 字符串如 `"deepfilternet2"`，无需权重文件路径）
+    /// 传权重文件或其所在目录（权重需另行下载，非内嵌），另须经 `load_options`
+    /// 传 `{"utility":"<工具 ID>"}`（如 `"rnnoise"`）指定实现）
     BuiltinAudioUtils,
     /// ControlFoley（可控电影音效生成）
     ControlFoley,

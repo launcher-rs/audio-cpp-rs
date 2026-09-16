@@ -111,8 +111,51 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `e9ff200`（origin/main；从
-  `1bab32a` 快进）。历史升级记录见下方逐条。
+- 当前 submodule HEAD = `048c9a0c`（origin/main；从
+  `e9ff200` 快进）。历史升级记录见下方逐条。
+- **升级 `e9ff200`→`048c9a0c`（main）审查结论**：
+  - diff 共 66 文件（+3k/-1.5k，21 个提交）：**无新增 `make_*_loader`**
+    （81→81，上游 model target 数不变）；其余为 YuE2 LoRA（框架
+    `lora_tensor_source` + AR/NAR 运行时 + WebUI 选项）/ 流式 partial 按增量
+    发布（新增 `partial_text` 共享发布器，kroko/parakeet/higgs/vibevoice 等
+    对齐）/ greedy Qwen decoder 与 Qwen BPE bundle 框架提升（audio8 thinker
+    瘦身约 689 行）/ kokoro 英文 G2P 补完 / builtin_audio_utils 显式权重路径
+    （下述）/ yue2 ABC 乐谱产物（下述）/ sheetsage2 放宽加载检查 /
+    CUDA Turing 原生 SASS / vulkan col2im 修 / server config 与 WebUI 小修 +
+    `v0.8.0` 发版。
+  - **C ABI 边界无需改动**：`framework/core/backend.h` /
+    `framework/io/json.h` / `framework/runtime/{model,registry}.h` 本次
+    diff **零改动**；`framework/runtime/session.h` 仅加法字段
+    `TaskRequest::option_arrays` / `SessionPreparationRequest::option_arrays`
+    （上游 opt-in C API `audiocpp_request_set_option_array` 的运行时载体，
+    上游明确尚无 spec 使用 `*_list` 选项类型）；`spec_backed_model.h` 新增
+    数组键校验重载，既有调用点不动。`capi.h` / `capi.cpp` / build.rs bindgen
+    allowlist 保持原样。
+  - 无新 task 类型 / 输出字段：`task_vocabulary` 未动；yue2 新增 `score`
+    ABC 文本产物（kind `Custom` + `meta`：mime/format/extension/source/
+    truncated）走既有 `output_artifacts`（shim 与高层 `VoiceArtifact.meta`
+    早已支持）；流式 `partial_text` 改增量语义（同名字段，客户端按追加拼接，
+    此前 parakeet 发全量导致二次拼接错误）。高层 `types.rs` serde 结构无需改。
+  - 本仓同步：`ModelFamily` 无需动（无新 loader 族）；仅修
+    `BuiltinAudioUtils` 文档——`model_path` 改传权重文件或其所在目录
+    （权重另行下载，非内嵌）+ 必经 `load_options` 传
+    `{"utility":"<工具 ID>"}`（`Registry::load` 早已支持 load_options 透传；
+    `from_path()` 关键词对目录路径仍有效）。另 yue2 请求/会话选项经通用
+    字符串透传，无需 Rust 改动（`guidance_scale` 新增、`cfg_scale` 保留兼容；
+    删 `semantic_codes_file`；新增会话选项 `yue2.lora` / `yue2.lora_scale` /
+    `yue2.attention`；默认 seed/步数变更；yue2 与 sheetsage2 状态升为
+    `supported`）。
+  - 验证：`cargo fmt --check` + `cargo build --workspace`（build.rs 跟踪
+    submodule HEAD 正常触发增量重编，新 TU `lora_tensor_source` /
+    `partial_text` / `greedy_qwen_decoder` / `qwen_bpe_bundle` 已编入，
+    `engine_runtime.lib` 重链接）+ `cargo test --workspace`
+    （31 lib + 12 doc 全过）+ `clippy --workspace --all-targets` 零警告。
+    新旧 session 均自持资产（builtin session 按值持有 `UtilityRuntime` 不变；
+    yue2 持 `shared_ptr<const Yue2Assets>` 不变），`Session` 独立于 `Model`
+    存活的保证成立。
+  - 注意：`metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制回落
+    源码构建（预编译自动下载被跳过），属预期；重新发布预编译资产须用户显式
+    下达发布命令（第 6 节），本次未执行。
 - **升级 `1bab32a`→`e9ff200`（main）审查结论**：
   - diff 共 106 文件（+13.7k/-303，约 20 个提交）：新增 2 个 CMake target
     `yue2`（族 `yue2`，YuE2 音乐生成，task `gen` 仅离线，纯文本请求
