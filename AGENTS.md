@@ -111,8 +111,65 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `048c9a0c`（origin/main；从
-  `e9ff200` 快进）。历史升级记录见下方逐条。
+- 当前 submodule HEAD = `c0b26a50`（origin/main；从
+  `048c9a0c` 快进）。历史升级记录见下方逐条。
+- **升级 `048c9a0c`→`c0b26a50`（main）审查结论**：
+  - diff 共 95 文件（+8.2k/-179，12 个提交）：新增 6 个 CMake target
+    `apollo`（族 `apollo`，44.1kHz 压缩音频音乐修复，task `s2s` 仅离线）/
+    `universr`（族 `universr`，复数 STFT 流匹配超分至 48kHz，task `s2s`
+    仅离线）/ `canary_asr`（族 `canary_asr`，NVIDIA Canary 180M Flash
+    多语 ASR/翻译，task `asr` 仅离线，en/de/es/fr）/ `cohere_asr`
+    （族 `cohere_asr`，Cohere Transcribe 多语转写，task `asr` 仅离线，
+    14 语种）/ `moss_transcribe_diarize`（族 `moss_transcribe_diarize`，
+    Whisper 编码器 + Qwen3 解码器，转写+说话人分离+时间戳联合输出，
+    task `asr` 离线+流式）/ `pulsevad`（族 `pulsevad`，16kHz 单声道
+    VAD，task `vad` 仅离线）；其余为 YuE2 AR/NAR 独立 LoRA（下述破坏性
+    改名）/ kokoro `phonemes` 直供音素流（下述）/ 转录详情端点支持无文本
+    diar（server `runtime.cpp` 仅改，`text_output` 为空时 diar 不再抛错）/
+    GGUF 内嵌 sidecar 携带与校验 / RoFormer HIP 注意力布局优化 /
+    CUDA 默认架构提示与 opt-in ccache / fish Q6_K/Q4_K 量化文档 / WebUI
+    新增 ASR 与音频工具模型面板。上游 model target 共 83 个（+6）。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 5 个头（`framework/core/backend.h` /
+    `framework/io/json.h` / `framework/runtime/{model,registry,session}.h`）本次
+    diff **零改动**（`src/capi/`、`session.h`、`spec_backed_model.h` 均无变化；
+    上游 opt-in C API 与本仓 shim 无关）。`capi.h` / `capi.cpp` / build.rs bindgen
+    allowlist 保持原样。
+  - 无新 task 类型 / 输出字段：6 新族均用既有 `s2s` / `asr` / `vad`
+    （moss_transcribe_diarize 的 segments+speaker_turns 复用既有输出字段）；
+    高层 `types.rs` serde 结构无需改。新选项（canary `target_language`/`pnc`、
+    cohere `pnc`、apollo/universr `audio_chunk_duration_sec` 系、universr
+    `input_sample_rate`/`sampler_mode`/`num_inference_steps`/`guidance_scale`/
+    `seed`、pulsevad `threshold`/`hop_size_samples`/`min_speech_duration_ms`/
+    `min_silence_duration_ms`）全部走通用 options 字符串透传，无需 Rust 改动。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 6 个枚举变体
+    `Apollo`（`as_str()` → `"apollo"`）/ `Universr`（→ `"universr"`）/
+    `CanaryAsr`（→ `"canary_asr"`）/ `CohereAsr`（→ `"cohere_asr"`）/
+    `MossTranscribeDiarize`（→ `"moss_transcribe_diarize"`）/ `Pulsevad`
+    （→ `"pulsevad"`，与上游 loader 族名一致）+ `from_path()` 关键词表
+    （`moss_transcribe_diarize` 两条置于裸 `"moss"` 之前，避免子串误判）+
+    `From<&str>`；并在 `audio-cpp-sys/Cargo.toml` 与 `audio-cpp/Cargo.toml`
+    新增 6 个 `model-*` feature（build.rs 自动映射 CMake target）；
+    full-models 注释 77→83。`model_family_roundtrip` /
+    `model_family_from_path` 测试已覆盖新变体。
+  - 破坏性改名（上游，无兼容保留）：yue2 会话选项 `yue2.lora` /
+    `yue2.lora_scale` 改名为 `yue2.ar_lora` / `yue2.ar_lora_scale`，另新增
+    `yue2.nar_lora` / `yue2.nar_lora_scale`（NAR 声学渲染适配器，可与 AR
+    独立或组合使用）。本仓 Rust 侧未硬编码旧键（仅 AGENTS.md 历史记录提及），
+    无需代码改动；调用方手写旧键需自行更新。
+  - 未暴露的新能力（记录，不实现）：kokoro `phonemes`（`string_list` 类型，
+    需上游 opt-in C API `audiocpp_request_set_option_array`，本仓 shim 未暴露
+    数组选项，暂经通用字符串 options 不可达）。
+  - 验证：`cargo fmt --check` + `cargo build --workspace`（增量重编约 1.5 分钟，
+    `engine_runtime` 链接通过；6 新族不在 core 集，默认构建不编译它们，
+    与既往升级一致）+ `cargo test --workspace`（31 lib + 12 doc 全过）+
+    `clippy --workspace --all-targets` 零警告 + `cargo check -p audio-cpp-sys
+    --features custom-models,model-pulsevad`（新 feature→CMake target 映射抽查通过）。
+    6 新族 session 均自持资产（canary/cohere/apollo/universr 持
+    `shared_ptr<const *Assets>`；moss_transcribe_diarize/pulsevad 走
+    spec-backed `shared_ptr`），`Session` 独立于 `Model` 存活的保证成立。
+  - 注意：`metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制回落
+    源码构建（预编译自动下载被跳过），属预期；重新发布预编译资产须用户显式
+    下达发布命令（第 6 节），本次未执行。
 - **升级 `e9ff200`→`048c9a0c`（main）审查结论**：
   - diff 共 66 文件（+3k/-1.5k，21 个提交）：**无新增 `make_*_loader`**
     （81→81，上游 model target 数不变）；其余为 YuE2 LoRA（框架

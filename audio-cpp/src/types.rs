@@ -136,6 +136,9 @@ pub enum ModelFamily {
     SileroVad,
     /// MarbleNet VAD（NeMo 格式，须显式指定）
     MarblenetVad,
+    /// PulseVAD（16kHz 单声道语音活动检测，2.1K student / 81K teacher；
+    /// 仅离线，阈值选项键为 `threshold`）
+    Pulsevad,
 
     // ---- ASR ----
     /// Qwen3 ASR
@@ -175,6 +178,15 @@ pub enum ModelFamily {
     MoonshineAsr,
     /// Niagara ASR（ABR Niagara 英文批处理 ASR，仅离线）
     NiagaraAsr,
+    /// Canary ASR（NVIDIA Canary 180M Flash 多语 ASR/翻译，仅离线；
+    /// en/de/es/fr，选项 `target_language`/`pnc`）
+    CanaryAsr,
+    /// Cohere ASR（Cohere Transcribe 多语转写，仅离线；14 语种，
+    /// 选项 `pnc`/`max_tokens`）
+    CohereAsr,
+    /// MOSS-Transcribe-Diarize（Whisper 编码器 + Qwen3 解码器，
+    /// 转写+说话人分离+时间戳联合输出；离线+流式）
+    MossTranscribeDiarize,
 
     // ---- TTS ----
     /// Qwen3 TTS
@@ -286,6 +298,12 @@ pub enum ModelFamily {
     VoxtralRealtime,
     /// AudioSR（语音/音频超分辨率）
     Audiosr,
+    /// Apollo（44.1kHz 压缩音频音乐修复；task 为 `s2s` 仅离线）
+    Apollo,
+    /// UniverSR（复数 STFT 流匹配音频超分至 48kHz；task 为 `s2s` 仅离线；
+    /// 选项 `input_sample_rate`/`sampler_mode`/`num_inference_steps`/
+    /// `guidance_scale`/`seed`）
+    Universr,
     /// 内置音频工具（降噪/增强/超分：deepfilternet2、rnnoise、zipenhancer、
     /// gtcrn 系列、flashsr；task 为 `s2s` 仅离线；加载时 `model_path`
     /// 传权重文件或其所在目录（权重需另行下载，非内嵌），另须经 `load_options`
@@ -359,6 +377,9 @@ impl ModelFamily {
             ("marblenet_vad", ModelFamily::MarblenetVad),
             ("marblenet-vad", ModelFamily::MarblenetVad),
             ("marblenet", ModelFamily::MarblenetVad),
+            ("pulsevad", ModelFamily::Pulsevad),
+            ("pulse-vad", ModelFamily::Pulsevad),
+            ("pulse", ModelFamily::Pulsevad),
             ("qwen3_asr", ModelFamily::Qwen3Asr),
             ("qwen3-asr", ModelFamily::Qwen3Asr),
             ("qwen3_tts", ModelFamily::Qwen3Tts),
@@ -416,6 +437,15 @@ impl ModelFamily {
             ("index_tts2", ModelFamily::IndexTts2),
             ("index-tts2", ModelFamily::IndexTts2),
             ("irodori", ModelFamily::IrodoriTts),
+            // moss_transcribe_diarize 必须排在裸 "moss" 之前，否则会被吞掉。
+            (
+                "moss_transcribe_diarize",
+                ModelFamily::MossTranscribeDiarize,
+            ),
+            (
+                "moss-transcribe-diarize",
+                ModelFamily::MossTranscribeDiarize,
+            ),
             ("moss-tts-nano", ModelFamily::MossTtsNano),
             ("moss_tts_nano", ModelFamily::MossTtsNano),
             ("moss-tts-local", ModelFamily::MossTtsLocal),
@@ -467,6 +497,12 @@ impl ModelFamily {
             ("niagara_asr", ModelFamily::NiagaraAsr),
             ("niagara-asr", ModelFamily::NiagaraAsr),
             ("niagara", ModelFamily::NiagaraAsr),
+            ("canary_asr", ModelFamily::CanaryAsr),
+            ("canary-asr", ModelFamily::CanaryAsr),
+            ("canary", ModelFamily::CanaryAsr),
+            ("cohere_asr", ModelFamily::CohereAsr),
+            ("cohere-asr", ModelFamily::CohereAsr),
+            ("cohere", ModelFamily::CohereAsr),
             ("minimax_h3", ModelFamily::MinimaxH3),
             ("minimax-h3", ModelFamily::MinimaxH3),
             ("sortformer_diar_v2", ModelFamily::SortformerDiarV2),
@@ -509,6 +545,9 @@ impl ModelFamily {
             ("voxtral", ModelFamily::VoxtralRealtime),
             ("audiosr", ModelFamily::Audiosr),
             ("audio-sr", ModelFamily::Audiosr),
+            ("apollo", ModelFamily::Apollo),
+            ("universr", ModelFamily::Universr),
+            ("univer-sr", ModelFamily::Universr),
             ("controlfoley", ModelFamily::ControlFoley),
             ("control-foley", ModelFamily::ControlFoley),
             ("midashenglm_gen", ModelFamily::MidashEnglmGen),
@@ -541,6 +580,7 @@ impl ModelFamily {
         match self {
             ModelFamily::SileroVad => "silero_vad",
             ModelFamily::MarblenetVad => "marblenet_vad",
+            ModelFamily::Pulsevad => "pulsevad",
             ModelFamily::Qwen3Asr => "qwen3_asr",
             ModelFamily::CitrinetAsr => "citrinet_asr",
             ModelFamily::SenseAsr => "sense_asr",
@@ -559,6 +599,9 @@ impl ModelFamily {
             ModelFamily::Vibeasr => "vibeasr",
             ModelFamily::MoonshineAsr => "moonshine_asr",
             ModelFamily::NiagaraAsr => "niagara_asr",
+            ModelFamily::CanaryAsr => "canary_asr",
+            ModelFamily::CohereAsr => "cohere_asr",
+            ModelFamily::MossTranscribeDiarize => "moss_transcribe_diarize",
             ModelFamily::Qwen3Tts => "qwen3_tts",
             ModelFamily::Confucius4Tts => "confucius4_tts",
             ModelFamily::DotsTts => "dots_tts",
@@ -610,6 +653,8 @@ impl ModelFamily {
             ModelFamily::Sheetsage2 => "sheetsage2",
             ModelFamily::VoxtralRealtime => "voxtral_realtime",
             ModelFamily::Audiosr => "audiosr",
+            ModelFamily::Apollo => "apollo",
+            ModelFamily::Universr => "universr",
             ModelFamily::BuiltinAudioUtils => "builtin_audio_utils",
             ModelFamily::ControlFoley => "controlfoley",
             ModelFamily::MidashEnglmGen => "midashenglm_gen",
@@ -632,6 +677,7 @@ impl From<&str> for ModelFamily {
         match s {
             "silero_vad" => ModelFamily::SileroVad,
             "marblenet_vad" => ModelFamily::MarblenetVad,
+            "pulsevad" => ModelFamily::Pulsevad,
             "qwen3_asr" => ModelFamily::Qwen3Asr,
             "citrinet_asr" => ModelFamily::CitrinetAsr,
             "sense_asr" => ModelFamily::SenseAsr,
@@ -654,6 +700,9 @@ impl From<&str> for ModelFamily {
             "vibeasr" => ModelFamily::Vibeasr,
             "moonshine_asr" => ModelFamily::MoonshineAsr,
             "niagara_asr" => ModelFamily::NiagaraAsr,
+            "canary_asr" => ModelFamily::CanaryAsr,
+            "cohere_asr" => ModelFamily::CohereAsr,
+            "moss_transcribe_diarize" => ModelFamily::MossTranscribeDiarize,
             "qwen3_tts" => ModelFamily::Qwen3Tts,
             "confucius4_tts" => ModelFamily::Confucius4Tts,
             "dots_tts" => ModelFamily::DotsTts,
@@ -711,6 +760,8 @@ impl From<&str> for ModelFamily {
             "sheetsage2" => ModelFamily::Sheetsage2,
             "voxtral_realtime" => ModelFamily::VoxtralRealtime,
             "audiosr" => ModelFamily::Audiosr,
+            "apollo" => ModelFamily::Apollo,
+            "universr" => ModelFamily::Universr,
             "builtin_audio_utils" => ModelFamily::BuiltinAudioUtils,
             "controlfoley" => ModelFamily::ControlFoley,
             "midashenglm_gen" => ModelFamily::MidashEnglmGen,
@@ -1109,6 +1160,7 @@ mod tests {
             // VAD
             SileroVad,
             MarblenetVad,
+            Pulsevad,
             // ASR
             Qwen3Asr,
             CitrinetAsr,
@@ -1128,6 +1180,9 @@ mod tests {
             Vibeasr,
             MoonshineAsr,
             NiagaraAsr,
+            CanaryAsr,
+            CohereAsr,
+            MossTranscribeDiarize,
             // TTS
             Qwen3Tts,
             Confucius4Tts,
@@ -1181,6 +1236,8 @@ mod tests {
             Sheetsage2,
             VoxtralRealtime,
             Audiosr,
+            Apollo,
+            Universr,
             BuiltinAudioUtils,
             ControlFoley,
             MidashEnglmGen,
@@ -1298,6 +1355,31 @@ mod tests {
         assert_eq!(
             ModelFamily::from_path("sheetsage2-q8_0.gguf"),
             Some(ModelFamily::Sheetsage2)
+        );
+        assert_eq!(
+            ModelFamily::from_path("pulsevad-2.1k-f32.gguf"),
+            Some(ModelFamily::Pulsevad)
+        );
+        assert_eq!(
+            ModelFamily::from_path("canary-180m-flash-q8_0.gguf"),
+            Some(ModelFamily::CanaryAsr)
+        );
+        assert_eq!(
+            ModelFamily::from_path("cohere-transcribe-03-2026-q8_0.gguf"),
+            Some(ModelFamily::CohereAsr)
+        );
+        // moss_transcribe_diarize 不能被裸 "moss" 吞掉
+        assert_eq!(
+            ModelFamily::from_path("moss-transcribe-diarize-q8_0.gguf"),
+            Some(ModelFamily::MossTranscribeDiarize)
+        );
+        assert_eq!(
+            ModelFamily::from_path("apollo-orig.gguf"),
+            Some(ModelFamily::Apollo)
+        );
+        assert_eq!(
+            ModelFamily::from_path("universr-audio-orig.gguf"),
+            Some(ModelFamily::Universr)
         );
         // 内置音频工具：model_path 直接传工具 ID 也能映射到族。
         assert_eq!(

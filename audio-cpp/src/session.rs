@@ -75,6 +75,8 @@ pub struct Session {
     sink_swap: Mutex<()>,
     /// 共享持有 C 注册表：`Model` / `Registry` 先释放不影响会话继续工作。
     _guard: RegistryGuard,
+    /// 创建会话时请求的计算后端（见 [`Session::backend`]）。
+    backend: Backend,
 }
 
 // Session 持有回调 box（要求 Send）与 C 句柄。跨线程转移所有权是安全的，
@@ -84,12 +86,17 @@ unsafe impl Send for Session {}
 
 impl Session {
     /// 从原始 C 句柄包装（仅内部使用）。
-    pub(crate) fn from_raw(raw: *mut audiocpp_session, guard: RegistryGuard) -> Self {
+    pub(crate) fn from_raw(
+        raw: *mut audiocpp_session,
+        guard: RegistryGuard,
+        backend: Backend,
+    ) -> Self {
         Self {
             raw,
             event_sink: Mutex::new(None),
             sink_swap: Mutex::new(()),
             _guard: guard,
+            backend,
         }
     }
 
@@ -127,6 +134,17 @@ impl Session {
                 std::ffi::CStr::from_ptr(p).to_string_lossy().into_owned()
             }
         }
+    }
+
+    /// 创建会话时请求的计算后端。
+    ///
+    /// 这是传给 [`crate::Model::create_task_session`] 的 `backend` 参数原样
+    /// 记录，不经过上游再查询——C ABI 与上游引擎目前均无“实际落定后端”
+    /// 查询接口。显式传 `Backend::Cpu/Vulkan/...` 时返回值即实际后端；
+    /// 传 `Backend::Best` 时引擎内部按可用设备解析，返回值只能说明
+    /// “请求的是自动选择”，不要据此显示具体设备名。
+    pub fn backend(&self) -> Backend {
+        self.backend
     }
 
     /// 流式策略描述（输入/输出类型、推荐分块大小）。
@@ -481,6 +499,11 @@ impl StreamingSession {
     /// 如需自定义回调，请直接使用 [`Session`] 而非本包装。
     pub fn session(&self) -> &Session {
         &self.session
+    }
+
+    /// 创建时请求的计算后端（等价于 [`Session::backend`]）。
+    pub fn backend(&self) -> Backend {
+        self.session.backend()
     }
 
     /// 底层会话可变引用。

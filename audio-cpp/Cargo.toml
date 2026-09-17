@@ -39,7 +39,7 @@ default = ["core-models"]
 prebuilt = ["audio-cpp-sys/prebuilt"]
 # 转发给 audio-cpp-sys 的模型组合 / 后端 feature。
 core-models = ["audio-cpp-sys/core-models"]   # 引擎核心 + 内置 VAD（默认，最小编译集）
-full-models = ["audio-cpp-sys/full-models"]   # 全量 77 个 loader 族（编译慢）
+full-models = ["audio-cpp-sys/full-models"]   # 全量 83 个 loader 族（编译慢）
 # 按需编译：可直接启用 `model-<族>` feature（推荐），或设置环境变量
 # `$env:AUDIOCPP_MODELS="qwen3_asr,citrinet_asr"` 后用本开关。
 # 示例：cargo run --features model-qwen3-asr
@@ -94,6 +94,12 @@ model-kokoro-tts = ["audio-cpp-sys/model-kokoro-tts"]        # TTS：Kokoro 82M
 model-builtin-audio-utils = ["audio-cpp-sys/model-builtin-audio-utils"]  # 音频工具：内置降噪/增强/超分
 model-yue2 = ["audio-cpp-sys/model-yue2"]  # 音乐生成：YuE2
 model-sheetsage2 = ["audio-cpp-sys/model-sheetsage2"]  # 音频转谱：SheetSage2
+model-canary-asr = ["audio-cpp-sys/model-canary-asr"]  # ASR: NVIDIA Canary 180M Flash
+model-cohere-asr = ["audio-cpp-sys/model-cohere-asr"]  # ASR: Cohere Transcribe
+model-moss-transcribe-diarize = ["audio-cpp-sys/model-moss-transcribe-diarize"]  # ASR: MOSS Transcribe+Diarize
+model-pulsevad = ["audio-cpp-sys/model-pulsevad"]  # VAD: PulseVAD
+model-apollo = ["audio-cpp-sys/model-apollo"]  # Audio tool: Apollo
+model-universr = ["audio-cpp-sys/model-universr"]  # Audio tool: UniverSR
 cuda = ["audio-cpp-sys/cuda"]     # NVIDIA CUDA（需 CUDA Toolkit）
 hip = ["audio-cpp-sys/hip"]       # AMD HIP/ROCm（与 cuda 互斥）
 vulkan = ["audio-cpp-sys/vulkan"] # Vulkan 通用后端（需 Vulkan SDK）

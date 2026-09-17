@@ -53,7 +53,7 @@ prebuilt = []
 # vendored 在 audio.cpp/assets/framework/models/，无需下载任何权重。
 # 这也是编译最快、开箱即用的最小编译集，适合仅用 VAD 或验证绑定链路的场景。
 core-models = []
-# 全量编译 audio.cpp 支持的 77 个 loader 族（随上游增长，以
+# 全量编译 audio.cpp 支持的 83 个 loader 族（随上游增长，以
 # audio.cpp/CMakeLists.txt 的 make_*_loader 为准）。注意：全量编译耗时很长且生成
 # 的静态库很大；并不等于"能运行任意模型"，权重文件仍需自行下载。
 # 日常建议优先用模型族 feature 或 custom-models 按需编译，只有需要一次
@@ -120,6 +120,12 @@ model-kokoro-tts = ["custom-models"]         # TTS：Kokoro 82M 多语 TTS（仅
 model-builtin-audio-utils = ["custom-models"] # 音频工具：内置降噪/增强/超分（deepfilternet2/rnnoise/zipenhancer/gtcrn/flashsr）
 model-yue2 = ["custom-models"]                  # 音乐生成：YuE2（符号 ABC 规划 + 语义 codec，仅离线）
 model-sheetsage2 = ["custom-models"]            # 音频转谱：SheetSage2（录音转 ABC 乐谱，仅离线）
+model-canary-asr = ["custom-models"]                # ASR: NVIDIA Canary 180M Flash (multilingual)
+model-cohere-asr = ["custom-models"]                # ASR: Cohere Transcribe (multilingual)
+model-moss-transcribe-diarize = ["custom-models"]  # ASR: MOSS Transcribe+Diarize (offline+streaming)
+model-pulsevad = ["custom-models"]                    # VAD: PulseVAD (16kHz mono)
+model-apollo = ["custom-models"]                        # Audio tool: Apollo music restoration (s2s)
+model-universr = ["custom-models"]                      # Audio tool: UniverSR super-resolution (s2s)
 
 # ------------------------------------------------------------------------
 # 计算后端 feature（可叠加，映射 engine 的 ENGINE_ENABLE_*_CPU 选项）。

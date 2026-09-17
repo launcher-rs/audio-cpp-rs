@@ -97,7 +97,7 @@ impl Model {
         if raw.is_null() {
             return Err(Error::NullHandle(ffi::last_error()));
         }
-        Ok(Session::from_raw(raw, self._guard.clone()))
+        Ok(Session::from_raw(raw, self._guard.clone(), backend))
     }
 }
 
