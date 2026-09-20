@@ -150,7 +150,7 @@ Release 取预编译——只要旧 Release 不被删除，历史预编译长期
 | `core-models`（默认） | 引擎核心 + 内置 VAD（silero_vad / marblenet_vad），权重随上游 vendored，开箱即用 |
 | `custom-models` | 按需编译：配合 `AUDIOCPP_MODELS` 环境变量（逗号分隔 model alias） |
 | `model-<族>` | 常用模型族的专用开关（如 `model-qwen3-asr`、`model-moss`、`model-demucs`、`model-sortformer-diar`），无需环境变量 |
-| `full-models` | 全量 77 个 loader 族（编译慢，且仍要自行下载权重） |
+| `full-models` | 全量 87 个 loader 族（编译慢，且仍要自行下载权重） |
 
 **计算后端**（可叠加，默认 CPU）：
 

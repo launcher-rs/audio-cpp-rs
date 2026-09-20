@@ -187,6 +187,8 @@ pub enum ModelFamily {
     /// MOSS-Transcribe-Diarize（Whisper 编码器 + Qwen3 解码器，
     /// 转写+说话人分离+时间戳联合输出；离线+流式）
     MossTranscribeDiarize,
+    /// Confucius4-R2T2（网易实时流式 ASR，社区模型；离线+流式）
+    Confucius4R2t2,
 
     // ---- TTS ----
     /// Qwen3 TTS
@@ -247,6 +249,12 @@ pub enum ModelFamily {
     Voxcpm1,
     /// Kokoro TTS（Kokoro 82M 多语 TTS，仅离线）
     KokoroTts,
+    /// ZipVoice（k2-fsa 社区流匹配 TTS，含 Distill 变体；en/zh；
+    /// task 为 `tts`/`clon` 仅离线；零样本克隆需 `reference_text` 选项）
+    Zipvoice,
+    /// AuK（腾讯 AuK / AuK-Flash 语音生成与编辑；
+    /// task 为 `tts`/`edit` 仅离线）
+    Auk,
 
     // ---- 说话人分离 / 语音转换 / 音乐生成 ----
     /// SortFormer 说话人分离（Diar）
@@ -313,6 +321,9 @@ pub enum ModelFamily {
     ControlFoley,
     /// MidoAudio / MIdashengLM 生成式音频
     MidashEnglmGen,
+    /// LiveAvatar（Wan S2V 音频驱动数字人；task 为 `sfx`（即 `gen`），
+    /// 离线+流式）
+    Liveavatar,
 
     // ---- 其他 ----
     /// Miocodec / Miotts（小米语音）
@@ -427,6 +438,10 @@ impl ModelFamily {
             ("firered_tts3", ModelFamily::Fireredtts3),
             ("firered-tts3", ModelFamily::Fireredtts3),
             ("vibevoice", ModelFamily::Vibevoice),
+            // confucius4_r2t2 必须排在裸 "confucius" 之前，否则会被吞掉。
+            ("confucius4_r2t2", ModelFamily::Confucius4R2t2),
+            ("confucius4-r2t2", ModelFamily::Confucius4R2t2),
+            ("r2t2", ModelFamily::Confucius4R2t2),
             ("confucius", ModelFamily::Confucius4Tts),
             ("dots_tts", ModelFamily::DotsTts),
             ("dots-tts", ModelFamily::DotsTts),
@@ -503,6 +518,11 @@ impl ModelFamily {
             ("cohere_asr", ModelFamily::CohereAsr),
             ("cohere-asr", ModelFamily::CohereAsr),
             ("cohere", ModelFamily::CohereAsr),
+            ("zipvoice", ModelFamily::Zipvoice),
+            ("zip-voice", ModelFamily::Zipvoice),
+            ("liveavatar", ModelFamily::Liveavatar),
+            ("live-avatar", ModelFamily::Liveavatar),
+            ("auk", ModelFamily::Auk),
             ("minimax_h3", ModelFamily::MinimaxH3),
             ("minimax-h3", ModelFamily::MinimaxH3),
             ("sortformer_diar_v2", ModelFamily::SortformerDiarV2),
@@ -602,6 +622,7 @@ impl ModelFamily {
             ModelFamily::CanaryAsr => "canary_asr",
             ModelFamily::CohereAsr => "cohere_asr",
             ModelFamily::MossTranscribeDiarize => "moss_transcribe_diarize",
+            ModelFamily::Confucius4R2t2 => "confucius4_r2t2",
             ModelFamily::Qwen3Tts => "qwen3_tts",
             ModelFamily::Confucius4Tts => "confucius4_tts",
             ModelFamily::DotsTts => "dots_tts",
@@ -625,6 +646,8 @@ impl ModelFamily {
             ModelFamily::EchoTts => "echo_tts",
             ModelFamily::Voxcpm1 => "voxcpm1",
             ModelFamily::KokoroTts => "kokoro_tts",
+            ModelFamily::Zipvoice => "zipvoice",
+            ModelFamily::Auk => "auk",
             ModelFamily::MinimaxH3 => "minimax_h3",
             ModelFamily::Sanotts => "sanotts",
             ModelFamily::SoproTts => "sopro_tts",
@@ -658,6 +681,7 @@ impl ModelFamily {
             ModelFamily::BuiltinAudioUtils => "builtin_audio_utils",
             ModelFamily::ControlFoley => "controlfoley",
             ModelFamily::MidashEnglmGen => "midashenglm_gen",
+            ModelFamily::Liveavatar => "liveavatar",
             ModelFamily::Miocodec => "miocodec",
             ModelFamily::Miotts => "miotts",
             ModelFamily::Vibevoice => "vibevoice",
@@ -703,6 +727,7 @@ impl From<&str> for ModelFamily {
             "canary_asr" => ModelFamily::CanaryAsr,
             "cohere_asr" => ModelFamily::CohereAsr,
             "moss_transcribe_diarize" => ModelFamily::MossTranscribeDiarize,
+            "confucius4_r2t2" => ModelFamily::Confucius4R2t2,
             "qwen3_tts" => ModelFamily::Qwen3Tts,
             "confucius4_tts" => ModelFamily::Confucius4Tts,
             "dots_tts" => ModelFamily::DotsTts,
@@ -726,6 +751,8 @@ impl From<&str> for ModelFamily {
             "echo_tts" => ModelFamily::EchoTts,
             "voxcpm1" => ModelFamily::Voxcpm1,
             "kokoro_tts" => ModelFamily::KokoroTts,
+            "zipvoice" => ModelFamily::Zipvoice,
+            "auk" => ModelFamily::Auk,
             "minimax_h3" => ModelFamily::MinimaxH3,
             "sanotts" => ModelFamily::Sanotts,
             "sopro_tts" => ModelFamily::SoproTts,
@@ -765,6 +792,7 @@ impl From<&str> for ModelFamily {
             "builtin_audio_utils" => ModelFamily::BuiltinAudioUtils,
             "controlfoley" => ModelFamily::ControlFoley,
             "midashenglm_gen" => ModelFamily::MidashEnglmGen,
+            "liveavatar" => ModelFamily::Liveavatar,
             "miocodec" => ModelFamily::Miocodec,
             "miotts" => ModelFamily::Miotts,
             "vibevoice" => ModelFamily::Vibevoice,
@@ -1183,6 +1211,7 @@ mod tests {
             CanaryAsr,
             CohereAsr,
             MossTranscribeDiarize,
+            Confucius4R2t2,
             // TTS
             Qwen3Tts,
             Confucius4Tts,
@@ -1207,6 +1236,8 @@ mod tests {
             EchoTts,
             Voxcpm1,
             KokoroTts,
+            Zipvoice,
+            Auk,
             MinimaxH3,
             Sanotts,
             SoproTts,
@@ -1241,6 +1272,7 @@ mod tests {
             BuiltinAudioUtils,
             ControlFoley,
             MidashEnglmGen,
+            Liveavatar,
             // 其他
             Miocodec,
             Miotts,
@@ -1380,6 +1412,27 @@ mod tests {
         assert_eq!(
             ModelFamily::from_path("universr-audio-orig.gguf"),
             Some(ModelFamily::Universr)
+        );
+        assert_eq!(
+            ModelFamily::from_path("zipvoice-distill-q8_0.gguf"),
+            Some(ModelFamily::Zipvoice)
+        );
+        assert_eq!(
+            ModelFamily::from_path("auk-flash-q8_0.gguf"),
+            Some(ModelFamily::Auk)
+        );
+        assert_eq!(
+            ModelFamily::from_path("liveavatar-nvfp4.gguf"),
+            Some(ModelFamily::Liveavatar)
+        );
+        // confucius4_r2t2 不能被裸 "confucius" 吞掉（判成 Confucius4Tts）
+        assert_eq!(
+            ModelFamily::from_path("confucius4-r2t2-q8_0.gguf"),
+            Some(ModelFamily::Confucius4R2t2)
+        );
+        assert_eq!(
+            ModelFamily::from_path("confucius4-tts-q8_0.gguf"),
+            Some(ModelFamily::Confucius4Tts)
         );
         // 内置音频工具：model_path 直接传工具 ID 也能映射到族。
         assert_eq!(

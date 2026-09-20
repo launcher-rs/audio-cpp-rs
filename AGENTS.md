@@ -111,8 +111,51 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `c0b26a50`（origin/main；从
-  `048c9a0c` 快进）。历史升级记录见下方逐条。
+- 当前 submodule HEAD = `219a7e0e`（origin/main；从
+  `c0b26a50` 快进）。历史升级记录见下方逐条。
+- **升级 `c0b26a50`→`219a7e0e`（main）审查结论**：
+  - diff 共 208 文件（+34.3k/-1.5k，16 个提交）：新增 4 个 CMake target
+    `zipvoice`（族 `zipvoice`，k2-fsa ZipVoice / ZipVoice-Distill 流匹配
+    TTS，task `tts`+`clon` 仅离线，en/zh，零样本克隆需 `reference_text`）/
+    `liveavatar`（族 `liveavatar`，Wan S2V 音频驱动数字人，task `sfx`
+    即 `gen`，离线+流式）/ `confucius4_r2t2`（族 `confucius4_r2t2`，
+    网易 Confucius4-R2T2 实时流式 ASR，task `asr` 离线+流式）/ `auk`
+    （族 `auk`，腾讯 AuK Base / AuK-Flash 语音生成与编辑，task `tts`+
+    `edit` 仅离线，链接 `yaml_vendor`）；其余为 vibevoice_asr_streaming
+    新增 1.5B 尺寸（同 loader 已兼容，无新族）/ breeze_tts 新增会话选项
+    `bf16_activations`（`auto`/`on`/`off`）/ CLI `--out-format` /
+    CUDA lowering 与 SSM gate fusion / yue2 NAR parity probe 等。
+    上游 model target 共 87 个（+4）。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 5 个头（`framework/core/backend.h` /
+    `framework/io/json.h` / `framework/runtime/{model,registry,session}.h`）本次
+    diff **零改动**（`task_vocabulary` 未动，仍 14 种；`spec_backed_model.h` 未动）。
+    `capi.h` / `capi.cpp` / build.rs bindgen allowlist 保持原样。
+  - 无新 task 类型 / 输出字段：4 新族均用既有 `tts` / `clon` / `edit`（`gen`
+    别名）/ `asr` / `sfx`（`gen` 别名）；高层 `types.rs` serde 结构无需改。
+    新选项（zipvoice `guidance_scale`/`num_inference_steps`/`t_shift`/`speed` 系、
+    breeze `bf16_activations`、liveavatar `denoiser_weight_streaming` 系）全部走
+    通用 options 字符串透传，无需 Rust 改动。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 4 个枚举变体
+    `Zipvoice`（`as_str()` → `"zipvoice"`）/ `Auk`（→ `"auk"`）/
+    `Confucius4R2t2`（→ `"confucius4_r2t2"`）/ `Liveavatar`（→ `"liveavatar"`，
+    与上游 loader 族名一致）+ `from_path()` 关键词表
+    （`confucius4_r2t2` 三条置于裸 `"confucius"` 之前，避免判成
+    `Confucius4Tts`，另加 `confucius4-tts` 回归断言锁定）+
+    `From<&str>`；并在 `audio-cpp-sys/Cargo.toml` 与 `audio-cpp/Cargo.toml`
+    新增 4 个 `model-*` feature（build.rs 自动映射 CMake target）；
+    full-models 注释 83→87，README 计数字段 77→87。
+    `model_family_roundtrip` / `model_family_from_path` 测试已覆盖新变体。
+  - 验证：`cargo fmt --check` + `cargo build --workspace`（增量重编约 1 分钟，
+    新框架 TU 已编入，`engine_runtime.lib` 重链接）+ `cargo test --workspace`
+    （31 lib + 12 doc 全过）+ `clippy --workspace --all-targets` 零警告 +
+    `cargo check -p audio-cpp-sys --features custom-models,model-zipvoice`
+    （新 feature→CMake target 映射抽查通过，`engine_model_zipvoice` 已编译）。
+    4 新族 session 均自持资产（zipvoice/confucius/liveavatar 持
+    `shared_ptr<const *Assets>`；auk 经 `select_component_assets` 持
+    `shared_ptr<const AukAssets>`），`Session` 独立于 `Model` 存活的保证成立。
+  - 注意：`metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制回落
+    源码构建（预编译自动下载被跳过），属预期；重新发布预编译资产须用户显式
+    下达发布命令（第 6 节），本次未执行。
 - **升级 `048c9a0c`→`c0b26a50`（main）审查结论**：
   - diff 共 95 文件（+8.2k/-179，12 个提交）：新增 6 个 CMake target
     `apollo`（族 `apollo`，44.1kHz 压缩音频音乐修复，task `s2s` 仅离线）/
@@ -584,7 +627,7 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
   **GGUF 同样无法自动探测族别**，须显式 `family_hint="citrinet_asr"`（否则误判
   silero_vad 报 missing tensor）。
 - 上游 CMake 支持 `AUDIOCPP_MODEL_SET=custom` + `AUDIOCPP_MODELS`（逗号分隔
-  model targets）按需编译，避免 full 全量 77 个 loader 族的编译成本；引擎核心 +
+  model targets）按需编译，避免 full 全量 87 个 loader 族的编译成本；引擎核心 +
   内置 VAD 始终编入。build.rs 的 `custom-models` feature 透传该机制。
 - 请求 JSON 里的 `audio_path` 若为 Windows 路径，反斜杠必须转义（`\\`），
   `\a` 等非法转义会导致 shim 解析失败（"failed to parse json"），改用正斜杠最省事。

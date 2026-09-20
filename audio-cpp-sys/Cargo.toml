@@ -53,7 +53,7 @@ prebuilt = []
 # vendored 在 audio.cpp/assets/framework/models/，无需下载任何权重。
 # 这也是编译最快、开箱即用的最小编译集，适合仅用 VAD 或验证绑定链路的场景。
 core-models = []
-# 全量编译 audio.cpp 支持的 83 个 loader 族（随上游增长，以
+# 全量编译 audio.cpp 支持的 87 个 loader 族（随上游增长，以
 # audio.cpp/CMakeLists.txt 的 make_*_loader 为准）。注意：全量编译耗时很长且生成
 # 的静态库很大；并不等于"能运行任意模型"，权重文件仍需自行下载。
 # 日常建议优先用模型族 feature 或 custom-models 按需编译，只有需要一次
@@ -126,6 +126,10 @@ model-moss-transcribe-diarize = ["custom-models"]  # ASR: MOSS Transcribe+Diariz
 model-pulsevad = ["custom-models"]                    # VAD: PulseVAD (16kHz mono)
 model-apollo = ["custom-models"]                        # Audio tool: Apollo music restoration (s2s)
 model-universr = ["custom-models"]                      # Audio tool: UniverSR super-resolution (s2s)
+model-zipvoice = ["custom-models"]                      # TTS: ZipVoice / ZipVoice-Distill (en/zh, offline)
+model-auk = ["custom-models"]                           # TTS: AuK / AuK-Flash speech generation & editing (offline)
+model-confucius4-r2t2 = ["custom-models"]               # ASR: Confucius4-R2T2 realtime streaming ASR (offline+streaming)
+model-liveavatar = ["custom-models"]                    # Audio generation: LiveAvatar S2V avatar (offline+streaming)
 
 # ------------------------------------------------------------------------
 # 计算后端 feature（可叠加，映射 engine 的 ENGINE_ENABLE_*_CPU 选项）。
