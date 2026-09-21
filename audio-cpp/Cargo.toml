@@ -39,7 +39,7 @@ default = ["core-models"]
 prebuilt = ["audio-cpp-sys/prebuilt"]
 # 转发给 audio-cpp-sys 的模型组合 / 后端 feature。
 core-models = ["audio-cpp-sys/core-models"]   # 引擎核心 + 内置 VAD（默认，最小编译集）
-full-models = ["audio-cpp-sys/full-models"]   # 全量 87 个 loader 族（编译慢）
+full-models = ["audio-cpp-sys/full-models"]   # 全量 89 个 loader 族（编译慢）
 # 按需编译：可直接启用 `model-<族>` feature（推荐），或设置环境变量
 # `$env:AUDIOCPP_MODELS="qwen3_asr,citrinet_asr"` 后用本开关。
 # 示例：cargo run --features model-qwen3-asr
@@ -104,6 +104,8 @@ model-zipvoice = ["audio-cpp-sys/model-zipvoice"]  # TTS: ZipVoice / ZipVoice-Di
 model-auk = ["audio-cpp-sys/model-auk"]  # TTS: AuK / AuK-Flash
 model-confucius4-r2t2 = ["audio-cpp-sys/model-confucius4-r2t2"]  # ASR: Confucius4-R2T2
 model-liveavatar = ["audio-cpp-sys/model-liveavatar"]  # Audio generation: LiveAvatar
+model-piper-tts = ["audio-cpp-sys/model-piper-tts"]  # TTS: Piper VITS TTS (community)
+model-kitten-tts = ["audio-cpp-sys/model-kitten-tts"]  # TTS: KittenTTS Mini 0.8 (community)
 cuda = ["audio-cpp-sys/cuda"]     # NVIDIA CUDA（需 CUDA Toolkit）
 hip = ["audio-cpp-sys/hip"]       # AMD HIP/ROCm（与 cuda 互斥）
 vulkan = ["audio-cpp-sys/vulkan"] # Vulkan 通用后端（需 Vulkan SDK）

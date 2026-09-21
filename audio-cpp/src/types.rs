@@ -255,6 +255,12 @@ pub enum ModelFamily {
     /// AuK（腾讯 AuK / AuK-Flash 语音生成与编辑；
     /// task 为 `tts`/`edit` 仅离线）
     Auk,
+    /// Piper TTS（社区 VITS TTS，首包英文 `en_US-lessac-medium`，22.05kHz mono；
+    /// task 为 `tts` 仅离线；请求选项 `speed`/`variation`/`duration_variation`/`seed`）
+    PiperTts,
+    /// KittenTTS Mini 0.8（社区英文 TTS，80M 参数，8 个内置声音，24kHz mono；
+    /// task 为 `tts` 仅离线；请求选项 `speed`/`seed`，`--voice-id` 选声音）
+    KittenTts,
 
     // ---- 说话人分离 / 语音转换 / 音乐生成 ----
     /// SortFormer 说话人分离（Diar）
@@ -486,6 +492,12 @@ impl ModelFamily {
             ("kokoro_tts", ModelFamily::KokoroTts),
             ("kokoro-tts", ModelFamily::KokoroTts),
             ("kokoro", ModelFamily::KokoroTts),
+            ("piper_tts", ModelFamily::PiperTts),
+            ("piper-tts", ModelFamily::PiperTts),
+            ("piper", ModelFamily::PiperTts),
+            ("kitten_tts", ModelFamily::KittenTts),
+            ("kitten-tts", ModelFamily::KittenTts),
+            ("kitten", ModelFamily::KittenTts),
             ("voxcpm1", ModelFamily::Voxcpm1),
             ("voxcpm-1", ModelFamily::Voxcpm1),
             ("sanotts", ModelFamily::Sanotts),
@@ -648,6 +660,8 @@ impl ModelFamily {
             ModelFamily::KokoroTts => "kokoro_tts",
             ModelFamily::Zipvoice => "zipvoice",
             ModelFamily::Auk => "auk",
+            ModelFamily::PiperTts => "piper_tts",
+            ModelFamily::KittenTts => "kitten_tts",
             ModelFamily::MinimaxH3 => "minimax_h3",
             ModelFamily::Sanotts => "sanotts",
             ModelFamily::SoproTts => "sopro_tts",
@@ -753,6 +767,8 @@ impl From<&str> for ModelFamily {
             "kokoro_tts" => ModelFamily::KokoroTts,
             "zipvoice" => ModelFamily::Zipvoice,
             "auk" => ModelFamily::Auk,
+            "piper_tts" => ModelFamily::PiperTts,
+            "kitten_tts" => ModelFamily::KittenTts,
             "minimax_h3" => ModelFamily::MinimaxH3,
             "sanotts" => ModelFamily::Sanotts,
             "sopro_tts" => ModelFamily::SoproTts,
@@ -1238,6 +1254,8 @@ mod tests {
             KokoroTts,
             Zipvoice,
             Auk,
+            PiperTts,
+            KittenTts,
             MinimaxH3,
             Sanotts,
             SoproTts,
@@ -1424,6 +1442,14 @@ mod tests {
         assert_eq!(
             ModelFamily::from_path("liveavatar-nvfp4.gguf"),
             Some(ModelFamily::Liveavatar)
+        );
+        assert_eq!(
+            ModelFamily::from_path("piper-en-us-lessac-medium-orig.gguf"),
+            Some(ModelFamily::PiperTts)
+        );
+        assert_eq!(
+            ModelFamily::from_path("kitten-tts-mini-0.8-orig.gguf"),
+            Some(ModelFamily::KittenTts)
         );
         // confucius4_r2t2 不能被裸 "confucius" 吞掉（判成 Confucius4Tts）
         assert_eq!(

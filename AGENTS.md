@@ -111,8 +111,56 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `219a7e0e`（origin/main；从
-  `c0b26a50` 快进）。历史升级记录见下方逐条。
+- 当前 submodule HEAD = `e3de8e3f`（origin/main；从
+  `219a7e0e` 快进）。历史升级记录见下方逐条。
+- **升级 `219a7e0e`→`e3de8e3f`（main）审查结论**：
+  - diff 共 93 文件（+10.6k/-1.1k，11 个提交）：新增 2 个 CMake target
+    `piper_tts`（族 `piper_tts`，Piper VITS 社区 TTS，首包英文
+    `en_US-lessac-medium`，22.05kHz mono，task `tts` 仅离线，eSpeak-ng
+    前端，请求选项 `speed`/`variation`/`duration_variation`/`seed`）/
+    `kitten_tts`（族 `kitten_tts`，KittenTTS Mini 0.8 英文 TTS，80M 参数，
+    8 个内置声音，24kHz mono，task `tts` 仅离线，请求选项 `speed`/`seed`，
+    `--voice-id` 选声音，`--speaking-rate` 通用语速）；其余为全 TTS 语速
+    支持（supertonic `speaking_rate` 改名 `speed` 并保留别名、kokoro 新增
+    `speed` 选项兼容旧 contract、server `build_speech_request` 统一接受
+    `speed`/`speaking_rate` 并写入 voice style）/ NeMo mel 前端共享化
+    （canary/cohere/citrinet/parakeet/sortformer/nemotron/hviske/granite5asr
+    等 ASR 前端迁移到 `framework/audio/nemo_mel_frontend`，内部重构）/
+    ASR 编码器图过大自动重建（`asr_graph_capacity_usable`，10% 容差）/
+    voxcpm2 流式左上下文（`stream_left_context`，默认 3，修 patch 边界咔哒声）
+    + Vulkan 也用 stateful 流式解码 / voxcpm1 Vulkan stateful 解码修 /
+    live 转录路由新增 `prompt`（热词）查询参数 + `language` 改 URL 解码 /
+    vulkan-shaders-gen 空着色器编译重试 / WebUI bundle 可复现 + svelte
+    config / CI 本地运行脚本。上游 model target 共 89 个（+2）。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 5 个头（`framework/core/backend.h` /
+    `framework/io/json.h` / `framework/runtime/{model,registry,session}.h`）本次
+    diff **零改动**（`task_vocabulary` 未动；`spec_backed_model.h` 未动）。
+    `capi.h` / `capi.cpp` / build.rs bindgen allowlist 保持原样。
+  - 无新 task 类型 / 输出字段：2 新族均用既有 `tts`（仅离线）；新选项
+    （piper/kitten/kokoro 的 `speed`、supertonic 的 `speed` 别名、
+    voxcpm2 的 `stream_left_context`、kitten 的权重/图容量会话选项）全部走
+    通用 options 字符串透传，无需 Rust 改动。`speaking_rate` 在
+    `VoiceCondition` style 字段与 server 侧均保留兼容。高层 `types.rs`
+    serde 结构无需改。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 2 个枚举变体
+    `PiperTts`（`as_str()` → `"piper_tts"`）/ `KittenTts`（→ `"kitten_tts"`，
+    与上游 loader 族名一致）+ `from_path()` 关键词表
+    （`piper_tts`/`piper-tts`/裸 `piper`，`kitten_tts`/`kitten-tts`/裸 `kitten`）+
+    `From<&str>`；并在 `audio-cpp-sys/Cargo.toml` 与 `audio-cpp/Cargo.toml`
+    新增 2 个 `model-*` feature（build.rs 自动映射 CMake target）；
+    full-models 注释 87→89，README 计数字段 87→89。
+    `model_family_roundtrip` / `model_family_from_path` 测试已覆盖新变体。
+  - 验证：`cargo fmt --check` + `cargo build --workspace`（build.rs 跟踪
+    submodule HEAD 正常触发增量重编）+ `cargo test --workspace`
+    （31 lib + 12 doc 全过）+ `clippy --workspace --all-targets` 零警告 +
+    `cargo check -p audio-cpp-sys --features custom-models,model-piper-tts`
+    （新 feature→CMake target 映射抽查通过）。
+    2 新族 session 均自持资产（piper 持 `shared_ptr<const PiperTtsAssets>`；
+    kitten 持 `shared_ptr<const KittenAssets>`），`Session` 独立于 `Model`
+    存活的保证成立。
+  - 注意：`metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制回落
+    源码构建（预编译自动下载被跳过），属预期；重新发布预编译资产须用户显式
+    下达发布命令（第 6 节），本次未执行。
 - **升级 `c0b26a50`→`219a7e0e`（main）审查结论**：
   - diff 共 208 文件（+34.3k/-1.5k，16 个提交）：新增 4 个 CMake target
     `zipvoice`（族 `zipvoice`，k2-fsa ZipVoice / ZipVoice-Distill 流匹配
@@ -627,7 +675,7 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
   **GGUF 同样无法自动探测族别**，须显式 `family_hint="citrinet_asr"`（否则误判
   silero_vad 报 missing tensor）。
 - 上游 CMake 支持 `AUDIOCPP_MODEL_SET=custom` + `AUDIOCPP_MODELS`（逗号分隔
-  model targets）按需编译，避免 full 全量 87 个 loader 族的编译成本；引擎核心 +
+  model targets）按需编译，避免 full 全量 89 个 loader 族的编译成本；引擎核心 +
   内置 VAD 始终编入。build.rs 的 `custom-models` feature 透传该机制。
 - 请求 JSON 里的 `audio_path` 若为 Windows 路径，反斜杠必须转义（`\\`），
   `\a` 等非法转义会导致 shim 解析失败（"failed to parse json"），改用正斜杠最省事。
