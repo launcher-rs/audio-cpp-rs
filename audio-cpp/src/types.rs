@@ -211,6 +211,10 @@ pub enum ModelFamily {
     MossTtsLocal,
     /// MOSS TTS Nano
     MossTtsNano,
+    /// MOSS-TTS-v1.5（8B delay-pattern 零样本声音克隆 TTS，en/zh；
+    /// task 为 `tts`/`clon` 仅离线；克隆需参考音频，请求选项
+    /// `tokens`/`instruct`/`language`/`moss_tts_v15.weight_type`）
+    MossTtsV15,
     /// MOSS VoiceGen（语音生成）
     MossVoicegen,
     /// Neutts
@@ -471,6 +475,9 @@ impl ModelFamily {
             ("moss_tts_nano", ModelFamily::MossTtsNano),
             ("moss-tts-local", ModelFamily::MossTtsLocal),
             ("moss_tts_local", ModelFamily::MossTtsLocal),
+            // moss_tts_v15 必须排在裸 "moss" 之前，否则会被吞掉。
+            ("moss-tts-v15", ModelFamily::MossTtsV15),
+            ("moss_tts_v15", ModelFamily::MossTtsV15),
             ("moss_voicegen", ModelFamily::MossVoicegen),
             ("moss-voicegen", ModelFamily::MossVoicegen),
             ("moss", ModelFamily::MossTtsNano),
@@ -645,6 +652,7 @@ impl ModelFamily {
             ModelFamily::IrodoriTts => "irodori_tts",
             ModelFamily::MossTtsLocal => "moss_tts_local",
             ModelFamily::MossTtsNano => "moss_tts_nano",
+            ModelFamily::MossTtsV15 => "moss_tts_v15",
             ModelFamily::MossVoicegen => "moss_voicegen",
             ModelFamily::Neutts => "neutts",
             ModelFamily::Outetts => "outetts",
@@ -752,6 +760,7 @@ impl From<&str> for ModelFamily {
             "irodori_tts" => ModelFamily::IrodoriTts,
             "moss_tts_local" => ModelFamily::MossTtsLocal,
             "moss_tts_nano" => ModelFamily::MossTtsNano,
+            "moss_tts_v15" => ModelFamily::MossTtsV15,
             "moss_voicegen" => ModelFamily::MossVoicegen,
             "neutts" => ModelFamily::Neutts,
             "outetts" => ModelFamily::Outetts,
@@ -1239,6 +1248,7 @@ mod tests {
             IrodoriTts,
             MossTtsLocal,
             MossTtsNano,
+            MossTtsV15,
             MossVoicegen,
             Neutts,
             Outetts,
@@ -1359,6 +1369,11 @@ mod tests {
         assert_eq!(
             ModelFamily::from_path("moss-tts-nano-q8_0.gguf"),
             Some(ModelFamily::MossTtsNano)
+        );
+        // moss_tts_v15 不被裸 "moss" 关键词吞掉。
+        assert_eq!(
+            ModelFamily::from_path("moss-tts-v15-q8_0.gguf"),
+            Some(ModelFamily::MossTtsV15)
         );
         // 精确规则优先于裸关键词：qwen3-tts / qwen3-forced-aligner 不能判成 Qwen3Asr
         assert_eq!(

@@ -111,8 +111,52 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `e3de8e3f`（origin/main；从
-  `219a7e0e` 快进）。历史升级记录见下方逐条。
+- 当前 submodule HEAD = `eb8e21bd`（origin/main；从
+  `e3de8e3f` 快进）。历史升级记录见下方逐条。
+- **升级 `e3de8e3f`→`eb8e21bd`（main）审查结论**：
+  - diff 共 110 文件（+7.0k/-3.2k，13 个提交）：新增 1 个 CMake target
+    `moss_tts_v15`（族 `moss_tts_v15`，MOSS-TTS-v1.5：8B delay-pattern
+    零样本声音克隆 TTS，Qwen3-8B backbone + 32 codebook + MOSS-Audio-Tokenizer
+    v1 24kHz codec，en/zh，task `tts`/`clon` 仅离线；克隆需参考音频，
+    请求选项 `tokens`/`instruct`/`language`/`moss_tts_v15.weight_type`）；
+    其余为 yue2 `export_semantic`/`stop_after`（abc|semantic|audio）+
+    `yue2.attention_tile_rows`（eager NAR 注意力分块，长曲适配 4GiB buffer）
+    + semantic token 流经既有 `output_artifacts` 导出（kind Custom id
+    `semantic`，mime `application/vnd.yue2.semantic+json`）/ kokoro_tts
+    `return_timestamps`（音素组级 word timings，走既有 `word_timestamps`）/
+    共享 mel 与参考音频前端（`framework/audio/{mel_spectrogram_frontend,
+    reference_audio_frontend}`，chatterbox/confucius4/dots/index_tts2/seed_vc
+    等 audio_features 迁移，内部重构）/ nemotron ASR 流式改进 /
+    roformer CUDA chunk 流水线 / moss_tts_delay 解码器从 moss_voicegen
+    提升为框架共享层（`framework/decoders/moss_tts_delay`）/
+    vulkan-shaders-gen 编译器启动失败重试 + 内存压力退避。
+    上游 model target 共 90 个（+1）。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 5 个头（`framework/core/backend.h` /
+    `framework/io/json.h` / `framework/runtime/{model,registry,session}.h`）本次
+    diff **零改动**（`task_vocabulary` 未动；`spec_backed_model.h` 未动；
+    `app/server/runtime.cpp` 未动）。`capi.h` / `capi.cpp` / build.rs bindgen
+    allowlist 保持原样。
+  - 无新 task 类型 / 输出字段：新族用既有 `tts`/`clon`；yue2 semantic 走
+    既有 `output_artifacts`（shim 早已导出），kokoro 时间戳走既有
+    `word_timestamps`；全部新选项（yue2/kokoro/moss_tts_v15 系）经通用
+    options 字符串透传。高层 `types.rs` serde 结构无需改。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 1 个枚举变体
+    `MossTtsV15`（`as_str()` → `"moss_tts_v15"`，与上游 loader 族名一致）+
+    `from_path()` 关键词表（`moss_tts_v15`/`moss-tts-v15`，置于裸 `"moss"`
+    之前避免子串误判）+ `From<&str>`；并在 `audio-cpp-sys/Cargo.toml` 与
+    `audio-cpp/Cargo.toml` 新增 `model-moss-tts-v15` feature（build.rs 自动
+    映射 CMake target）；full-models 注释 89→90，README 计数 89→90。
+    `model_family_roundtrip` / `model_family_from_path` 测试已覆盖新变体。
+  - 新族 session 自持资产（`std::shared_ptr<const Assets> assets_`），
+    `Session` 独立于 `Model` 存活的保证成立。
+  - 验证：`cargo fmt --check` + `cargo build --workspace`（build.rs 跟踪
+    submodule HEAD 正常触发重编，56.5s）+ `cargo test --workspace`
+    （31 lib + 12 doc 全过）+ `clippy --workspace --all-targets` 零警告 +
+    `cargo check -p audio-cpp-sys --features custom-models,model-moss-tts-v15`
+    （新 feature→CMake target 映射抽查通过）。
+  - 注意：`metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制回落
+    源码构建（预编译自动下载被跳过），属预期；重新发布预编译资产须用户显式
+    下达发布命令（第 6 节），本次未执行。
 - **升级 `219a7e0e`→`e3de8e3f`（main）审查结论**：
   - diff 共 93 文件（+10.6k/-1.1k，11 个提交）：新增 2 个 CMake target
     `piper_tts`（族 `piper_tts`，Piper VITS 社区 TTS，首包英文
@@ -675,7 +719,7 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
   **GGUF 同样无法自动探测族别**，须显式 `family_hint="citrinet_asr"`（否则误判
   silero_vad 报 missing tensor）。
 - 上游 CMake 支持 `AUDIOCPP_MODEL_SET=custom` + `AUDIOCPP_MODELS`（逗号分隔
-  model targets）按需编译，避免 full 全量 89 个 loader 族的编译成本；引擎核心 +
+    model targets）按需编译，避免 full 全量 90 个 loader 族的编译成本；引擎核心 +
   内置 VAD 始终编入。build.rs 的 `custom-models` feature 透传该机制。
 - 请求 JSON 里的 `audio_path` 若为 Windows 路径，反斜杠必须转义（`\\`），
   `\a` 等非法转义会导致 shim 解析失败（"failed to parse json"），改用正斜杠最省事。
