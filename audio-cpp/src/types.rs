@@ -157,6 +157,10 @@ pub enum ModelFamily {
     KrokoAsr,
     /// Nemotron ASR
     NemotronAsr,
+    /// Nemotron 3 Diarization（NVIDIA 八说话人流式分离，社区预览；
+    /// CMake target `nemotron_3_diar`，用 `model-nemotron-3-diar` feature 编译；
+    /// task 为 `diar`，离线+原生批+流式，16kHz 输入）
+    Nemotron3Diar,
     /// Parakeet TDT
     ParakeetTdt,
     /// Vibevoice ASR
@@ -223,8 +227,10 @@ pub enum ModelFamily {
     Outetts,
     /// Pocket TTS
     PocketTts,
-    /// Vietneu TTS
-    VietneuTts,
+    /// VieNeu TTS v3 Turbo（越南语/英语 48kHz TTS + 即时声音克隆，社区模型；
+    /// 上游族名由 `vietneu_tts` 改名而来，旧名仍可经 `From<&str>` 解析；
+    /// task 为 `tts`/`clon` 仅离线；文本输入为 SEA-G2P 音素）
+    VieneuV3Turbo,
     /// FireRed TTS3（零样本语音合成）
     Fireredtts3,
     /// F5 TTS
@@ -420,6 +426,10 @@ impl ModelFamily {
             ("higgs", ModelFamily::HiggsAudioStt),
             ("hviske", ModelFamily::HviskeAsr),
             ("kroko", ModelFamily::KrokoAsr),
+            ("nemotron_3_diar", ModelFamily::Nemotron3Diar),
+            ("nemotron-3-diar", ModelFamily::Nemotron3Diar),
+            ("nemotron_3", ModelFamily::Nemotron3Diar),
+            ("nemotron-3", ModelFamily::Nemotron3Diar),
             ("nemotron", ModelFamily::NemotronAsr),
             ("parakeet", ModelFamily::ParakeetTdt),
             (
@@ -485,7 +495,8 @@ impl ModelFamily {
             ("outetts", ModelFamily::Outetts),
             ("pocket_tts", ModelFamily::PocketTts),
             ("pocket-tts", ModelFamily::PocketTts),
-            ("vietneu", ModelFamily::VietneuTts),
+            ("vietneu", ModelFamily::VieneuV3Turbo),
+            ("vieneu", ModelFamily::VieneuV3Turbo),
             ("f5_tts", ModelFamily::F5Tts),
             ("f5-tts", ModelFamily::F5Tts),
             ("magpie", ModelFamily::MagpieTts),
@@ -628,6 +639,7 @@ impl ModelFamily {
             ModelFamily::HviskeAsr => "hviske_asr",
             ModelFamily::KrokoAsr => "kroko_asr",
             ModelFamily::NemotronAsr => "nemotron_asr",
+            ModelFamily::Nemotron3Diar => "nemotron_3_diar",
             ModelFamily::ParakeetTdt => "parakeet_tdt",
             ModelFamily::VibevoiceAsr => "vibevoice_asr",
             ModelFamily::VibevoiceAsrStreaming => "vibevoice_asr_streaming",
@@ -657,7 +669,7 @@ impl ModelFamily {
             ModelFamily::Neutts => "neutts",
             ModelFamily::Outetts => "outetts",
             ModelFamily::PocketTts => "pocket_tts",
-            ModelFamily::VietneuTts => "vietneu_tts",
+            ModelFamily::VieneuV3Turbo => "vieneu_v3_turbo",
             ModelFamily::Fireredtts3 => "fireredtts3",
             ModelFamily::F5Tts => "f5_tts",
             ModelFamily::MagpieTts => "magpie_tts",
@@ -732,6 +744,7 @@ impl From<&str> for ModelFamily {
             "hviske_asr" => ModelFamily::HviskeAsr,
             "kroko_asr" => ModelFamily::KrokoAsr,
             "nemotron_asr" => ModelFamily::NemotronAsr,
+            "nemotron_3_diar" => ModelFamily::Nemotron3Diar,
             "parakeet_tdt" => ModelFamily::ParakeetTdt,
             "vibevoice_asr" => ModelFamily::VibevoiceAsr,
             "vibevoice_asr_streaming" => ModelFamily::VibevoiceAsrStreaming,
@@ -765,7 +778,8 @@ impl From<&str> for ModelFamily {
             "neutts" => ModelFamily::Neutts,
             "outetts" => ModelFamily::Outetts,
             "pocket_tts" => ModelFamily::PocketTts,
-            "vietneu_tts" => ModelFamily::VietneuTts,
+            "vietneu_tts" => ModelFamily::VieneuV3Turbo,
+            "vieneu_v3_turbo" => ModelFamily::VieneuV3Turbo,
             "fireredtts3" => ModelFamily::Fireredtts3,
             "f5_tts" => ModelFamily::F5Tts,
             "magpie_tts" => ModelFamily::MagpieTts,
@@ -1223,6 +1237,7 @@ mod tests {
             HviskeAsr,
             KrokoAsr,
             NemotronAsr,
+            Nemotron3Diar,
             ParakeetTdt,
             VibevoiceAsr,
             VibevoiceAsrStreaming,
@@ -1253,7 +1268,7 @@ mod tests {
             Neutts,
             Outetts,
             PocketTts,
-            VietneuTts,
+            VieneuV3Turbo,
             Fireredtts3,
             F5Tts,
             MagpieTts,
@@ -1375,6 +1390,17 @@ mod tests {
             ModelFamily::from_path("moss-tts-v15-q8_0.gguf"),
             Some(ModelFamily::MossTtsV15)
         );
+        // nemotron_3_diar 不被裸 "nemotron" 关键词吞掉。
+        assert_eq!(
+            ModelFamily::from_path("nemotron-3-diarization-bf16.gguf"),
+            Some(ModelFamily::Nemotron3Diar)
+        );
+        // vieneu_v3_turbo / 旧名 vietneu 均命中同一族。
+        assert_eq!(
+            ModelFamily::from_path("vieneu-v3-turbo-q8_0.gguf"),
+            Some(ModelFamily::VieneuV3Turbo)
+        );
+        assert_eq!(ModelFamily::from("vietneu_tts"), ModelFamily::VieneuV3Turbo);
         // 精确规则优先于裸关键词：qwen3-tts / qwen3-forced-aligner 不能判成 Qwen3Asr
         assert_eq!(
             ModelFamily::from_path("qwen3-tts-12hz-0.6b-base-q8_0.gguf"),

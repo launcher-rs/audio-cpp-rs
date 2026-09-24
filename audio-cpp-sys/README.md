@@ -35,11 +35,11 @@
 cargo add audio-cpp-sys
 ```
 
-或手工在 `Cargo.toml` 指定（当前版本 `0.5.0`）：
+或手工在 `Cargo.toml` 指定（当前版本 `0.6.0`）：
 
 ```toml
 [dependencies]
-audio-cpp-sys = "0.5.0"
+audio-cpp-sys = "0.6.0"
 ```
 
 构建默认的 `core-models`（引擎核心 + 内置 VAD）：
@@ -73,7 +73,7 @@ cargo build
 
 ```toml
     [dependencies]
-    audio-cpp-sys = { version = "0.5.0", features = ["prebuilt"] }
+    audio-cpp-sys = { version = "0.6.0", features = ["prebuilt"] }
     ```
 
 ```bash
@@ -131,7 +131,7 @@ commit 不符时白下整包。
 
 **版本与预编译的对应关系（长期可寻址）**：消费端查找的 Release tag 是它**自身依赖的
 crate 版本**（`AUDIOCPP_PREBUILT_TAG` 默认 `v{CARGO_PKG_VERSION}`），不是“最新发版”。
-因此 `audio-cpp-sys = "0.5.0"` 永远查 `v0.5.0`，将来发新版后 `0.5` 消费者仍从该旧
+因此 `audio-cpp-sys = "0.6.0"` 永远查 `v0.6.0`，将来发新版后 `0.6` 消费者仍从该旧
 Release 取预编译——只要旧 Release 不被删除，历史预编译长期可寻址（旧版 0.3.x / 0.4.x
 资产仍保留可寻址）。两层隔离保证 ABI
 安全：tag 隔离 crate 版本（`capi.h` 随版本走），资产名里的 commit 隔离 submodule 修订。
@@ -150,7 +150,7 @@ Release 取预编译——只要旧 Release 不被删除，历史预编译长期
 | `core-models`（默认） | 引擎核心 + 内置 VAD（silero_vad / marblenet_vad），权重随上游 vendored，开箱即用 |
 | `custom-models` | 按需编译：配合 `AUDIOCPP_MODELS` 环境变量（逗号分隔 model alias） |
 | `model-<族>` | 常用模型族的专用开关（如 `model-qwen3-asr`、`model-moss`、`model-demucs`、`model-sortformer-diar`），无需环境变量 |
-| `full-models` | 全量 90 个 loader 族（编译慢，且仍要自行下载权重） |
+| `full-models` | 全量 91 个 loader 族（编译慢，且仍要自行下载权重） |
 
 **计算后端**（可叠加，默认 CPU）：
 

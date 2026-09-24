@@ -111,8 +111,70 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `eb8e21bd`（origin/main；从
-  `e3de8e3f` 快进）。历史升级记录见下方逐条。
+- 当前 submodule HEAD = `fc24c99e`（origin/main，上游 `v0.8.2` 发版后的 main；
+  从 `eb8e21bd` 快进）。crate 版本已升至 **0.6.0**（workspace 统一；
+  0.5.0 已发布，预编译资产属发布操作未执行）。历史升级记录见下方逐条。
+- **升级 `eb8e21bd`→`fc24c99e`（main / v0.8.2）审查结论**：
+  - diff 共 160 文件（+13.2k/-1.9k，约 35 个提交）：新增 1 个 CMake target
+    `nemotron_3_diar`（族 `nemotron_3_diar`，NVIDIA Nemotron 3 Diarization
+    八说话人分离，arrival-order 身份，task `diar`，离线+原生批+流式，
+    16kHz 输入，BF16 GGUF 需本地从 `.nemo` 转换，OpenMDW-1.1 许可）；
+    另 1 个 target **改名** `vietneu_tts`→`vieneu_v3_turbo`（族名同步改，
+    旧名保留为上游别名；VieNeu-TTS v3 Turbo，vi/en 48kHz TTS+即时克隆，
+    task `tts`/`clon` 仅离线，文本须 SEA-G2P 音素）；上游 model target
+    共 91 个（+1，loader 清单 94 个）。
+    其余为 server 新增原生批量转录端点（multipart 多文件 + `run_batch`
+    回调式进度，SSE diarization 事件）/ yue2 `semantic_prefix`/
+    `semantic_prefix_file`（从给定 semantic token 续写歌曲）+ `lyrics`
+    改为可空（纯器乐）/ moonshine_asr `audio_chunk_mode`/
+    `audio_chunk_duration_sec` 长音频分块（vad_chunking）/
+    moss_tts_v15 spec 补 text chunking 选项 / auk 模型包下载元数据 /
+    seed-vc V1 F0 条件修复 / pocket_tts UTF-8 文本分块 + `*_24l` flow
+    depth 加载修复 / audio8_tts Falcon-H1（Mamba2+attention）支持 +
+    KV-cache / higgs CUDA KV 过渡优化 / BS-RoFormer CUDA 加速 /
+    gguf 量化按行并行 / Windows engine core UTF-8 编译 /
+    moss codec Nano 解码器窗口修复。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 5 个头中 4 个
+    （`backend.h`/`json.h`/`model.h`/`registry.h`）diff 零改动；
+    `session.h` 仅**纯加法**新增 `IBatchedOfflineVoiceTaskSession`
+    （server 批量端点专用虚接口，shim 不实现不依赖，现有
+    `IOfflineVoiceTaskSession` 不受影响）；`task_vocabulary` /
+    `spec_backed_model.h` / `app/server/runtime.cpp` 的 shim 依赖面
+    零改动（runtime.cpp 虽 +302 行但仅 server HTTP 层）。
+    `capi.h` / `capi.cpp` / build.rs bindgen allowlist 保持原样。
+  - 无新 task 类型 / 输出字段：新 diar 族复用既有 `diar` +
+    `speaker_turns`（shim 早已导出）；yue2/moonshine/moss/auk 新选项
+    全部走通用 options 字符串透传；server 批量端点不经 C ABI（本仓
+    shim 未暴露批量接口，属既有单请求契约外的新能力，未接）。
+    高层 `types.rs` serde 结构无需改。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：
+    ① 新增 `Nemotron3Diar`（`as_str()` → `"nemotron_3_diar"`，与上游
+    loader 族名一致）+ `from_path()` 关键词（`nemotron_3_diar` 等 4 条
+    置于裸 `"nemotron"` 之前避免吞掉）+ `From<&str>`；
+    ② **改名** `VietneuTts` → `VieneuV3Turbo`（`as_str()` →
+    `"vieneu_v3_turbo"` 与上游新族名一致；`From<&str>` 同时接受新名
+    与旧名 `vietneu_tts`；`from_path` 关键词 `vieneu`/`vietneu` 并存；
+    枚举变体改名属 0.6.0 semver 次要破坏性变更，已在版本号体现）；
+    并在两个 Cargo.toml 新增 `model-nemotron-3-diar` /
+    `model-vieneu-v3-turbo` feature（build.rs 自动映射 CMake target，
+    改名 target 用新名 feature）；full-models 注释 90→91，README
+    计数 90→91。`model_family_roundtrip` / `model_family_from_path`
+    测试已覆盖新变体与改名。
+  - 两族 session 均自持资产（nemotron_3_diar 持
+    `shared_ptr<const Assets>` + contract；vieneu 持
+    `shared_ptr<const VieNeuTTSAssets>`），`Session` 独立于 `Model`
+    存活的保证成立。
+  - 版本：`workspace.package.version` 0.5.0 → **0.6.0**，
+    `workspace.dependencies.audio-cpp-sys` 版本同步 0.6.0，
+    `audio-cpp-sys/README.md` 版本引用四处同步。
+  - 验证：`cargo fmt --check` + `cargo build --workspace` +
+    `cargo test --workspace` + `clippy --workspace --all-targets` 零警告 +
+    `cargo check -p audio-cpp-sys --features custom-models,model-nemotron-3-diar`
+    （新 feature→CMake target 映射抽查）。
+  - 注意：`metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制
+    回落源码构建（预编译自动下载被跳过），属预期；`cargo publish` /
+    tag / Release / 预编译资产上传均属第 6 节发布操作，须用户显式下达，
+    本次未执行。
 - **升级 `e3de8e3f`→`eb8e21bd`（main）审查结论**：
   - diff 共 110 文件（+7.0k/-3.2k，13 个提交）：新增 1 个 CMake target
     `moss_tts_v15`（族 `moss_tts_v15`，MOSS-TTS-v1.5：8B delay-pattern
@@ -719,7 +781,7 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
   **GGUF 同样无法自动探测族别**，须显式 `family_hint="citrinet_asr"`（否则误判
   silero_vad 报 missing tensor）。
 - 上游 CMake 支持 `AUDIOCPP_MODEL_SET=custom` + `AUDIOCPP_MODELS`（逗号分隔
-    model targets）按需编译，避免 full 全量 90 个 loader 族的编译成本；引擎核心 +
+    model targets）按需编译，避免 full 全量 91 个 loader 族的编译成本；引擎核心 +
   内置 VAD 始终编入。build.rs 的 `custom-models` feature 透传该机制。
 - 请求 JSON 里的 `audio_path` 若为 Windows 路径，反斜杠必须转义（`\\`），
   `\a` 等非法转义会导致 shim 解析失败（"failed to parse json"），改用正斜杠最省事。
