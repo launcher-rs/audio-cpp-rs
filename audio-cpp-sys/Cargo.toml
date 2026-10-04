@@ -25,6 +25,7 @@ include = [
     "prebuilt_download.rs",
     "capi.h",
     "capi.cpp",
+    "bindings.docsrs.rs",
     "/src",
     "/examples",
 ]

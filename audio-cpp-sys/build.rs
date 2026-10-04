@@ -562,6 +562,27 @@ fn generate_bindings(manifest_dir: &Path, out_dir: &Path, os: &str) {
 }
 
 fn main() {
+    // docs.rs 专用旁路（必须放最前）：沙箱无网络，且 crates.io 包不含
+    // `audio.cpp` 子模块源码，既做不了 CMake 构建也跑不了 bindgen（缺上游
+    // 头文件）。rustdoc 只需类型声明、无需链接，此处直接把随包附带的预生成
+    // 绑定（`bindings.docsrs.rs`，与 `generate_bindings` 产物等价）拷入
+    // OUT_DIR 后返回，不输出任何链接指令。
+    // `rerun-if-env-changed` 让 DOCS_RS 开/关都触发重跑，避免正常构建误用 stub。
+    println!("cargo:rerun-if-env-changed=DOCS_RS");
+    if env::var("DOCS_RS").is_ok() {
+        println!("cargo:rerun-if-changed=build.rs");
+        println!("cargo:rerun-if-changed=bindings.docsrs.rs");
+        let manifest_dir =
+            PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR 未设置"));
+        let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR 未设置"));
+        std::fs::copy(
+            manifest_dir.join("bindings.docsrs.rs"),
+            out_dir.join("bindings.rs"),
+        )
+        .expect("拷贝 docs.rs 预生成绑定失败");
+        return;
+    }
+
     // cuda 与 hip 互斥：上游 CMake 同时启用会报错，这里提前拦截并指明 feature。
     if cfg!(feature = "cuda") && cfg!(feature = "hip") {
         panic!("feature `cuda` 与 `hip` 互斥，不可同时启用（上游 CMake 会报错）");

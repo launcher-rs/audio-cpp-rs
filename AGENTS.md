@@ -28,7 +28,10 @@
 ### 2. C ABI 边界不可破坏
 跨 C/Rust 的契约全部定义在 `audio-cpp-sys/capi.h`。修改结构或语义时，必须**同步修改**：
 - `capi.h`（声明）、`capi.cpp`（实现）、build.rs bindgen allowlist（`audiocpp_.*`）；
-- 高层 `audio-cpp` crate 的消耗代码。
+- 高层 `audio-cpp` crate 的消耗代码；
+- `bindings.docsrs.rs`（docs.rs 预生成绑定：改 `capi.h` 后本地完整构建一次，
+  把 `target/debug/build/audio-cpp-sys-*/out/bindings.rs` 拷回；否则下次发布的
+  docs.rs 文档与新 ABI 脱节）。
 
 约定：结构化数据走 JSON 字符串；音频走 `float*`；返回值为非 NULL 的 `char*`/`float*`/句柄必须用对应 `free()` 释放；异常在 shim 内捕获为错误码 + `audiocpp_last_error()`。
 
