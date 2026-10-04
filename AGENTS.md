@@ -111,9 +111,74 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `fc24c99e`（origin/main，上游 `v0.8.2` 发版后的 main；
-  从 `eb8e21bd` 快进）。crate 版本已升至 **0.6.0**（workspace 统一；
-  0.5.0 已发布，预编译资产属发布操作未执行）。历史升级记录见下方逐条。
+- 当前 submodule HEAD = `d3ab9df2`（origin/main；从 `fc24c99e` 快进约 74 个提交）。
+  crate 版本保持 **0.6.0**（workspace 统一；本次仅加法新增，无改名，
+  无需升版；预编译资产属发布操作未执行）。历史升级记录见下方逐条。
+- **升级 `fc24c99e`→`d3ab9df2`（main）审查结论**：
+  - diff 共 873 文件（+54.7k/-5.3k，约 74 个提交）：新增 17 个 CMake target
+    （上游 model target 91→108 个；loader 94→112 个，另 `demucs` target 内
+    新增第二 loader `make_htdemucs_6stems_loader`）：`audio_flamingo`
+    （Audio Flamingo 3/Next，转写/描述/问答，task `asr` 仅离线）/
+    `crisperwhisper`（CrisperWhisper 2.0 逐字/意图转写，task `asr`/`align`，
+    离线+流式）/ `gigaam_asr`（GigaAM v3/多语 Conformer，CTC/RNN-T，
+    task `asr` 仅离线）/ `index_echo`（Index-Echo-S2TT 翻译+双语时间戳字幕，
+    task `asr` 仅离线）/ `kitten_tts2`（Kitten TTS 2 多语 Qwen3+克隆，
+    task `tts`/`clon` 仅离线）/ `kugelaudio`（KugelAudio-0-Open 预置音色，
+    task `tts` 离线+流式）/ `lfm2_audio`（LFM2.5-Audio，task `asr` 仅离线）/
+    `maya1`（Maya1 3B 表现力英文 TTS，task `tts` 仅离线）/ `moss_ttsd`
+    （MOSS-TTSD 8B 对话 TTS 多说话人单遍+逐人克隆，task `tts`/`clon` 仅离线）/
+    `owsm` / `owsm_ctc`（ESPnet 多语 ASR/翻译，task `asr` 离线+流式）/
+    `reuse`（RE-USE 语音修复双向 Mamba，task `s2s` 仅离线）/ `sam_audio`
+    （prompt 条件音频分离，task `s2s` 仅离线）/ `samsone`（紧凑音频语言模型，
+    task `asr` 仅离线）/ `sidon`（单说话人修复 48kHz，task `s2s` 仅离线）/
+    `smart_turn`（Smart Turn v3.2 轮次完成检测，task `turn` 仅离线，
+    16kHz mono，结果走新增 `custom_schema_output`）/ `tone_color_vc`
+    （参考说话人 VC，task `vc` 仅离线）；另 `htdemucs_6stems`
+    （族 `htdemucs_6stems` 别名 `htdemucs_6s`，鼓/贝斯/人声/其他/吉他/钢琴六轨，
+    task `sep` 仅离线，与 `htdemucs` 同属 `demucs` target）。
+    其余为 server 并行运行时（`parallel_runtime` + `/v1/tasks/batch` +
+    `audio_base64` 内联音频 + CORS 错误透传）/ nemotron_asr 说话人标签与
+    masked ASR / demucs 6-stem 管线 / 框架 decoder/encoder 重命名
+    （qwen→causal/greedy/generic）/ espeak 移至 `framework/text` /
+    音频工具移至 `framework/audio/utilities` / SNAC 解码器 / host_memory 等。
+  - **C ABI 边界有加法改动**：`backend.h`/`model.h`/`registry.h` 零改动；
+    `json.h` 仅新增 `enable_serialized_json_parsing()`（shim 不用）；
+    `session.h` 新增 `VoiceTaskKind::TurnDetection`（shim 经
+    `parse_voice_task_kind`/`to_string` 字符串透传，自动兼容）+
+    `CustomSchemaOutput` 与 `TaskResult::custom_schema_output`
+    （smart_turn 唯一输出，shim 原先会丢弃）。已同步 `capi.cpp`
+    `dump_task_result` 导出 `custom_schema_output`
+    （`{"schema","data"}`，与 server `runtime.cpp` 同形）；build.rs bindgen
+    allowlist（`audiocpp_.*`）不变。高层新增 `TaskKind::TurnDetection`
+    （`"turn"`）+ `CustomSchemaOutput`（`schema` + `serde_json::Value data`）+
+    `TaskResult::custom_schema_output`（`Option`，两端 serde 向后兼容）。
+    server 批量端点（`IBatchedOfflineVoiceTaskSession`/`run_batch`，上次已评估）
+    本仓 shim 仍未暴露，属既有契约外能力，未接。
+  - 无其余新 task 类型 / 输出字段：17 新族中 16 个复用既有 `asr`/`tts`/
+    `clon`/`vc`/`s2s`/`sep`/`align`；全部新选项走通用 options 字符串透传。
+    高层其余 serde 结构无需改。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 18 个枚举变体
+    （17 新 target 各一 + `Htdemucs6Stems`；`as_str()` 与上游族名一致）+
+    `from_path()` 关键词表（`kitten_tts2`/`index_echo`/`moss_ttsd`/
+    `owsm_ctc`/`htdemucs_6stems` 各置于其前缀家族之前；既有
+    `htdemucs-6s` 断言改判新变体）+ `From<&str>`（含 `htdemucs_6s` 别名）；
+    并在两个 Cargo.toml 新增 17 个 `model-*` feature（build.rs 自动映射
+    CMake target；`htdemucs_6stems` 与 `htdemucs` 同 target，**不**建 feature，
+    用既有 `model-demucs` 即可，否则 CMake 报 Unknown entry——沿用
+    `vibevoice_asr_streaming` 先例，文档已注明）；full-models 注释 91→108，
+    sys README 计数字段 91→108。`model_family_roundtrip` /
+    `model_family_from_path`（含 5 组防吞断言）/ `task_kind_*` 测试已覆盖。
+  - 18 新族 session 均自持资产（`shared_ptr<const …>`，spec-backed 含
+    smart_turn 在内），`Session` 独立于 `Model` 存活的保证成立。
+  - 验证：`cargo fmt --check` + `cargo build --workspace`（build.rs 跟踪
+    submodule HEAD 正常触发全量重编，约 5 分钟）+ `cargo test --workspace`
+    （31 lib + 12 doc 全过）+ `clippy --workspace --all-targets` 零警告 +
+    `cargo check -p audio-cpp-sys --features custom-models,model-smart-turn`
+    （新 feature→CMake target 映射抽查通过）。
+  - 注意：`metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制回落
+    源码构建（预编译自动下载被跳过），属预期；`cargo publish` /
+    tag / Release / 预编译资产上传均属第 6 节发布操作，须用户显式下达，
+    本次未执行。
 - **升级 `eb8e21bd`→`fc24c99e`（main / v0.8.2）审查结论**：
   - diff 共 160 文件（+13.2k/-1.9k，约 35 个提交）：新增 1 个 CMake target
     `nemotron_3_diar`（族 `nemotron_3_diar`，NVIDIA Nemotron 3 Diarization

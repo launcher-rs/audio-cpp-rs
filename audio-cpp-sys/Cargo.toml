@@ -53,7 +53,7 @@ prebuilt = []
 # vendored 在 audio.cpp/assets/framework/models/，无需下载任何权重。
 # 这也是编译最快、开箱即用的最小编译集，适合仅用 VAD 或验证绑定链路的场景。
 core-models = []
-# 全量编译 audio.cpp 支持的 91 个 loader 族（随上游增长，以
+# 全量编译 audio.cpp 支持的 108 个 loader 族（随上游增长，以
 # audio.cpp/CMakeLists.txt 的 make_*_loader 为准）。注意：全量编译耗时很长且生成
 # 的静态库很大；并不等于"能运行任意模型"，权重文件仍需自行下载。
 # 日常建议优先用模型族 feature 或 custom-models 按需编译，只有需要一次
@@ -135,6 +135,23 @@ model-confucius4-r2t2 = ["custom-models"]               # ASR: Confucius4-R2T2 r
 model-liveavatar = ["custom-models"]                    # Audio generation: LiveAvatar S2V avatar (offline+streaming)
 model-piper-tts = ["custom-models"]                     # TTS: Piper VITS TTS (community, en, offline)
 model-kitten-tts = ["custom-models"]                    # TTS: KittenTTS Mini 0.8 (community, en, offline)
+model-kitten-tts2 = ["custom-models"]                   # TTS: Kitten TTS 2 (multilingual Qwen3 + cloning, offline)
+model-kugelaudio = ["custom-models"]                    # TTS: KugelAudio-0-Open (preset voices, offline+streaming)
+model-maya1 = ["custom-models"]                         # TTS: Maya1 3B expressive EN TTS (voice design, offline)
+model-moss-ttsd = ["custom-models"]                     # TTS: MOSS-TTSD 8B dialogue TTS (multi-speaker clone, offline)
+model-tone-color-vc = ["custom-models"]                 # VC: Tone Color VC (reference speaker, offline)
+model-owsm = ["custom-models"]                          # ASR: OWSM multilingual (offline+streaming)
+model-owsm-ctc = ["custom-models"]                      # ASR: OWSM-CTC non-autoregressive (offline+streaming)
+model-gigaam-asr = ["custom-models"]                    # ASR: GigaAM v3 / multilingual Conformer (offline)
+model-crisperwhisper = ["custom-models"]                # ASR: CrisperWhisper 2.0 (asr+align, offline+streaming)
+model-audio-flamingo = ["custom-models"]                # ASR: Audio Flamingo 3/Next (transcription+caption+QA, offline)
+model-lfm2-audio = ["custom-models"]                    # ASR: LFM2.5-Audio (offline)
+model-index-echo = ["custom-models"]                    # ASR: Index-Echo-S2TT translation (offline)
+model-samsone = ["custom-models"]                       # ASR: SAMSONE audio-language (caption+QA, offline)
+model-reuse = ["custom-models"]                         # Audio tool: RE-USE speech restoration (s2s, offline)
+model-sam-audio = ["custom-models"]                     # Audio tool: SAM Audio prompt-conditioned separation (s2s)
+model-sidon = ["custom-models"]                         # Audio tool: Sidon speech restoration 48kHz (s2s, offline)
+model-smart-turn = ["custom-models"]                    # Turn detection: Smart Turn v3.2 (turn, offline)
 
 # ------------------------------------------------------------------------
 # 计算后端 feature（可叠加，映射 engine 的 ENGINE_ENABLE_*_CPU 选项）。

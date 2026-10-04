@@ -285,6 +285,14 @@ static json::Value dump_task_result(const TaskResult & result) {
     }
     obj.emplace("word_timestamps", json::Value::make_array(std::move(words)));
 
+    // Smart Turn 等模型的自定义结构化输出（schema + 任意 JSON 数据）。
+    if (result.custom_schema_output.has_value()) {
+        json::Value::Object cs;
+        cs.emplace("schema", json::Value::make_string(result.custom_schema_output->schema));
+        cs.emplace("data", result.custom_schema_output->data);
+        obj.emplace("custom_schema_output", json::Value::make_object(std::move(cs)));
+    }
+
     if (result.artifact_output.has_value()) {
         obj.emplace("artifact_output", dump_voice_artifact(*result.artifact_output));
     }

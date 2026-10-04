@@ -41,6 +41,8 @@ pub enum TaskKind {
     Svc,
     /// MIDI 生成
     Midi,
+    /// 轮次检测（Turn Detection，如 Smart Turn 会话是否说完；仅离线）
+    TurnDetection,
 }
 
 impl TaskKind {
@@ -61,6 +63,7 @@ impl TaskKind {
             TaskKind::SpeakerRecognition => "spk",
             TaskKind::Svc => "svc",
             TaskKind::Midi => "midi",
+            TaskKind::TurnDetection => "turn",
         }
     }
 }
@@ -89,11 +92,12 @@ impl<'de> Deserialize<'de> for TaskKind {
             "spk" => Ok(TaskKind::SpeakerRecognition),
             "svc" => Ok(TaskKind::Svc),
             "midi" => Ok(TaskKind::Midi),
+            "turn" => Ok(TaskKind::TurnDetection),
             other => Err(serde::de::Error::unknown_variant(
                 other,
                 &[
                     "vad", "asr", "diar", "sep", "gen", "tts", "clon", "vc", "s2s", "align",
-                    "vdes", "spk", "svc", "midi",
+                    "vdes", "spk", "svc", "midi", "turn",
                 ],
             )),
         }
@@ -193,6 +197,23 @@ pub enum ModelFamily {
     MossTranscribeDiarize,
     /// Confucius4-R2T2（网易实时流式 ASR，社区模型；离线+流式）
     Confucius4R2t2,
+    /// Audio Flamingo（转写/描述/问答，speech+music+环境音；task 为 `asr` 仅离线）
+    AudioFlamingo,
+    /// CrisperWhisper（Whisper 逐字/意图转写；task 为 `asr`/`align`，离线+流式）
+    Crisperwhisper,
+    /// GigaAM ASR（v3 与多语 Conformer，CTC/RNN-T 解码；task 为 `asr` 仅离线）
+    GigaamAsr,
+    /// Index-Echo-S2TT（语音到文本翻译，双语时间戳字幕；task 为 `asr` 仅离线）
+    IndexEcho,
+    /// LFM2-Audio（Liquid LFM2.5-Audio，FastConformer 编码器；task 为 `asr` 仅离线）
+    Lfm2Audio,
+    /// OWSM（ESPnet Open Whisper 式多语 ASR/翻译；task 为 `asr`，离线+流式）
+    Owsm,
+    /// OWSM-CTC（ESPnet 非自回归多语 ASR/翻译；task 为 `asr`，离线+流式）
+    OwsmCtc,
+    /// SAMSONE（紧凑音频语言模型：描述/问答/声音音乐语音理解；
+    /// task 为 `asr` 仅离线）
+    Samsone,
 
     // ---- TTS ----
     /// Qwen3 TTS
@@ -271,6 +292,17 @@ pub enum ModelFamily {
     /// KittenTTS Mini 0.8（社区英文 TTS，80M 参数，8 个内置声音，24kHz mono；
     /// task 为 `tts` 仅离线；请求选项 `speed`/`seed`，`--voice-id` 选声音）
     KittenTts,
+    /// Kitten TTS 2（原生多语 Qwen3 语音生成 + S3 meanflow 解码 + 参考音频克隆；
+    /// task 为 `tts`/`clon` 仅离线）
+    KittenTts2,
+    /// KugelAudio-0-Open（预置音色 TTS，增量音频输出；task 为 `tts`，离线+流式）
+    Kugelaudio,
+    /// Maya1（3B 表现力英文 TTS，自然语言音色设计 + 行内情感控制；
+    /// task 为 `tts` 仅离线）
+    Maya1,
+    /// MOSS-TTSD（8B delay-pattern 对话 TTS：单遍多说话人 + 逐人零样本克隆，
+    /// 24kHz 16 codebook；task 为 `tts`/`clon` 仅离线）
+    MossTtsd,
 
     // ---- 说话人分离 / 语音转换 / 音乐生成 ----
     /// SortFormer 说话人分离（Diar）
@@ -284,6 +316,8 @@ pub enum ModelFamily {
     Rvc,
     /// MeanVC2（语音转换）
     Meanvc2,
+    /// Tone Color VC（独立语音转换，需参考说话人录音；task 为 `vc` 仅离线）
+    ToneColorVc,
     /// Chatterbox（说话人还原 / TTS）
     Chatterbox,
     /// Chatterbox Turbo TTS（快速推理变体）
@@ -298,6 +332,9 @@ pub enum ModelFamily {
     // ---- 音乐 / 音频生成与分离 ----
     /// HTDemucs 音乐源分离
     Htdemucs,
+    /// HTDemucs 6-stem（鼓/贝斯/人声/其他/吉他/钢琴六轨；task 为 `sep` 仅离线；
+    /// 与 `htdemucs` 同属 `demucs` CMake target，用 `model-demucs` feature 编译）
+    Htdemucs6Stems,
     /// Mel Band Roformer（乐音建模）
     MelBandRoformer,
     /// BSRoformer
@@ -340,6 +377,16 @@ pub enum ModelFamily {
     /// LiveAvatar（Wan S2V 音频驱动数字人；task 为 `sfx`（即 `gen`），
     /// 离线+流式）
     Liveavatar,
+    /// RE-USE（采样率无关语音修复，双向 Mamba；task 为 `s2s` 仅离线）
+    Reuse,
+    /// SAM Audio（prompt 条件音频分离；task 为 `s2s` 仅离线）
+    SamAudio,
+    /// Sidon v0.1（单说话人语音修复，48kHz 输出；task 为 `s2s` 仅离线）
+    Sidon,
+    /// Smart Turn（音频原生轮次完成检测，Whisper-Tiny 编码器；
+    /// task 为 `turn` 仅离线，16kHz mono，选项 `threshold`，结果在
+    /// `custom_schema_output`（schema `smart_turn.v1`））
+    SmartTurn,
 
     // ---- 其他 ----
     /// Miocodec / Miotts（小米语音）
@@ -485,9 +532,12 @@ impl ModelFamily {
             ("moss_tts_nano", ModelFamily::MossTtsNano),
             ("moss-tts-local", ModelFamily::MossTtsLocal),
             ("moss_tts_local", ModelFamily::MossTtsLocal),
-            // moss_tts_v15 必须排在裸 "moss" 之前，否则会被吞掉。
+            // moss_tts_v15 / moss_ttsd 必须排在裸 "moss" 之前，否则会被吞掉。
             ("moss-tts-v15", ModelFamily::MossTtsV15),
             ("moss_tts_v15", ModelFamily::MossTtsV15),
+            ("moss_ttsd", ModelFamily::MossTtsd),
+            ("moss-ttsd", ModelFamily::MossTtsd),
+            ("mossttsd", ModelFamily::MossTtsd),
             ("moss_voicegen", ModelFamily::MossVoicegen),
             ("moss-voicegen", ModelFamily::MossVoicegen),
             ("moss", ModelFamily::MossTtsNano),
@@ -504,6 +554,10 @@ impl ModelFamily {
             ("soprano_tts", ModelFamily::SopranoTts),
             ("soprano-tts", ModelFamily::SopranoTts),
             ("soprano", ModelFamily::SopranoTts),
+            // index_echo 必须排在裸 "echo" 之前，否则会被吞掉。
+            ("index_echo", ModelFamily::IndexEcho),
+            ("index-echo", ModelFamily::IndexEcho),
+            ("indexecho", ModelFamily::IndexEcho),
             ("echo_tts", ModelFamily::EchoTts),
             ("echo-tts", ModelFamily::EchoTts),
             ("echo", ModelFamily::EchoTts),
@@ -513,9 +567,22 @@ impl ModelFamily {
             ("piper_tts", ModelFamily::PiperTts),
             ("piper-tts", ModelFamily::PiperTts),
             ("piper", ModelFamily::PiperTts),
+            // kitten_tts2 必须排在 kitten_tts / 裸 "kitten" 之前，否则会被吞掉。
+            ("kitten_tts2", ModelFamily::KittenTts2),
+            ("kitten-tts2", ModelFamily::KittenTts2),
+            ("kitten_tts_2", ModelFamily::KittenTts2),
+            ("kittentts2", ModelFamily::KittenTts2),
             ("kitten_tts", ModelFamily::KittenTts),
             ("kitten-tts", ModelFamily::KittenTts),
             ("kitten", ModelFamily::KittenTts),
+            ("kugelaudio", ModelFamily::Kugelaudio),
+            ("kugel-audio", ModelFamily::Kugelaudio),
+            ("kugel_audio", ModelFamily::Kugelaudio),
+            ("kugel", ModelFamily::Kugelaudio),
+            ("maya1", ModelFamily::Maya1),
+            ("maya-1", ModelFamily::Maya1),
+            ("maya_1", ModelFamily::Maya1),
+            ("maya", ModelFamily::Maya1),
             ("voxcpm1", ModelFamily::Voxcpm1),
             ("voxcpm-1", ModelFamily::Voxcpm1),
             ("sanotts", ModelFamily::Sanotts),
@@ -548,10 +615,38 @@ impl ModelFamily {
             ("cohere_asr", ModelFamily::CohereAsr),
             ("cohere-asr", ModelFamily::CohereAsr),
             ("cohere", ModelFamily::CohereAsr),
+            ("audio_flamingo", ModelFamily::AudioFlamingo),
+            ("audio-flamingo", ModelFamily::AudioFlamingo),
+            ("audioflamingo", ModelFamily::AudioFlamingo),
+            ("crisperwhisper", ModelFamily::Crisperwhisper),
+            ("crisper-whisper", ModelFamily::Crisperwhisper),
+            ("crisper_whisper", ModelFamily::Crisperwhisper),
+            ("gigaam_asr", ModelFamily::GigaamAsr),
+            ("gigaam-asr", ModelFamily::GigaamAsr),
+            ("gigaam", ModelFamily::GigaamAsr),
+            ("lfm2_audio", ModelFamily::Lfm2Audio),
+            ("lfm2-audio", ModelFamily::Lfm2Audio),
+            ("lfm2", ModelFamily::Lfm2Audio),
+            // owsm_ctc 必须排在裸 "owsm" 之前，否则会被吞掉。
+            ("owsm_ctc", ModelFamily::OwsmCtc),
+            ("owsm-ctc", ModelFamily::OwsmCtc),
+            ("owsmctc", ModelFamily::OwsmCtc),
+            ("owsm", ModelFamily::Owsm),
+            ("samsone", ModelFamily::Samsone),
+            ("sam-sone", ModelFamily::Samsone),
             ("zipvoice", ModelFamily::Zipvoice),
             ("zip-voice", ModelFamily::Zipvoice),
             ("liveavatar", ModelFamily::Liveavatar),
             ("live-avatar", ModelFamily::Liveavatar),
+            ("reuse", ModelFamily::Reuse),
+            ("re-use", ModelFamily::Reuse),
+            ("sam_audio", ModelFamily::SamAudio),
+            ("sam-audio", ModelFamily::SamAudio),
+            ("samaudio", ModelFamily::SamAudio),
+            ("sidon", ModelFamily::Sidon),
+            ("smart_turn", ModelFamily::SmartTurn),
+            ("smart-turn", ModelFamily::SmartTurn),
+            ("smartturn", ModelFamily::SmartTurn),
             ("auk", ModelFamily::Auk),
             ("minimax_h3", ModelFamily::MinimaxH3),
             ("minimax-h3", ModelFamily::MinimaxH3),
@@ -566,6 +661,10 @@ impl ModelFamily {
             ("rvc", ModelFamily::Rvc),
             ("meanvc2", ModelFamily::Meanvc2),
             ("mean-vc2", ModelFamily::Meanvc2),
+            ("tone_color_vc", ModelFamily::ToneColorVc),
+            ("tone-color-vc", ModelFamily::ToneColorVc),
+            ("tone_color", ModelFamily::ToneColorVc),
+            ("tonecolor", ModelFamily::ToneColorVc),
             ("chatterbox_turbo", ModelFamily::ChatterboxTurbo),
             ("chatterbox-turbo", ModelFamily::ChatterboxTurbo),
             ("chatterbox", ModelFamily::Chatterbox),
@@ -573,6 +672,11 @@ impl ModelFamily {
             ("voxcpm2", ModelFamily::Voxcpm2),
             ("ace_step", ModelFamily::AceStep),
             ("ace-step", ModelFamily::AceStep),
+            // htdemucs_6stems（含别名 6s）必须排在裸 "htdemucs" 之前，否则会被吞掉。
+            ("htdemucs_6stems", ModelFamily::Htdemucs6Stems),
+            ("htdemucs-6stems", ModelFamily::Htdemucs6Stems),
+            ("htdemucs_6s", ModelFamily::Htdemucs6Stems),
+            ("htdemucs-6s", ModelFamily::Htdemucs6Stems),
             ("htdemucs", ModelFamily::Htdemucs),
             ("demucs", ModelFamily::Htdemucs),
             ("mel-band-roformer", ModelFamily::MelBandRoformer),
@@ -654,6 +758,14 @@ impl ModelFamily {
             ModelFamily::CohereAsr => "cohere_asr",
             ModelFamily::MossTranscribeDiarize => "moss_transcribe_diarize",
             ModelFamily::Confucius4R2t2 => "confucius4_r2t2",
+            ModelFamily::AudioFlamingo => "audio_flamingo",
+            ModelFamily::Crisperwhisper => "crisperwhisper",
+            ModelFamily::GigaamAsr => "gigaam_asr",
+            ModelFamily::IndexEcho => "index_echo",
+            ModelFamily::Lfm2Audio => "lfm2_audio",
+            ModelFamily::Owsm => "owsm",
+            ModelFamily::OwsmCtc => "owsm_ctc",
+            ModelFamily::Samsone => "samsone",
             ModelFamily::Qwen3Tts => "qwen3_tts",
             ModelFamily::Confucius4Tts => "confucius4_tts",
             ModelFamily::DotsTts => "dots_tts",
@@ -682,6 +794,10 @@ impl ModelFamily {
             ModelFamily::Auk => "auk",
             ModelFamily::PiperTts => "piper_tts",
             ModelFamily::KittenTts => "kitten_tts",
+            ModelFamily::KittenTts2 => "kitten_tts2",
+            ModelFamily::Kugelaudio => "kugelaudio",
+            ModelFamily::Maya1 => "maya1",
+            ModelFamily::MossTtsd => "moss_ttsd",
             ModelFamily::MinimaxH3 => "minimax_h3",
             ModelFamily::Sanotts => "sanotts",
             ModelFamily::SoproTts => "sopro_tts",
@@ -693,12 +809,14 @@ impl ModelFamily {
             ModelFamily::SeedVc => "seed_vc",
             ModelFamily::Rvc => "rvc",
             ModelFamily::Meanvc2 => "meanvc2",
+            ModelFamily::ToneColorVc => "tone_color_vc",
             ModelFamily::Chatterbox => "chatterbox",
             ModelFamily::ChatterboxTurbo => "chatterbox_turbo",
             ModelFamily::Vevo2 => "vevo2",
             ModelFamily::Voxcpm2 => "voxcpm2",
             ModelFamily::AceStep => "ace_step",
             ModelFamily::Htdemucs => "htdemucs",
+            ModelFamily::Htdemucs6Stems => "htdemucs_6stems",
             ModelFamily::MelBandRoformer => "mel_band_roformer",
             ModelFamily::BsRoformer => "bs_roformer",
             ModelFamily::Muscriptor => "muscriptor",
@@ -716,6 +834,10 @@ impl ModelFamily {
             ModelFamily::ControlFoley => "controlfoley",
             ModelFamily::MidashEnglmGen => "midashenglm_gen",
             ModelFamily::Liveavatar => "liveavatar",
+            ModelFamily::Reuse => "reuse",
+            ModelFamily::SamAudio => "sam_audio",
+            ModelFamily::Sidon => "sidon",
+            ModelFamily::SmartTurn => "smart_turn",
             ModelFamily::Miocodec => "miocodec",
             ModelFamily::Miotts => "miotts",
             ModelFamily::Vibevoice => "vibevoice",
@@ -763,6 +885,14 @@ impl From<&str> for ModelFamily {
             "cohere_asr" => ModelFamily::CohereAsr,
             "moss_transcribe_diarize" => ModelFamily::MossTranscribeDiarize,
             "confucius4_r2t2" => ModelFamily::Confucius4R2t2,
+            "audio_flamingo" => ModelFamily::AudioFlamingo,
+            "crisperwhisper" => ModelFamily::Crisperwhisper,
+            "gigaam_asr" => ModelFamily::GigaamAsr,
+            "index_echo" => ModelFamily::IndexEcho,
+            "lfm2_audio" => ModelFamily::Lfm2Audio,
+            "owsm" => ModelFamily::Owsm,
+            "owsm_ctc" => ModelFamily::OwsmCtc,
+            "samsone" => ModelFamily::Samsone,
             "qwen3_tts" => ModelFamily::Qwen3Tts,
             "confucius4_tts" => ModelFamily::Confucius4Tts,
             "dots_tts" => ModelFamily::DotsTts,
@@ -792,6 +922,10 @@ impl From<&str> for ModelFamily {
             "auk" => ModelFamily::Auk,
             "piper_tts" => ModelFamily::PiperTts,
             "kitten_tts" => ModelFamily::KittenTts,
+            "kitten_tts2" => ModelFamily::KittenTts2,
+            "kugelaudio" => ModelFamily::Kugelaudio,
+            "maya1" => ModelFamily::Maya1,
+            "moss_ttsd" => ModelFamily::MossTtsd,
             "minimax_h3" => ModelFamily::MinimaxH3,
             "sanotts" => ModelFamily::Sanotts,
             "sopro_tts" => ModelFamily::SoproTts,
@@ -809,12 +943,15 @@ impl From<&str> for ModelFamily {
             "seed_vc" => ModelFamily::SeedVc,
             "rvc" => ModelFamily::Rvc,
             "meanvc2" => ModelFamily::Meanvc2,
+            "tone_color_vc" => ModelFamily::ToneColorVc,
             "chatterbox" => ModelFamily::Chatterbox,
             "chatterbox_turbo" => ModelFamily::ChatterboxTurbo,
             "vevo2" => ModelFamily::Vevo2,
             "voxcpm2" => ModelFamily::Voxcpm2,
             "ace_step" => ModelFamily::AceStep,
             "htdemucs" => ModelFamily::Htdemucs,
+            "htdemucs_6stems" => ModelFamily::Htdemucs6Stems,
+            "htdemucs_6s" => ModelFamily::Htdemucs6Stems,
             "mel_band_roformer" => ModelFamily::MelBandRoformer,
             "bs_roformer" => ModelFamily::BsRoformer,
             "muscriptor" => ModelFamily::Muscriptor,
@@ -832,6 +969,10 @@ impl From<&str> for ModelFamily {
             "controlfoley" => ModelFamily::ControlFoley,
             "midashenglm_gen" => ModelFamily::MidashEnglmGen,
             "liveavatar" => ModelFamily::Liveavatar,
+            "reuse" => ModelFamily::Reuse,
+            "sam_audio" => ModelFamily::SamAudio,
+            "sidon" => ModelFamily::Sidon,
+            "smart_turn" => ModelFamily::SmartTurn,
             "miocodec" => ModelFamily::Miocodec,
             "miotts" => ModelFamily::Miotts,
             "vibevoice" => ModelFamily::Vibevoice,
@@ -1121,6 +1262,19 @@ pub struct NamedAudioOutput {
     pub meta: BTreeMap<String, String>,
 }
 
+/// 自定义结构化输出（上游 `TaskResult::custom_schema_output`）。
+///
+/// 目前仅 Smart Turn（task `turn`）产出：`schema` 为 `"smart_turn.v1"`，
+/// `data` 为 `{"complete": bool, "probability": number}`（`threshold`
+/// 请求选项判定，默认 0.5）。`data` 为任意 JSON，用 `serde_json::Value` 承载。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CustomSchemaOutput {
+    /// 输出 schema 标识，如 `"smart_turn.v1"`。
+    pub schema: String,
+    /// 结构化数据载荷。
+    pub data: serde_json::Value,
+}
+
 /// 一次任务执行的完整结果（`audiocpp_session_run_offline` / `finish`）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TaskResult {
@@ -1146,6 +1300,9 @@ pub struct TaskResult {
     ///   `align`）直接输出；ASR 主文本 + 对齐回填是无词戳族的常规降级链。
     #[serde(default)]
     pub word_timestamps: Vec<WordTimestamp>,
+    /// 自定义结构化输出（存在时，如 Smart Turn 的 `smart_turn.v1` 轮次判定）。
+    #[serde(default)]
+    pub custom_schema_output: Option<CustomSchemaOutput>,
     /// 单个产物输出（存在时，如 voice-clone 的 cached_voice_id）。
     #[serde(default)]
     pub artifact_output: Option<VoiceArtifact>,
@@ -1252,6 +1409,14 @@ mod tests {
             CohereAsr,
             MossTranscribeDiarize,
             Confucius4R2t2,
+            AudioFlamingo,
+            Crisperwhisper,
+            GigaamAsr,
+            IndexEcho,
+            Lfm2Audio,
+            Owsm,
+            OwsmCtc,
+            Samsone,
             // TTS
             Qwen3Tts,
             Confucius4Tts,
@@ -1281,6 +1446,10 @@ mod tests {
             Auk,
             PiperTts,
             KittenTts,
+            KittenTts2,
+            Kugelaudio,
+            Maya1,
+            MossTtsd,
             MinimaxH3,
             Sanotts,
             SoproTts,
@@ -1293,12 +1462,14 @@ mod tests {
             SeedVc,
             Rvc,
             Meanvc2,
+            ToneColorVc,
             Chatterbox,
             ChatterboxTurbo,
             Vevo2,
             Voxcpm2,
             AceStep,
             Htdemucs,
+            Htdemucs6Stems,
             MelBandRoformer,
             BsRoformer,
             Muscriptor,
@@ -1316,6 +1487,10 @@ mod tests {
             ControlFoley,
             MidashEnglmGen,
             Liveavatar,
+            Reuse,
+            SamAudio,
+            Sidon,
+            SmartTurn,
             // 其他
             Miocodec,
             Miotts,
@@ -1416,7 +1591,57 @@ mod tests {
         );
         assert_eq!(
             ModelFamily::from_path("htdemucs-6s-q8_0.gguf"),
+            Some(ModelFamily::Htdemucs6Stems)
+        );
+        // htdemucs_6stems 不被裸 "htdemucs" 关键词吞掉；裸名仍判回 Htdemucs。
+        assert_eq!(
+            ModelFamily::from_path("htdemucs-q8_0.gguf"),
             Some(ModelFamily::Htdemucs)
+        );
+        // kitten_tts2 不被 kitten_tts / 裸 "kitten" 吞掉。
+        assert_eq!(
+            ModelFamily::from_path("kitten-tts2-q8_0.gguf"),
+            Some(ModelFamily::KittenTts2)
+        );
+        assert_eq!(
+            ModelFamily::from_path("kitten-tts-q8_0.gguf"),
+            Some(ModelFamily::KittenTts)
+        );
+        // index_echo 不被裸 "echo" 吞掉。
+        assert_eq!(
+            ModelFamily::from_path("index-echo-q8_0.gguf"),
+            Some(ModelFamily::IndexEcho)
+        );
+        assert_eq!(
+            ModelFamily::from_path("echo-tts-q8_0.gguf"),
+            Some(ModelFamily::EchoTts)
+        );
+        // owsm_ctc 不被裸 "owsm" 吞掉。
+        assert_eq!(
+            ModelFamily::from_path("owsm-ctc-q8_0.gguf"),
+            Some(ModelFamily::OwsmCtc)
+        );
+        assert_eq!(
+            ModelFamily::from_path("owsm-q8_0.gguf"),
+            Some(ModelFamily::Owsm)
+        );
+        // moss_ttsd 不被裸 "moss" 吞掉。
+        assert_eq!(
+            ModelFamily::from_path("moss-ttsd-q8_0.gguf"),
+            Some(ModelFamily::MossTtsd)
+        );
+        // 新族常规命中抽查。
+        assert_eq!(
+            ModelFamily::from_path("smart-turn-q8_0.gguf"),
+            Some(ModelFamily::SmartTurn)
+        );
+        assert_eq!(
+            ModelFamily::from_path("tone-color-vc-q8_0.gguf"),
+            Some(ModelFamily::ToneColorVc)
+        );
+        assert_eq!(
+            ModelFamily::from("htdemucs_6s"),
+            ModelFamily::Htdemucs6Stems
         );
         // 流式/新变体不被其前缀家族吞掉（子串匹配顺序）
         assert_eq!(
@@ -1546,6 +1771,7 @@ mod tests {
             (TaskKind::SpeakerRecognition, "spk"),
             (TaskKind::Svc, "svc"),
             (TaskKind::Midi, "midi"),
+            (TaskKind::TurnDetection, "turn"),
         ];
         for (k, want) in cases {
             assert_eq!(k.as_str(), want);
@@ -1571,6 +1797,7 @@ mod tests {
             TaskKind::SpeakerRecognition,
             TaskKind::Svc,
             TaskKind::Midi,
+            TaskKind::TurnDetection,
         ];
         for k in all {
             let s = serde_json::to_string(&k).unwrap();
