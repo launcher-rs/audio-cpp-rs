@@ -331,6 +331,14 @@ static json::Value dump_stream_event(const StreamEvent & event) {
         text.emplace("language", json::Value::make_string(event.partial_text->language));
         obj.emplace("partial_text", json::Value::make_object(std::move(text)));
     }
+    // 可修正的整段转写假设（parakeet 系热词流式等按需输出）；
+    // 缺省不输出，与 server 的 task_stream_format.json 保持同形。
+    if (event.partial_text_snapshot.has_value()) {
+        json::Value::Object snapshot;
+        snapshot.emplace("text", json::Value::make_string(event.partial_text_snapshot->text));
+        snapshot.emplace("language", json::Value::make_string(event.partial_text_snapshot->language));
+        obj.emplace("partial_text_snapshot", json::Value::make_object(std::move(snapshot)));
+    }
     if (event.audio_output.has_value()) {
         obj.emplace("audio_output", dump_audio_buffer(*event.audio_output));
     }

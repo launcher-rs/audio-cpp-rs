@@ -114,9 +114,73 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `d3ab9df2`（origin/main；从 `fc24c99e` 快进约 74 个提交）。
-  crate 版本保持 **0.6.0**（workspace 统一；本次仅加法新增，无改名，
+- 当前 submodule HEAD = `73c55549`（origin/main；从 `d3ab9df2` 快进 66 个提交）。
+  crate 版本保持 **0.7.0**（workspace 统一；本次仅加法新增，无改名，
   无需升版；预编译资产属发布操作未执行）。历史升级记录见下方逐条。
+- **升级 `d3ab9df2`→`73c55549`（main，v0.9.1-33）审查结论**：
+  - diff 共 506 文件（+47.9k/-5.3k，66 个提交）：新增 9 个 CMake target
+    （上游 model target 108→117 个）：`mossformer2`（MossFormer2 重叠语音分离，
+    16kHz，task `sep` 仅离线）/ `tf_gridnet`（时频 GridNet 重叠语音分离，
+    task `sep` 仅离线）/ `firered_vad`（FireRed DFSMN VAD，16kHz mono，
+    task `vad` 离线+流式，流式需 Stream-VAD checkpoint）/ `ced`
+    （CED ViT 音频分类，527 个 AudioSet 类别，task `cls` 仅离线，结果走
+    `custom_schema_output` schema `ced.classification.v1`）/ `ast_audioset`
+    （AST 多标签分类，527 类，task `cls` 仅离线，schema
+    `ast_audioset.classification.v1`）/ `micro_wake_word`（microWakeWord
+    MixedNet 唤醒词检测，16kHz mono，task `wake` 离线+流式，结果走既有
+    `speech_segments`）/ `sherpa_kws`（sherpa-onnx Zipformer transducer
+    关键词检测，16kHz mono，task `wake` 离线+流式，结果走既有
+    `speech_segments`）/ `hviske_asr_v6`（丹麦语 rotary-Whisper 编码器 +
+    Qwen3 解码器，task `asr` 仅离线）/ `whistle_asr`（社区离线 ASR，
+    task `asr` 仅离线）。其余为 parakeet Phonon-2 热词/流式/时间戳 +
+    `partial_text_snapshot` / MOSS-TTS-Nano 与 VibeVoice/Fish 流式化 /
+    Kokoro/NeuTTS/VoxCPM2 流式改进 / sanotts ARM NEON CPU 解码选项 /
+    server 模型参数透出（`GET /v1/models?include_params=true`）等。
+  - **C ABI 边界有加法改动**：`backend.h` 新增 CPU extra-buffer 自由函数
+    （shim 不用）/`json.h` 零改动；`model.h`/`registry.h` 零改动（registry 仅
+    新增 `finish_model_load_trace` 自由函数，shim 不调用）；`session.h` 新增
+    `VoiceTaskKind::WakeWord` / `VoiceTaskKind::AudioClassification`
+    （shim 经 `parse_voice_task_kind`/`to_string` 字符串透传，自动兼容）+
+    `StreamEvent::partial_text_snapshot`（可选可修正整段假设，server
+    `task_stream_format` 已透出）。`errors.h` 新增 `InvalidRequestError`
+    （派生自 `std::exception`，shim 统一 `catch (const std::exception&)`
+    捕获；server 侧映射 400，本仓 shim 无 HTTP 码，错误字符串透传即可）。
+    已同步 `capi.cpp` `dump_stream_event` 导出 `partial_text_snapshot`
+    （与 `partial_text` 同形 `{text,language}`，缺省不输出）；`capi.h` /
+    build.rs bindgen allowlist（`audiocpp_.*`）不变（无签名改动，
+    `bindings.docsrs.rs` 无需重拷）。
+  - 无其余新输出字段：9 新族中 7 个复用既有 `sep`/`vad`/`asr`/`wake`
+    （`speech_segments` 早已导出）；ced/ast 走既有 `custom_schema_output`
+    （shim 早已导出）；全部新选项（mossformer2/tf_gridnet 分块、
+    firered_vad 阈值系、micro/sherpa 阈值系、hviske/whistle 解码系）走通用
+    options 字符串透传（新 spec 无 `*_list` 类型，无数组选项缺口）。
+  - 已同步 `audio-cpp/src/types.rs` 的 `TaskKind`：新增 `WakeWord`
+    （`as_str()` → `"wake"`，`Deserialize` 兼收别名 `"wake_word"`）/
+    `AudioClassification`（→ `"cls"`，兼收 `"classify"`，与上游
+    `task_vocabulary` 规范名/别名一致）+ `task_kind_aliases` 测试；
+    `StreamEvent` 新增 `partial_text_snapshot: Option<TextOutput>`
+    （`#[serde(default)]` 向后兼容）+ 反序列化测试覆盖。
+    已同步 `ModelFamily`：新增 9 个枚举变体（`as_str()` 与上游族名一致）+
+    `from_path()` 关键词表（`hviske_asr_v6` 置于裸 `"hviske"` 之前；
+    `mossformer2` 置于裸 `"moss"` 之前；`ced` 置于 `"forced-aligner"`
+    之后——`ced` 是 for**ced** 的子串；`ast` 仅收 `ast_audioset`/
+    `ast-audioset`/`audioset` 不收裸 `ast` 防误伤）+ `From<&str>`
+    （下划线规范名 + 连字符别名）；并在两个 Cargo.toml 新增 9 个
+    `model-*` feature（build.rs 自动映射 CMake target）；full-models
+    注释 108→117，sys README 计数字段 108→117。`model_family_roundtrip` /
+    `model_family_from_path`（含防吞断言：hviske/mossformer2/ced/forced-aligner）
+    测试已覆盖。
+  - 9 新族 session 均自持资产（`shared_ptr<const …>`，spec-backed），
+    `Session` 独立于 `Model` 存活的保证成立。
+  - 验证：`cargo fmt --check` + `cargo build --workspace`（build.rs 跟踪
+    submodule HEAD 正常触发重编，约 3 分钟）+ `cargo test --workspace`
+    （32 lib + 12 doc 全过）+ `clippy --workspace --all-targets` 零警告 +
+    `cargo check -p audio-cpp-sys --features custom-models,model-sherpa-kws`
+    （新 feature→CMake target 映射抽查通过）。
+  - 注意：`metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制回落
+    源码构建（预编译自动下载被跳过），属预期；`cargo publish` /
+    tag / Release / 预编译资产上传均属第 6 节发布操作，须用户显式下达，
+    本次未执行。
 - **升级 `fc24c99e`→`d3ab9df2`（main）审查结论**：
   - diff 共 873 文件（+54.7k/-5.3k，约 74 个提交）：新增 17 个 CMake target
     （上游 model target 91→108 个；loader 94→112 个，另 `demucs` target 内

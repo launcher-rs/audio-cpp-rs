@@ -43,6 +43,11 @@ pub enum TaskKind {
     Midi,
     /// 轮次检测（Turn Detection，如 Smart Turn 会话是否说完；仅离线）
     TurnDetection,
+    /// 唤醒词检测（Wake Word，如 microWakeWord / sherpa KWS；离线+流式）
+    WakeWord,
+    /// 音频分类（Audio Classification，如 CED / AST AudioSet 的 527 类；
+    /// 仅离线，结果在 `custom_schema_output`）
+    AudioClassification,
 }
 
 impl TaskKind {
@@ -64,6 +69,8 @@ impl TaskKind {
             TaskKind::Svc => "svc",
             TaskKind::Midi => "midi",
             TaskKind::TurnDetection => "turn",
+            TaskKind::WakeWord => "wake",
+            TaskKind::AudioClassification => "cls",
         }
     }
 }
@@ -93,11 +100,15 @@ impl<'de> Deserialize<'de> for TaskKind {
             "svc" => Ok(TaskKind::Svc),
             "midi" => Ok(TaskKind::Midi),
             "turn" => Ok(TaskKind::TurnDetection),
+            // 上游别名：`wake_word`（`wake` 的别名）、`classify`（`cls` 的别名），
+            // capabilities 等 JSON 里出现的是规范短名，解析时两者都接受。
+            "wake" | "wake_word" => Ok(TaskKind::WakeWord),
+            "cls" | "classify" => Ok(TaskKind::AudioClassification),
             other => Err(serde::de::Error::unknown_variant(
                 other,
                 &[
                     "vad", "asr", "diar", "sep", "gen", "tts", "clon", "vc", "s2s", "align",
-                    "vdes", "spk", "svc", "midi", "turn",
+                    "vdes", "spk", "svc", "midi", "turn", "wake", "cls",
                 ],
             )),
         }
@@ -143,6 +154,9 @@ pub enum ModelFamily {
     /// PulseVAD（16kHz 单声道语音活动检测，2.1K student / 81K teacher；
     /// 仅离线，阈值选项键为 `threshold`）
     Pulsevad,
+    /// FireRed VAD（DFSMN 语音活动检测，16kHz mono；离线+流式，
+    /// 流式需 Stream-VAD checkpoint；选项 `threshold` 等）
+    FireredVad,
 
     // ---- ASR ----
     /// Qwen3 ASR
@@ -157,6 +171,9 @@ pub enum ModelFamily {
     HiggsAudioStt,
     /// Hviske ASR
     HviskeAsr,
+    /// Hviske ASR v6（丹麦语 Whisper-rotary 编码器 + Qwen3 解码器；
+    /// task 为 `asr` 仅离线，16kHz 输入）
+    HviskeAsrV6,
     /// Kroko ASR
     KrokoAsr,
     /// Nemotron ASR
@@ -214,6 +231,8 @@ pub enum ModelFamily {
     /// SAMSONE（紧凑音频语言模型：描述/问答/声音音乐语音理解；
     /// task 为 `asr` 仅离线）
     Samsone,
+    /// Whistle ASR（社区离线语音识别，本地 FP32 GGUF；task 为 `asr` 仅离线）
+    WhistleAsr,
 
     // ---- TTS ----
     /// Qwen3 TTS
@@ -335,6 +354,10 @@ pub enum ModelFamily {
     /// HTDemucs 6-stem（鼓/贝斯/人声/其他/吉他/钢琴六轨；task 为 `sep` 仅离线；
     /// 与 `htdemucs` 同属 `demucs` CMake target，用 `model-demucs` feature 编译）
     Htdemucs6Stems,
+    /// MossFormer2（重叠语音分离，16kHz；task 为 `sep` 仅离线）
+    Mossformer2,
+    /// TF-GridNet（时频 GridNet 重叠语音分离；task 为 `sep` 仅离线）
+    TfGridnet,
     /// Mel Band Roformer（乐音建模）
     MelBandRoformer,
     /// BSRoformer
@@ -387,6 +410,24 @@ pub enum ModelFamily {
     /// task 为 `turn` 仅离线，16kHz mono，选项 `threshold`，结果在
     /// `custom_schema_output`（schema `smart_turn.v1`））
     SmartTurn,
+
+    // ---- 唤醒词 / 音频分类 ----
+    /// microWakeWord（MixedNet TFLite 转 GGUF 的流式唤醒词检测；
+    /// task 为 `wake`（别名 `wake_word`），离线+流式，16kHz mono，
+    /// 检测结果在 `speech_segments`）
+    MicroWakeWord,
+    /// sherpa KWS（Zipformer transducer 关键词检测，sherpa-onnx 导出；
+    /// task 为 `wake`（别名 `wake_word`），离线+流式，16kHz mono，
+    /// 检测结果在 `speech_segments`）
+    SherpaKws,
+    /// CED（Consistent Ensemble Distillation ViT 音频分类，527 个 AudioSet
+    /// 类别；task 为 `cls`（别名 `classify`）仅离线，结果在
+    /// `custom_schema_output`（schema `ced.classification.v1`））
+    Ced,
+    /// AST AudioSet（Audio Spectrogram Transformer 多标签分类，527 个
+    /// AudioSet 类别；task 为 `cls`（别名 `classify`）仅离线，结果在
+    /// `custom_schema_output`（schema `ast_audioset.classification.v1`））
+    AstAudioset,
 
     // ---- 其他 ----
     /// Miocodec / Miotts（小米语音）
@@ -454,6 +495,9 @@ impl ModelFamily {
             ("pulsevad", ModelFamily::Pulsevad),
             ("pulse-vad", ModelFamily::Pulsevad),
             ("pulse", ModelFamily::Pulsevad),
+            ("firered_vad", ModelFamily::FireredVad),
+            ("firered-vad", ModelFamily::FireredVad),
+            ("fireredvad", ModelFamily::FireredVad),
             ("qwen3_asr", ModelFamily::Qwen3Asr),
             ("qwen3-asr", ModelFamily::Qwen3Asr),
             ("qwen3_tts", ModelFamily::Qwen3Tts),
@@ -471,7 +515,15 @@ impl ModelFamily {
             ("higgs_audio_stt", ModelFamily::HiggsAudioStt),
             ("higgs_audio_tts", ModelFamily::HiggsAudioTts),
             ("higgs", ModelFamily::HiggsAudioStt),
+            // hviske_asr_v6 必须排在裸 "hviske" 之前，否则会被吞掉。
+            ("hviske_asr_v6", ModelFamily::HviskeAsrV6),
+            ("hviske-asr-v6", ModelFamily::HviskeAsrV6),
+            ("hviske-v6", ModelFamily::HviskeAsrV6),
+            ("hviskev6", ModelFamily::HviskeAsrV6),
             ("hviske", ModelFamily::HviskeAsr),
+            ("whistle_asr", ModelFamily::WhistleAsr),
+            ("whistle-asr", ModelFamily::WhistleAsr),
+            ("whistle", ModelFamily::WhistleAsr),
             ("kroko", ModelFamily::KrokoAsr),
             ("nemotron_3_diar", ModelFamily::Nemotron3Diar),
             ("nemotron-3-diar", ModelFamily::Nemotron3Diar),
@@ -528,6 +580,10 @@ impl ModelFamily {
                 "moss-transcribe-diarize",
                 ModelFamily::MossTranscribeDiarize,
             ),
+            // mossformer2 必须排在裸 "moss" 之前，否则会被吞掉。
+            ("mossformer2", ModelFamily::Mossformer2),
+            ("mossformer-2", ModelFamily::Mossformer2),
+            ("mossformer", ModelFamily::Mossformer2),
             ("moss-tts-nano", ModelFamily::MossTtsNano),
             ("moss_tts_nano", ModelFamily::MossTtsNano),
             ("moss-tts-local", ModelFamily::MossTtsLocal),
@@ -679,6 +735,10 @@ impl ModelFamily {
             ("htdemucs-6s", ModelFamily::Htdemucs6Stems),
             ("htdemucs", ModelFamily::Htdemucs),
             ("demucs", ModelFamily::Htdemucs),
+            ("tf_gridnet", ModelFamily::TfGridnet),
+            ("tf-gridnet", ModelFamily::TfGridnet),
+            ("tfgridnet", ModelFamily::TfGridnet),
+            ("gridnet", ModelFamily::TfGridnet),
             ("mel-band-roformer", ModelFamily::MelBandRoformer),
             ("mel_band_roformer", ModelFamily::MelBandRoformer),
             ("bs-roformer", ModelFamily::BsRoformer),
@@ -722,6 +782,20 @@ impl ModelFamily {
             ("mms_forced_aligner", ModelFamily::MmsForcedAligner),
             ("mms", ModelFamily::MmsForcedAligner),
             ("forced-aligner", ModelFamily::Qwen3ForcedAligner),
+            // 唤醒词 / 分类族：`ced` 是 `forced-aligner`（for**ced**）的子串，
+            // 必须排在它之后，否则对齐模型会被误判为 CED。
+            ("micro_wake_word", ModelFamily::MicroWakeWord),
+            ("micro-wake-word", ModelFamily::MicroWakeWord),
+            ("micro_wake", ModelFamily::MicroWakeWord),
+            ("micro-wake", ModelFamily::MicroWakeWord),
+            ("microwake", ModelFamily::MicroWakeWord),
+            ("sherpa_kws", ModelFamily::SherpaKws),
+            ("sherpa-kws", ModelFamily::SherpaKws),
+            ("sherpa", ModelFamily::SherpaKws),
+            ("ced", ModelFamily::Ced),
+            ("ast_audioset", ModelFamily::AstAudioset),
+            ("ast-audioset", ModelFamily::AstAudioset),
+            ("audioset", ModelFamily::AstAudioset),
         ];
         KEYWORDS
             .iter()
@@ -735,12 +809,14 @@ impl ModelFamily {
             ModelFamily::SileroVad => "silero_vad",
             ModelFamily::MarblenetVad => "marblenet_vad",
             ModelFamily::Pulsevad => "pulsevad",
+            ModelFamily::FireredVad => "firered_vad",
             ModelFamily::Qwen3Asr => "qwen3_asr",
             ModelFamily::CitrinetAsr => "citrinet_asr",
             ModelFamily::SenseAsr => "sense_asr",
             ModelFamily::FunAsrNano => "fun_asr_nano",
             ModelFamily::HiggsAudioStt => "higgs_audio_stt",
             ModelFamily::HviskeAsr => "hviske_asr",
+            ModelFamily::HviskeAsrV6 => "hviske_asr_v6",
             ModelFamily::KrokoAsr => "kroko_asr",
             ModelFamily::NemotronAsr => "nemotron_asr",
             ModelFamily::Nemotron3Diar => "nemotron_3_diar",
@@ -766,6 +842,7 @@ impl ModelFamily {
             ModelFamily::Owsm => "owsm",
             ModelFamily::OwsmCtc => "owsm_ctc",
             ModelFamily::Samsone => "samsone",
+            ModelFamily::WhistleAsr => "whistle_asr",
             ModelFamily::Qwen3Tts => "qwen3_tts",
             ModelFamily::Confucius4Tts => "confucius4_tts",
             ModelFamily::DotsTts => "dots_tts",
@@ -817,6 +894,8 @@ impl ModelFamily {
             ModelFamily::AceStep => "ace_step",
             ModelFamily::Htdemucs => "htdemucs",
             ModelFamily::Htdemucs6Stems => "htdemucs_6stems",
+            ModelFamily::Mossformer2 => "mossformer2",
+            ModelFamily::TfGridnet => "tf_gridnet",
             ModelFamily::MelBandRoformer => "mel_band_roformer",
             ModelFamily::BsRoformer => "bs_roformer",
             ModelFamily::Muscriptor => "muscriptor",
@@ -838,6 +917,10 @@ impl ModelFamily {
             ModelFamily::SamAudio => "sam_audio",
             ModelFamily::Sidon => "sidon",
             ModelFamily::SmartTurn => "smart_turn",
+            ModelFamily::MicroWakeWord => "micro_wake_word",
+            ModelFamily::SherpaKws => "sherpa_kws",
+            ModelFamily::Ced => "ced",
+            ModelFamily::AstAudioset => "ast_audioset",
             ModelFamily::Miocodec => "miocodec",
             ModelFamily::Miotts => "miotts",
             ModelFamily::Vibevoice => "vibevoice",
@@ -858,12 +941,16 @@ impl From<&str> for ModelFamily {
             "silero_vad" => ModelFamily::SileroVad,
             "marblenet_vad" => ModelFamily::MarblenetVad,
             "pulsevad" => ModelFamily::Pulsevad,
+            "firered_vad" => ModelFamily::FireredVad,
+            "firered-vad" => ModelFamily::FireredVad,
             "qwen3_asr" => ModelFamily::Qwen3Asr,
             "citrinet_asr" => ModelFamily::CitrinetAsr,
             "sense_asr" => ModelFamily::SenseAsr,
             "fun_asr_nano" => ModelFamily::FunAsrNano,
             "higgs_audio_stt" => ModelFamily::HiggsAudioStt,
             "hviske_asr" => ModelFamily::HviskeAsr,
+            "hviske_asr_v6" => ModelFamily::HviskeAsrV6,
+            "hviske-asr-v6" => ModelFamily::HviskeAsrV6,
             "kroko_asr" => ModelFamily::KrokoAsr,
             "nemotron_asr" => ModelFamily::NemotronAsr,
             "nemotron_3_diar" => ModelFamily::Nemotron3Diar,
@@ -893,6 +980,8 @@ impl From<&str> for ModelFamily {
             "owsm" => ModelFamily::Owsm,
             "owsm_ctc" => ModelFamily::OwsmCtc,
             "samsone" => ModelFamily::Samsone,
+            "whistle_asr" => ModelFamily::WhistleAsr,
+            "whistle-asr" => ModelFamily::WhistleAsr,
             "qwen3_tts" => ModelFamily::Qwen3Tts,
             "confucius4_tts" => ModelFamily::Confucius4Tts,
             "dots_tts" => ModelFamily::DotsTts,
@@ -952,6 +1041,9 @@ impl From<&str> for ModelFamily {
             "htdemucs" => ModelFamily::Htdemucs,
             "htdemucs_6stems" => ModelFamily::Htdemucs6Stems,
             "htdemucs_6s" => ModelFamily::Htdemucs6Stems,
+            "mossformer2" => ModelFamily::Mossformer2,
+            "tf_gridnet" => ModelFamily::TfGridnet,
+            "tf-gridnet" => ModelFamily::TfGridnet,
             "mel_band_roformer" => ModelFamily::MelBandRoformer,
             "bs_roformer" => ModelFamily::BsRoformer,
             "muscriptor" => ModelFamily::Muscriptor,
@@ -973,6 +1065,13 @@ impl From<&str> for ModelFamily {
             "sam_audio" => ModelFamily::SamAudio,
             "sidon" => ModelFamily::Sidon,
             "smart_turn" => ModelFamily::SmartTurn,
+            "micro_wake_word" => ModelFamily::MicroWakeWord,
+            "micro-wake-word" => ModelFamily::MicroWakeWord,
+            "sherpa_kws" => ModelFamily::SherpaKws,
+            "sherpa-kws" => ModelFamily::SherpaKws,
+            "ced" => ModelFamily::Ced,
+            "ast_audioset" => ModelFamily::AstAudioset,
+            "ast-audioset" => ModelFamily::AstAudioset,
             "miocodec" => ModelFamily::Miocodec,
             "miotts" => ModelFamily::Miotts,
             "vibevoice" => ModelFamily::Vibevoice,
@@ -1264,9 +1363,12 @@ pub struct NamedAudioOutput {
 
 /// 自定义结构化输出（上游 `TaskResult::custom_schema_output`）。
 ///
-/// 目前仅 Smart Turn（task `turn`）产出：`schema` 为 `"smart_turn.v1"`，
-/// `data` 为 `{"complete": bool, "probability": number}`（`threshold`
-/// 请求选项判定，默认 0.5）。`data` 为任意 JSON，用 `serde_json::Value` 承载。
+/// 目前有三类产出：Smart Turn（task `turn`）的 `"smart_turn.v1"`
+///（`data` 为 `{"complete": bool, "probability": number}`，`threshold`
+/// 请求选项判定，默认 0.5）；CED（task `cls`）的 `"ced.classification.v1"`；
+/// AST AudioSet（task `cls`）的 `"ast_audioset.classification.v1"`。
+/// 后两者的 `data` 为 `{"scores": [...]}`（527 个 AudioSet 类别得分）。
+/// `data` 为任意 JSON，用 `serde_json::Value` 承载。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CustomSchemaOutput {
     /// 输出 schema 标识，如 `"smart_turn.v1"`。
@@ -1318,6 +1420,11 @@ pub struct StreamEvent {
     pub voice_activity: Vec<VoiceActivityEvent>,
     /// 部分文本（流式 ASR 等）。
     pub partial_text: Option<TextOutput>,
+    /// 可修正的整段转写假设（上游 `StreamEvent::partial_text_snapshot`）：
+    /// 客户端用它替换暂存显示；`partial_text` 仍是仅追加的已确认文本。
+    /// 仅部分模型按需输出（如 parakeet 系热词流式），缺省为 `None`。
+    #[serde(default)]
+    pub partial_text_snapshot: Option<TextOutput>,
     /// 音频输出（存在时）。
     pub audio_output: Option<AudioBufferInfo>,
     /// 命名音频输出列表（如流式 TTS 的逐块 `chunk_N`）。
@@ -1385,6 +1492,7 @@ mod tests {
             SileroVad,
             MarblenetVad,
             Pulsevad,
+            FireredVad,
             // ASR
             Qwen3Asr,
             CitrinetAsr,
@@ -1392,6 +1500,7 @@ mod tests {
             FunAsrNano,
             HiggsAudioStt,
             HviskeAsr,
+            HviskeAsrV6,
             KrokoAsr,
             NemotronAsr,
             Nemotron3Diar,
@@ -1417,6 +1526,7 @@ mod tests {
             Owsm,
             OwsmCtc,
             Samsone,
+            WhistleAsr,
             // TTS
             Qwen3Tts,
             Confucius4Tts,
@@ -1470,6 +1580,8 @@ mod tests {
             AceStep,
             Htdemucs,
             Htdemucs6Stems,
+            Mossformer2,
+            TfGridnet,
             MelBandRoformer,
             BsRoformer,
             Muscriptor,
@@ -1491,6 +1603,11 @@ mod tests {
             SamAudio,
             Sidon,
             SmartTurn,
+            // 唤醒词 / 音频分类
+            MicroWakeWord,
+            SherpaKws,
+            Ced,
+            AstAudioset,
             // 其他
             Miocodec,
             Miotts,
@@ -1635,6 +1752,55 @@ mod tests {
             ModelFamily::from_path("smart-turn-q8_0.gguf"),
             Some(ModelFamily::SmartTurn)
         );
+        // firered_vad 独立成族（非 firered_audio）。
+        assert_eq!(
+            ModelFamily::from_path("firered-vad-q8_0.gguf"),
+            Some(ModelFamily::FireredVad)
+        );
+        // hviske_asr_v6 不被裸 "hviske" 吞掉；裸名仍判回 HviskeAsr。
+        assert_eq!(
+            ModelFamily::from_path("hviske-asr-v6-q8_0.gguf"),
+            Some(ModelFamily::HviskeAsrV6)
+        );
+        assert_eq!(
+            ModelFamily::from_path("hviske-asr-q8_0.gguf"),
+            Some(ModelFamily::HviskeAsr)
+        );
+        assert_eq!(
+            ModelFamily::from_path("whistle-asr-q8_0.gguf"),
+            Some(ModelFamily::WhistleAsr)
+        );
+        // mossformer2 不被裸 "moss" 吞掉。
+        assert_eq!(
+            ModelFamily::from_path("mossformer2-ss-16k-f32.gguf"),
+            Some(ModelFamily::Mossformer2)
+        );
+        assert_eq!(
+            ModelFamily::from_path("tf-gridnet-q8_0.gguf"),
+            Some(ModelFamily::TfGridnet)
+        );
+        // 唤醒词族。
+        assert_eq!(
+            ModelFamily::from_path("micro-wake-word-hey-jarvis-q8_0.gguf"),
+            Some(ModelFamily::MicroWakeWord)
+        );
+        assert_eq!(
+            ModelFamily::from_path("sherpa-kws-keywords-q8_0.gguf"),
+            Some(ModelFamily::SherpaKws)
+        );
+        // ced 不吞掉对齐模型（for**ced**-aligner），且 audioset 后缀判给 CED。
+        assert_eq!(
+            ModelFamily::from_path("ced-base-16k-q8_0.gguf"),
+            Some(ModelFamily::Ced)
+        );
+        assert_eq!(
+            ModelFamily::from_path("qwen3-forced-aligner-q8_0.gguf"),
+            Some(ModelFamily::Qwen3ForcedAligner)
+        );
+        assert_eq!(
+            ModelFamily::from_path("ast-audioset-q8_0.gguf"),
+            Some(ModelFamily::AstAudioset)
+        );
         assert_eq!(
             ModelFamily::from_path("tone-color-vc-q8_0.gguf"),
             Some(ModelFamily::ToneColorVc)
@@ -1772,10 +1938,25 @@ mod tests {
             (TaskKind::Svc, "svc"),
             (TaskKind::Midi, "midi"),
             (TaskKind::TurnDetection, "turn"),
+            (TaskKind::WakeWord, "wake"),
+            (TaskKind::AudioClassification, "cls"),
         ];
         for (k, want) in cases {
             assert_eq!(k.as_str(), want);
         }
+    }
+
+    #[test]
+    fn task_kind_aliases() {
+        // 上游别名与规范短名互通：`wake_word`→WakeWord，`classify`→AudioClassification。
+        assert_eq!(
+            serde_json::from_str::<TaskKind>("\"wake_word\"").unwrap(),
+            TaskKind::WakeWord
+        );
+        assert_eq!(
+            serde_json::from_str::<TaskKind>("\"classify\"").unwrap(),
+            TaskKind::AudioClassification
+        );
     }
 
     #[test]
@@ -1798,6 +1979,8 @@ mod tests {
             TaskKind::Svc,
             TaskKind::Midi,
             TaskKind::TurnDetection,
+            TaskKind::WakeWord,
+            TaskKind::AudioClassification,
         ];
         for k in all {
             let s = serde_json::to_string(&k).unwrap();
@@ -1871,6 +2054,7 @@ mod tests {
                     {"kind": "speech_start", "sample": 100, "probability": 0.8, "segment": null}
                 ],
                 "partial_text": null,
+                "partial_text_snapshot": {"text": "hel", "language": "en"},
                 "audio_output": null,
                 "named_audio_outputs": [{"id": "chunk_0", "audio": {"sample_rate": 48000, "channels": 2, "sample_count": 320, "samples": []}, "meta": {}}],
                 "speaker_turns": [],
@@ -1882,6 +2066,7 @@ mod tests {
         .unwrap();
         assert_eq!(ev.voice_activity[0].kind, "speech_start");
         assert_eq!(ev.named_audio_outputs[0].id, "chunk_0");
+        assert_eq!(ev.partial_text_snapshot.as_ref().unwrap().text, "hel");
         assert!(ev.is_final);
     }
 
