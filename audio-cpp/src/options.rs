@@ -2,9 +2,11 @@
 //!
 //! 上游选项是无类型的字符串键值（`options: { "key": "value" }`），配错键名
 //! 不会报错、只会被静默忽略（教训：`vad_threshold` 在上游从未存在，
-//! silero/marblenet 的阈值键都是 [`request::THRESHOLD`]）。本模块把源码级
-//! 核实过的键收敛为常量，拼写错误在编译期暴露；族名前缀别名（如
-//! `sortformer_diar.session_len_sec`）与裸键等价，shim 照单全收。
+//! silero/marblenet 的阈值键都是 [`request::THRESHOLD`]；
+//! 更隐蔽的是形状：会话选项必须包在 `"options"` 对象里传，扁平键同样被
+//! 静默丢弃）。本模块把源码级核实过的键收敛为常量，拼写错误在编译期暴露；
+//! 族名前缀别名（如 `sortformer_diar.session_len_sec`）与裸键等价
+//! （shim 内的归一化表负责映射，前提是包对了形状）。
 //!
 //! 键分两类，传参位置不同不可混用：
 //! - [`request`]：随请求走（[`crate::Request::option`]），如 `language`；
@@ -21,12 +23,14 @@
 //! // 请求选项：直接用常量当键
 //! let req = Request::asr("./speech.wav").option(request::LANGUAGE, "zh");
 //! // 会话选项：builder 拼出 create_task_session 要的 JSON 字符串
+//! //（注意是 {"options": {...}} 嵌套形状，与 Request::to_json 同款；
+//! // shim 只读嵌套 "options" 对象，扁平键会被静默丢弃）
 //! let opts = SessionOptions::new()
 //!     .session_len_sec(100.0)
 //!     .graph_capacity_mode(session::graph_capacity::GROW);
 //! assert_eq!(
 //!     opts.to_json(),
-//!     r#"{"graph_capacity_mode":"grow","session_len_sec":100.0}"#
+//!     r#"{"options":{"graph_capacity_mode":"grow","session_len_sec":100.0}}"#
 //! );
 //! ```
 
@@ -130,7 +134,9 @@ pub mod session {
 /// 会话选项构造器：拼出 [`crate::Model::create_task_session`] 的
 /// `session_options` 参数要的 JSON 字符串。
 ///
-/// JSON 形如 `{"session_len_sec":100.0,"graph_capacity_mode":"grow"}`；
+/// JSON 形如 `{"options":{"session_len_sec":100.0,"graph_capacity_mode":"grow"}}`
+/// （嵌套形状，与 [`crate::Request::to_json`] 同款——shim 只读嵌套 `"options"`
+/// 对象，扁平键会被静默丢弃，见 `audio-cpp-sys/capi.cpp`）；
 /// 空选项序列化为 `{}`。未知键用 [`SessionOptions::option`] 自由扩展
 /// （shim 对未知键同样静默忽略，键名请核对 [`session`] 常量）。
 ///
@@ -194,10 +200,14 @@ impl SessionOptions {
 
     /// 序列化为 JSON 字符串（传给 `create_task_session`）。
     ///
+    /// 嵌套在 `"options"` 键下（shim 约定，同 Request 形状）；
     /// 数值型值（[`SessionOptions::session_len_sec`] 写入的）按 JSON 数字
     /// 还原，其余按字符串；空选项为 `{}`。
     pub fn to_json(&self) -> String {
-        let mut obj = serde_json::Map::new();
+        if self.options.is_empty() {
+            return "{}".to_string();
+        }
+        let mut inner = serde_json::Map::new();
         for (k, v) in &self.options {
             // session_len_sec 写入的是 Rust float Debug 格式，还原为数字。
             let value = if k == session::SESSION_LEN_SEC {
@@ -208,8 +218,10 @@ impl SessionOptions {
             } else {
                 serde_json::Value::String(v.clone())
             };
-            obj.insert(k.clone(), value);
+            inner.insert(k.clone(), value);
         }
+        let mut obj = serde_json::Map::new();
+        obj.insert("options".to_string(), serde_json::Value::Object(inner));
         serde_json::Value::Object(obj).to_string()
     }
 }
@@ -229,8 +241,10 @@ mod tests {
         assert_eq!(
             v,
             serde_json::json!({
-                "session_len_sec": 100.0,
-                "graph_capacity_mode": "grow",
+                "options": {
+                    "session_len_sec": 100.0,
+                    "graph_capacity_mode": "grow",
+                }
             })
         );
     }
@@ -245,8 +259,10 @@ mod tests {
         assert_eq!(
             v,
             serde_json::json!({
-                "qwen3_asr.forced_aligner_model_path": "./align.gguf",
-                "custom_key": "v",
+                "options": {
+                    "qwen3_asr.forced_aligner_model_path": "./align.gguf",
+                    "custom_key": "v",
+                }
             })
         );
     }

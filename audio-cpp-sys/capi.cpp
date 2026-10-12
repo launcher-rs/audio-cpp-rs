@@ -1023,7 +1023,16 @@ audiocpp_session * audiocpp_model_create_task_session(const audiocpp_model * mod
         opts.backend.threads = threads > 0 ? threads : 1;
         if (session_options_json != nullptr && *session_options_json != '\0') {
             const json::Value root = json::parse(session_options_json);
-            fill_options_from_json(opts.options, root.find("options"));
+            // 两种形状都收：{"options": {...}}（Request::to_json 同款，推荐）
+            // 与扁平 {...}（老版本 SessionOptions::to_json 曾产出此形状）。
+            // 只读嵌套曾导致扁平键被静默丢弃（如 graph_capacity_mode），
+            // 长音频直接撞固定图上限，极难排查。
+            if (const json::Value * nested = root.find("options");
+                nested != nullptr && nested->is_object()) {
+                fill_options_from_json(opts.options, nested);
+            } else if (root.is_object()) {
+                fill_options_from_json(opts.options, &root);
+            }
         }
 
         auto session = model->storage->create_task_session(spec, opts);
