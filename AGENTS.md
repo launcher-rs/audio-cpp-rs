@@ -114,9 +114,47 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `73c55549`（origin/main；从 `d3ab9df2` 快进 66 个提交）。
-  crate 版本保持 **0.7.0**（workspace 统一；本次仅加法新增，无改名，
+- 当前 submodule HEAD = `26b89278`（origin/main；从 `886076fc` 快进 23 个提交）。
+  crate 版本为 **0.8.0**（workspace 统一；`c6a026d` 已升版，本次无 ABI/枚举改动，
   无需升版；预编译资产属发布操作未执行）。历史升级记录见下方逐条。
+- **升级 `886076fc`→`26b89278`（main）审查结论**：
+  - diff 共 291 文件（+9.0k/-6.3k，23 个提交）：**无新增 `make_*_loader`**
+    （新旧 CMakeLists 提取的 loader 名单比对一致）；其余为 server 大重构
+    （`runtime.cpp` / `parallel_runtime.cpp` 逻辑搬入新增 `server_protocol.cpp` /
+    `server_ui.cpp` / `request_dispatch.h`，纯 HTTP 层，不经 C ABI）/
+    irodori_tts 新增流式模式（同族既有 loader，shim 流式通用支持）/
+    moss_tts_nano 增量解码 + KV cache + 参考音色缓存（内部性能）/
+    Vevo2 与 ACE-Step 重构 / 模型选项规范化（下述破坏性改名）/
+    parakeet Vulkan 传输优化 / 文档与示例补全。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 5 个头（`framework/core/backend.h` /
+    `framework/io/json.h` / `framework/runtime/{model,registry,session}.h`）本次
+    diff **零改动**（`errors.h` / `task_vocabulary` 亦零改动；framework 下唯一
+    改动是 `text/chunking.cpp` 的整数严格校验，抛 `std::runtime_error`，
+    shim 统一 `catch (const std::exception&)` 捕获）。`capi.h` / `capi.cpp` /
+    build.rs bindgen allowlist 保持原样。
+  - 无新 task 类型 / 输出字段：`TaskResult` / `StreamEvent` 结构体不变
+    （`dump_*` 无需补字段）；spec diff 无 `*_list` 类型，无数组选项缺口；
+    全部新选项（ace_step `route` / `bpm` 系、irodori `stream_frames_per_event`
+    系等）走通用 options 字符串透传。高层 `types.rs` / `options.rs` serde
+    结构无需改（`options.rs` 未引用任何已删键，已 grep 核实）。
+  - 破坏性改名（上游 spec 层，无兼容保留，手写旧键的调用方需自行更新）：
+    ace_step 删 `duration_sec` / `lm_guidance_scale` / `enable_thinking`；
+    liveavatar 删 `support_gguf` / `vae_gguf` / `denoiser_gguf`（改为 load-only）；
+    vevo2 删 6 个 `*_graph_arena_mb`；voxcpm1 删 `weight_type` /
+    `audiovae_weight_type`（改为 session-only）。本仓 Rust 侧无硬编码旧键，
+    无需代码改动。
+  - 改动族 session 抽查（irodori/vevo2/moss_nano）均 `shared_ptr` 自持资产，
+    `Session` 独立于 `Model` 存活的保证成立。
+  - 验证：`cargo fmt --check` + `cargo build --workspace`（build.rs 跟踪
+    submodule HEAD 正常触发增量重编，约 2.5 分钟）+ `cargo test --workspace`
+    （32 lib + 12 doc 全过）+ `clippy --workspace --all-targets` 零警告。
+  - 注意：`metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制回落
+    源码构建（预编译自动下载被跳过），属预期；`cargo publish` /
+    tag / Release / 预编译资产上传均属第 6 节发布操作，须用户显式下达，
+    本次未执行。
+- **补记**：`73c55549`→`886076fc` 的指针前移由 `8679345`
+ （fix(options)：会话选项改嵌套形状）顺带提交，未留审查记录；
+  本次已将已知状态链补齐，crate 版本 **0.8.0**（`c6a026d` 升版）。
 - **升级 `d3ab9df2`→`73c55549`（main，v0.9.1-33）审查结论**：
   - diff 共 506 文件（+47.9k/-5.3k，66 个提交）：新增 9 个 CMake target
     （上游 model target 108→117 个）：`mossformer2`（MossFormer2 重叠语音分离，
