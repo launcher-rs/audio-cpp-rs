@@ -115,8 +115,9 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
 
 ## 已知状态
 - 当前 submodule HEAD = `26b89278`（origin/main；从 `886076fc` 快进 23 个提交）。
-  crate 版本为 **0.8.0**（workspace 统一；`c6a026d` 已升版，本次无 ABI/枚举改动，
-  无需升版；预编译资产属发布操作未执行）。历史升级记录见下方逐条。
+  crate 版本为 **0.8.1**（workspace 统一；0.8.0→0.8.1 为 patch：prebuilt registry
+  修复 + audio.cpp 小同步，无 Rust 公共 API 增删改；预编译资产随 `v0.8.1` tag 由
+  CI 构建发布）。历史升级记录见下方逐条。
 - **升级 `886076fc`→`26b89278`（main）审查结论**：
   - diff 共 291 文件（+9.0k/-6.3k，23 个提交）：**无新增 `make_*_loader`**
     （新旧 CMakeLists 提取的 loader 名单比对一致）；其余为 server 大重构
