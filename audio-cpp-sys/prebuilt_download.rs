@@ -13,8 +13,11 @@
 //!   - 实际只发布 static 归档（`use_shared_libs` 的 dynamic 分支保留接口，未使用）。
 //!
 //! 身份校验：归档内的 `metadata.json` 记录 `audio_commit`（打包时 audio.cpp
-//! submodule 的 HEAD）。消费端比对本地 submodule HEAD，不符则视为不可用并回落
-//! 源码构建（与 llama-cpp-rs 对 patches 的 fail-closed 同理）。
+//! submodule 的 HEAD）。本地 git 检出场景比对本地 submodule HEAD，不符则视为
+//! 不可用并回落源码构建（与 llama-cpp-rs 对 patches 的 fail-closed 同理）。
+//! registry（crates.io）场景无本地 submodule：改以 `crate_version`（新资产）
+//! 或“官方 Release + 自身版本 tag”锚点（无该字段的老资产）判定，见
+//! `identity_matches_registry`。
 //!
 //! 环境变量（均可在 build.rs 侧通过 rerun-if-env-changed 触发重新构建）：
 //!   - `AUDIOCPP_PREBUILT_OFF`：真值（1/true/yes/on，大小写不敏感）禁用自动下载，直接源码构建；
@@ -24,6 +27,12 @@
 //!   - `AUDIOCPP_PREBUILT_URL`：下载地址模板。可含 `{tag}` / `{asset}` 占位符
 //!     方便内网镜像/自定义存储；不含占位符视为完整地址。`file://` 前缀表示本地
 //!     归档，直接复制不走网络。
+//!   - `AUDIOCPP_PREBUILT_API`：Release 资产清单 API 地址模板（含 `{repo}` /
+//!     `{tag}` 占位符，默认 `https://api.github.com/repos/{repo}/releases/tags/{tag}`）。
+//!     仅 registry 场景（无本地 submodule，需先发现资产名）使用；GHES / 镜像站
+//!     用户可覆盖。纯传输层覆盖，不改变身份判定口径；
+//!   - `GITHUB_TOKEN` / `GH_TOKEN`：可选。传给 Releases API 做 Bearer 认证，
+//!     避免匿名调用触发限流（403）。永不打印到日志。
 
 use std::env;
 use std::fs::{self, File};
@@ -34,30 +43,10 @@ use serde_json::Value;
 
 const DEFAULT_REPO: &str = "launcher-rs/audio-cpp-rs";
 
-/// 解析当前构建配置对应的预编译归档文件名。
-///
-/// `commit` 为本地 audio.cpp submodule 的完整 SHA 前 12 位（见 `local_audio_commit`）。
-/// 把 commit 编入文件名后，消费端只需按自身 commit 精确请求资产：命中才下载、
-/// 404 即立即回落源码构建，避免在“commit 不符”时白下整包（旧逻辑是下载解压后才
-/// 由 `metadata.json` 校验）。
-pub fn asset_name(target: &str, use_shared_libs: bool, commit: &str) -> Option<String> {
-    let os = platform_os(target)?;
-    let backend = backend_suffix(target)?;
-    let modelset = modelset_suffix()?;
-    let library_type = if use_shared_libs { "dynamic" } else { "static" };
-    let crt = crt_suffix(target);
-    Some(asset_name_of(
-        &os,
-        target,
-        &backend,
-        &modelset,
-        &library_type,
-        crt.as_deref(),
-        commit,
-    ))
-}
-
 /// 按各段拼资产名（crt 仅 Windows 存在，其余平台为 None；commit 为完整 SHA 的前 12 位）。
+///
+/// 本地 git 检出场景由 `fetch_prebuilt` 用此拼精确资产名；registry 场景由
+/// `select_release_asset` 按此前缀（commit 段通配）匹配。CI 资产命名须与此保持一致。
 fn asset_name_of(
     os: &str,
     target: &str,
@@ -172,35 +161,347 @@ fn fetch_prebuilt(
 /// 确保预编译库可用；缺失时下载并解压。
 ///
 /// 返回 `None` 表示应走源码构建：自动下载被禁用、平台/后端/模型组合无对应
-/// 资产、下载失败，或归档身份（audio.cpp commit）与本地 submodule 不符。
+/// 资产、下载失败，或归档身份校验未过。
 ///
 /// 只发布 full 全模型资产（full 是任何 model 组合的超集）。因此先尝试精确
 /// 匹配当前 feature 的资产（core / custom-<族>），404 时回退到 full 资产；
 /// 两者都失败才回落到源码构建。full 资产下载体积较大，但保证任何 feature
 /// 组合都能用上预编译加速。
+///
+/// 两条寻址路径（按有无本地 submodule 自动选择）：
+/// - 本地 git 检出：`local_audio_commit()` 给出 submodule commit，按资产名精确
+///   寻址（`fetch_prebuilt`），fail-closed，无需网络 API；
+/// - registry（crates.io 包）：包内无 submodule，改走“版本锚定 + Release 资产
+///   清单发现”路径（`ensure_prebuilt_registry`）。若此处直接回落源码构建，
+///   prebuilt 将对 registry 消费者恒不生效。
 pub fn ensure_prebuilt(target: &str, use_shared_libs: bool) -> Option<PathBuf> {
-    // 本地 audio.cpp 的完整 commit：资产名按它精确寻址。无法取得（submodule 未初始化 /
-    // 工作树漂移 / 有未提交改动）时跳过下载，直接源码构建，避免误用不匹配的预编译。
-    let commit = match local_audio_commit() {
-        Some(c) => c,
+    // 本地 audio.cpp 的完整 commit：资产名按它精确寻址。能取得（git 检出 +
+    // submodule 已初始化且干净）时走 commit 精确寻址路径。
+    if let Some(commit) = local_audio_commit() {
+        let exact = modelset_suffix();
+        // 精确资产（core / custom-*）与 full 回退资产；两者都按同一 commit 寻址。
+        return match exact.as_deref() {
+            Some("full") => fetch_prebuilt(target, use_shared_libs, Some("full"), &commit),
+            Some(mset) => {
+                fetch_prebuilt(target, use_shared_libs, Some(mset), &commit).or_else(|| {
+                    println!("cargo:warning=custom/core 资产不可用，回退到 full 全模型资产");
+                    fetch_prebuilt(target, use_shared_libs, Some("full"), &commit)
+                })
+            }
+            None => fetch_prebuilt(target, use_shared_libs, None, &commit),
+        };
+    }
+    // 取不到本地 commit（submodule 未初始化 / 工作树漂移 / 含未提交改动 /
+    // registry 包内根本无 submodule）：走 registry 发现路径，而非直接放弃。
+    ensure_prebuilt_registry(target, use_shared_libs)
+}
+
+/// Release 资产清单里的一项（GitHub Releases API `assets[]` 的子集）。
+struct ReleaseAsset {
+    name: String,
+    url: String,
+}
+
+/// registry 场景（无本地 submodule）走“版本锚定 + Release 资产清单发现”路径。
+///
+/// 与 commit 精确寻址路径的区别：包内无 submodule commit 可拼资产名，只能先拉
+/// Release 的资产清单，再按“前缀 + `.tar.gz` 后缀”匹配当前平台/后端/模型组合
+/// （commit 段通配）。身份改由 `identity_matches_registry` 按版本锚定判定。
+/// 任何环节存疑一律返回 `None` 回落源码构建——预编译只是加速器，不能改变正确性。
+fn ensure_prebuilt_registry(target: &str, use_shared_libs: bool) -> Option<PathBuf> {
+    if is_disabled() {
+        return None;
+    }
+    if env::var("AUDIOCPP_PREBUILT_DIR").is_ok() {
+        // 显式目录由 build.rs 的 resolve_prebuilt_directory() 处理。
+        return None;
+    }
+    println!(
+        "cargo:warning=无本地 audio.cpp submodule（registry 包场景），改按 crate 版本 {} \
+         从 Release {} 发现预编译资产",
+        pkg_version(),
+        release_tag()
+    );
+    let exact = modelset_suffix();
+    match exact.as_deref() {
+        Some("full") => fetch_prebuilt_registry(target, use_shared_libs, "full"),
+        Some(mset) => fetch_prebuilt_registry(target, use_shared_libs, mset).or_else(|| {
+            println!("cargo:warning=custom/core 资产不可用，回退到 full 全模型资产");
+            fetch_prebuilt_registry(target, use_shared_libs, "full")
+        }),
+        // custom-models 未指定任何族：无匹配资产，回落源码构建（与本地路径一致）。
         None => {
             println!(
-                "cargo:warning=无法确定本地 audio.cpp commit（未初始化/漂移/含未提交改动），\
-                 跳过预编译下载，回落到源码构建"
+                "cargo:warning=custom-models 未指定任何模型族，无匹配预编译资产，回落到源码构建"
             );
-            return None;
+            None
+        }
+    }
+}
+
+/// registry 场景下按指定 modelset 获取预编译库（清单发现 + 下载 + 身份校验）。
+fn fetch_prebuilt_registry(target: &str, use_shared_libs: bool, modelset: &str) -> Option<PathBuf> {
+    let os = platform_os(target)?;
+    let backend = backend_suffix(target)?;
+    let library_type = if use_shared_libs { "dynamic" } else { "static" };
+    let crt = crt_suffix(target);
+    let tag = release_tag();
+    let repo = github_repo();
+    let explicit = is_explicit_request();
+    let cache_root = cache_root().or_else(|| {
+        // 非标准 target 目录布局时无法定位缓存：明示原因而非静默回落。
+        println!(
+            "cargo:warning=无法定位预编译缓存目录（OUT_DIR/PROFILE 布局非标准），跳过预编译下载"
+        );
+        None
+    })?;
+
+    // 资产名与下载地址的确定：显式完整 URL（无占位符）直接用，无需发现；
+    // 否则经 Release 资产清单发现（registry 包内无 commit 可拼资产名）。
+    let url_template = env::var("AUDIOCPP_PREBUILT_URL").ok();
+    let (asset_name, url) = match url_template.as_deref() {
+        Some(t) if !t.contains("{tag}") && !t.contains("{asset}") => {
+            println!(
+                "cargo:warning=AUDIOCPP_PREBUILT_URL 为完整地址，直接使用（tag={tag} 仅作缓存分组）"
+            );
+            let name = t.rsplit('/').next().unwrap_or("custom-url").to_string();
+            (name, t.to_string())
+        }
+        _ => {
+            let listing = match list_release_assets(&repo, &tag) {
+                Ok(v) => v,
+                Err(err) => {
+                    println!(
+                        "cargo:warning=预编译 Release 资产清单获取失败（{err}），回落到源码构建；\
+                         可手动下载归档并设置 AUDIOCPP_PREBUILT_DIR 指向解压目录来加速"
+                    );
+                    return None;
+                }
+            };
+            let found = match select_release_asset(
+                &listing,
+                &os,
+                target,
+                &backend,
+                modelset,
+                &library_type,
+                crt.as_deref(),
+            ) {
+                Some(a) => a,
+                None => {
+                    println!(
+                        "cargo:warning=Release {tag} 中无匹配资产 \
+                         （os={os} target={target} backend={backend} modelset={modelset}），\
+                         回落到源码构建"
+                    );
+                    return None;
+                }
+            };
+            let url = match url_template.as_deref() {
+                // 镜像模板：资产名来自官方清单发现结果，文件走镜像下载。
+                Some(t) => t.replace("{tag}", &tag).replace("{asset}", &found.name),
+                None => found.url.clone(),
+            };
+            println!(
+                "cargo:warning=发现预编译资产：{}（Release {tag}）",
+                found.name
+            );
+            (found.name.clone(), url)
         }
     };
-    let exact = modelset_suffix();
-    // 精确资产（core / custom-*）与 full 回退资产；两者都按同一 commit 寻址。
-    match exact.as_deref() {
-        Some("full") => fetch_prebuilt(target, use_shared_libs, Some("full"), &commit),
-        Some(mset) => fetch_prebuilt(target, use_shared_libs, Some(mset), &commit).or_else(|| {
-            println!("cargo:warning=custom/core 资产不可用，回退到 full 全模型资产");
-            fetch_prebuilt(target, use_shared_libs, Some("full"), &commit)
-        }),
-        None => fetch_prebuilt(target, use_shared_libs, None, &commit),
+
+    let extract_dir = cache_root
+        .join(tag.trim_start_matches('v'))
+        .join(asset_name.strip_suffix(".tar.gz").unwrap_or(&asset_name));
+
+    if is_valid_prebuilt_root(&extract_dir)
+        && identity_matches_registry(&extract_dir, target, explicit)
+    {
+        println!(
+            "cargo:warning=使用缓存中的 audio.cpp 预编译库：{}",
+            extract_dir.display()
+        );
+        return Some(extract_dir);
     }
+
+    println!("cargo:warning=下载 audio.cpp 预编译库：{url}");
+
+    match download_and_extract(&url, &extract_dir) {
+        Ok(()) if is_valid_prebuilt_root(&extract_dir) => {
+            if !identity_matches_registry(&extract_dir, target, explicit) {
+                println!("cargo:warning=预编译归档身份校验未通过，回落到源码构建");
+                let _ = fs::remove_dir_all(&extract_dir);
+                return None;
+            }
+            println!(
+                "cargo:warning=audio.cpp 预编译库就绪：{}",
+                extract_dir.display()
+            );
+            Some(extract_dir)
+        }
+        Ok(()) => {
+            println!("cargo:warning=预编译归档已解压但未找到库文件，回落到源码构建");
+            let _ = fs::remove_dir_all(&extract_dir);
+            None
+        }
+        Err(err) => {
+            println!("cargo:warning=预编译库下载失败（{err}），该资产不可用");
+            let _ = fs::remove_dir_all(&extract_dir);
+            None
+        }
+    }
+}
+
+/// 按“前缀 + `.tar.gz` 后缀”从 Release 资产清单里挑与当前配置匹配的归档。
+///
+/// 前缀口径与 `asset_name_of` 一致，只是 commit 段未知而用前缀匹配代替精确匹配
+/// （registry 包内无 submodule commit 可寻址；commit 仍记录在归档 metadata 里，
+/// 身份改由 crate_version / tag 锚定，见 `identity_matches_registry`）。
+fn select_release_asset<'a>(
+    assets: &'a [ReleaseAsset],
+    os: &str,
+    target: &str,
+    backend: &str,
+    modelset: &str,
+    library_type: &str,
+    crt: Option<&str>,
+) -> Option<&'a ReleaseAsset> {
+    let prefix = match crt {
+        Some(crt) => {
+            format!("audio-cpp-prebuilt-{os}-{target}-{backend}-{crt}-{modelset}-{library_type}-")
+        }
+        None => {
+            format!("audio-cpp-prebuilt-{os}-{target}-{backend}-{modelset}-{library_type}-")
+        }
+    };
+    assets
+        .iter()
+        .find(|a| a.name.starts_with(&prefix) && a.name.ends_with(".tar.gz"))
+}
+
+/// 正在构建的 crate 版本（`CARGO_PKG_VERSION`，cargo 给 build script 注入）。
+fn pkg_version() -> String {
+    env::var("CARGO_PKG_VERSION").unwrap_or_default()
+}
+
+/// 用户是否显式覆盖了寻址三要素（TAG / REPO / URL）中的任一。
+///
+/// 显式覆盖视为“用户自担风险”：legacy 资产（无 `crate_version` 记录）照常放行但
+/// 告警更强；新资产仍做 `crate_version` 严格比对，不因显式而豁免。
+/// 注意 `AUDIOCPP_PREBUILT_API` 只是传输层覆盖，不计入（不改变身份口径）。
+fn is_explicit_request() -> bool {
+    env::var("AUDIOCPP_PREBUILT_TAG").is_ok()
+        || env::var("AUDIOCPP_PREBUILT_REPO").is_ok()
+        || env::var("AUDIOCPP_PREBUILT_URL").is_ok()
+}
+
+/// Release 资产清单 API 的地址模板（含 `{repo}` / `{tag}` 占位符）。
+///
+/// 默认走 `api.github.com`；GHES / 镜像站用户可用 `AUDIOCPP_PREBUILT_API` 覆盖。
+/// 纯传输层覆盖，不改变身份判定口径（是否显式请求只看 TAG / REPO / URL）。
+fn release_api_url(repo: &str, tag: &str) -> String {
+    env::var("AUDIOCPP_PREBUILT_API")
+        .map(|t| t.replace("{repo}", repo).replace("{tag}", tag))
+        .unwrap_or_else(|_| format!("https://api.github.com/repos/{repo}/releases/tags/{tag}"))
+}
+
+/// GitHub API 认证 token（`GITHUB_TOKEN` 优先，其次 `GH_TOKEN`）。
+/// 仅用于提高 Releases API 限流配额，永不打印到日志。
+fn github_token() -> Option<String> {
+    env::var("GITHUB_TOKEN")
+        .or_else(|_| env::var("GH_TOKEN"))
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// 拉取指定 Release 的资产清单（name + browser_download_url）。
+fn list_release_assets(repo: &str, tag: &str) -> Result<Vec<ReleaseAsset>, String> {
+    let url = release_api_url(repo, tag);
+    let text = api_get_with_retry(&url)?;
+    let json: Value =
+        serde_json::from_str(&text).map_err(|e| format!("Release 清单解析失败：{e}"))?;
+    let assets = json
+        .get("assets")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| "Release 清单无 assets 字段".to_string())?;
+    let mut out = Vec::new();
+    for a in assets {
+        let (Some(name), Some(dl)) = (
+            a.get("name").and_then(|v| v.as_str()),
+            a.get("browser_download_url").and_then(|v| v.as_str()),
+        ) else {
+            continue;
+        };
+        out.push(ReleaseAsset {
+            name: name.to_string(),
+            url: dl.to_string(),
+        });
+    }
+    if out.is_empty() {
+        return Err(format!("Release {tag} 下无可用资产"));
+    }
+    Ok(out)
+}
+
+fn api_get_with_retry(url: &str) -> Result<String, String> {
+    const MAX_ATTEMPTS: usize = 3;
+    let mut last_err = format!("请求 {url} 失败");
+    for attempt in 1..=MAX_ATTEMPTS {
+        match api_get(url) {
+            Ok(text) => return Ok(text),
+            Err(err) => {
+                if is_non_retryable(&err) {
+                    // 404（Release/tag 不存在）/ 403（限流或无权）等确定性失败，
+                    // 重试无意义，立即返回。
+                    return Err(err);
+                }
+                println!("cargo:warning=Release 清单第 {attempt}/{MAX_ATTEMPTS} 次获取失败：{err}");
+                last_err = err;
+                std::thread::sleep(std::time::Duration::from_secs(attempt as u64));
+            }
+        }
+    }
+    Err(last_err)
+}
+
+fn api_get(url: &str) -> Result<String, String> {
+    // 超时：网络挂起时不能无限卡住构建（整体 30 秒）。
+    let mut req = ureq::get(url)
+        .timeout(std::time::Duration::from_secs(30))
+        .set("Accept", "application/vnd.github+json")
+        .set(
+            "User-Agent",
+            &format!("audio-cpp-sys-prebuilt/{}", pkg_version()),
+        )
+        .set("X-GitHub-Api-Version", "2022-11-28");
+    if let Some(token) = github_token() {
+        req = req.set("Authorization", &format!("Bearer {token}"));
+    }
+    let response = match req.call() {
+        Ok(resp) => resp,
+        // ureq 2.x 对 HTTP 错误状态直接返回 Err(Status)：404（Release 不存在）
+        // 与 403（限流/无权）是确定性失败，打标记免重试（限流场景请配 GITHUB_TOKEN）。
+        Err(ureq::Error::Status(404, _)) => {
+            return Err(format!("Release 不存在（HTTP 404）：{url} [non-retryable]"));
+        }
+        Err(ureq::Error::Status(403, _)) => {
+            return Err(format!(
+                "Release 查询被拒（HTTP 403，可能是 API 限流）：{url} [non-retryable]，\
+                 可设置 GITHUB_TOKEN 后重试"
+            ));
+        }
+        Err(ureq::Error::Status(code, _)) if (400..500).contains(&code) && code != 429 => {
+            return Err(format!("Release 查询 HTTP {code}：{url} [non-retryable]"));
+        }
+        Err(e) => return Err(format!("Release 查询 {url}：{e}")),
+    };
+    if !(200..300).contains(&response.status()) {
+        return Err(format!("Release 查询 HTTP {}：{url}", response.status()));
+    }
+    response
+        .into_string()
+        .map_err(|e| format!("Release 响应读取失败：{e}"))
 }
 
 fn is_disabled() -> bool {
@@ -368,30 +669,95 @@ fn identity_matches(root: &Path, target: &str) -> bool {
     let Ok(json) = serde_json::from_str::<Value>(&text) else {
         return false;
     };
-    match json.get("audio_commit").and_then(|v| v.as_str()) {
+    if !metadata_commit_ok(&json, local_commit.as_deref().unwrap_or("")) {
+        return false;
+    }
+    msvc_identity_ok(&json, target, local_msvc_ver())
+}
+
+/// 归档 `metadata.audio_commit` 须等于本地 submodule commit（fail-closed，
+/// 无记录或不等一律不放行）。
+fn metadata_commit_ok(json: &Value, local_commit: &str) -> bool {
+    matches!(
+        json.get("audio_commit").and_then(|v| v.as_str()),
+        Some(recorded) if recorded == local_commit
+    )
+}
+
+/// registry 场景的身份校验：无本地 submodule 可比对，改以“版本锚定”判定。
+///
+/// - 新资产（含 `crate_version`，CI 在 `metadata.json` 里写入打包时的 crate
+///   版本）：须与正在构建的 `CARGO_PKG_VERSION` 严格相等。语义等价于 commit
+///   一致——同一 crate 版本对应唯一的发布 commit，而 tag 本就按版本寻址。
+/// - 老资产（无该字段，如 v0.8.0 及之前）：无法做版本级比对。默认请求（未覆盖
+///   TAG / REPO / URL）信任“官方 Release + 自身版本 tag”这一锚点并放行；
+///   显式覆盖视为用户自担风险，放行但告警。两种都明确提示。
+/// 任一情形下 `msvc_ver` 门槛照常执行；metadata 缺失/损坏一律 fail-closed。
+fn identity_matches_registry(root: &Path, target: &str, explicit: bool) -> bool {
+    let metadata_path = root.join("metadata.json");
+    if !metadata_path.is_file() {
+        return false;
+    }
+    let Ok(text) = fs::read_to_string(&metadata_path) else {
+        return false;
+    };
+    let Ok(json) = serde_json::from_str::<Value>(&text) else {
+        return false;
+    };
+    if !registry_version_ok(&json, &pkg_version(), explicit) {
+        return false;
+    }
+    msvc_identity_ok(&json, target, local_msvc_ver())
+}
+
+/// registry 版本锚定判定（纯函数，见 `identity_matches_registry` 的口径说明）。
+fn registry_version_ok(json: &Value, pkg_version: &str, explicit: bool) -> bool {
+    match json.get("crate_version").and_then(|v| v.as_str()) {
         Some(recorded) => {
-            if recorded != local_commit.as_deref().unwrap_or("") {
+            if recorded != pkg_version {
+                println!(
+                    "cargo:warning=预编译归档的 crate_version={recorded} 与当前 crate 版本 \
+                     {pkg_version} 不符，回落到源码构建"
+                );
                 return false;
             }
+            true
         }
-        // 无 audio_commit 记录：无法证明等价，不放行。
-        None => return false,
+        None => {
+            if explicit {
+                println!(
+                    "cargo:warning=预编译归档无 crate_version 记录，且下载地址被显式覆盖 \
+                     （TAG / REPO / URL）：按用户指定放行（ABI 风险自担），请核对版本一致"
+                );
+            } else {
+                println!(
+                    "cargo:warning=预编译归档无 crate_version 记录（老资产）：信任官方 Release \
+                     {} 的同版本资产并放行",
+                    release_tag()
+                );
+            }
+            true
+        }
     }
-    // MSVC 静态库与工具集版本强绑定：新版编译器编译的库无法被旧版链接器
-    // 使用（STL/CRT 内部符号如 __std_unique_8 随版本新增）。归档记录了生产者
-    // 的 _MSC_VER（如 1944），本地 MSVC 版本不足则不可用，回落到源码构建。
-    // 非 Windows target 直接跳过本项。
+}
+
+/// MSVC 静态库与工具集版本强绑定：新版编译器编译的库无法被旧版链接器
+/// 使用（STL/CRT 内部符号如 __std_unique_8 随版本新增）。归档记录了生产者
+/// 的 _MSC_VER（如 1944），本地 MSVC 版本不足则不可用，回落到源码构建。
+/// 非 Windows target 直接跳过本项；任一侧版本取不到时不拦截（该项只是启发式
+/// 保护，真正的错配会在链接期暴露）。
+fn msvc_identity_ok(json: &Value, target: &str, local_msvc: Option<i64>) -> bool {
     if !target.contains("windows") {
         return true;
     }
     if let Some(recorded_msvc) = json.get("msvc_ver").and_then(|v| v.as_i64()) {
         if recorded_msvc > 0 {
-            if let Some(local_msvc) = local_msvc_ver() {
-                if local_msvc < recorded_msvc {
+            if let Some(local) = local_msvc {
+                if local < recorded_msvc {
                     println!(
                         "cargo:warning=预编译归档由 MSVC {} 构建，本地为 MSVC {}（偏低），\
                          可能导致链接失败，回落到源码构建",
-                        recorded_msvc, local_msvc
+                        recorded_msvc, local
                     );
                     return false;
                 }
@@ -652,4 +1018,209 @@ fn try_download(url: &str, partial: &Path) -> Result<(), String> {
     let mut file = File::create(partial).map_err(|e| e.to_string())?;
     copy(&mut reader, &mut file).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    //! 纯函数回归测试：`rustc --test` 直接编译本文件运行（build script 本身不进
+    //! `cargo test`），需 `--extern ureq/serde_json/...`，见仓库构建说明。
+    //! 涉及 env 的用例须单线程跑（`--test-threads=1`），避免互相干扰。
+    use super::*;
+
+    /// v0.8.0 Release 的真实资产名（2026-10 实测 `api.github.com` 清单）。
+    fn v080_listing() -> Vec<ReleaseAsset> {
+        [
+            "audio-cpp-prebuilt-linux-aarch64-unknown-linux-gnu-cpu-full-static-886076fc89c0.tar.gz",
+            "audio-cpp-prebuilt-linux-aarch64-unknown-linux-gnu-vulkan-full-static-886076fc89c0.tar.gz",
+            "audio-cpp-prebuilt-linux-x86_64-unknown-linux-gnu-cpu-full-static-886076fc89c0.tar.gz",
+            "audio-cpp-prebuilt-linux-x86_64-unknown-linux-gnu-vulkan-full-static-886076fc89c0.tar.gz",
+            "audio-cpp-prebuilt-macos-aarch64-apple-darwin-metal-full-static-886076fc89c0.tar.gz",
+            "audio-cpp-prebuilt-windows-x86_64-pc-windows-msvc-cpu-md-full-static-886076fc89c0.tar.gz",
+            "audio-cpp-prebuilt-windows-x86_64-pc-windows-msvc-cpu-mt-full-static-886076fc89c0.tar.gz",
+            "audio-cpp-prebuilt-windows-x86_64-pc-windows-msvc-vulkan-md-full-static-886076fc89c0.tar.gz",
+            "audio-cpp-prebuilt-windows-x86_64-pc-windows-msvc-vulkan-mt-full-static-886076fc89c0.tar.gz",
+        ]
+        .iter()
+        .map(|n| ReleaseAsset {
+            name: n.to_string(),
+            url: format!("https://example.invalid/{n}"),
+        })
+        .collect()
+    }
+
+    #[test]
+    fn select_windows_vulkan_md_full() {
+        let listing = v080_listing();
+        let hit = select_release_asset(
+            &listing,
+            "windows",
+            "x86_64-pc-windows-msvc",
+            "vulkan",
+            "full",
+            "static",
+            Some("md"),
+        )
+        .expect("应命中 vulkan-md-full 资产");
+        assert!(hit.name.contains("vulkan-md-full-static-886076fc89c0"));
+    }
+
+    #[test]
+    fn select_crt_mt_distinguishes() {
+        let listing = v080_listing();
+        let hit = select_release_asset(
+            &listing,
+            "windows",
+            "x86_64-pc-windows-msvc",
+            "cpu",
+            "full",
+            "static",
+            Some("mt"),
+        )
+        .expect("应命中 cpu-mt-full 资产");
+        assert!(hit.name.contains("cpu-mt-full"));
+    }
+
+    #[test]
+    fn select_exact_then_miss_for_core() {
+        // CI 只发 full：core 精确匹配必然落空，调用方回退 full（此处只断言落空）。
+        let listing = v080_listing();
+        assert!(
+            select_release_asset(
+                &listing,
+                "windows",
+                "x86_64-pc-windows-msvc",
+                "vulkan",
+                "core",
+                "static",
+                Some("md"),
+            )
+            .is_none()
+        );
+        assert!(
+            select_release_asset(
+                &listing,
+                "windows",
+                "x86_64-pc-windows-msvc",
+                "vulkan",
+                "full",
+                "static",
+                Some("md"),
+            )
+            .is_some()
+        );
+    }
+
+    #[test]
+    fn select_linux_and_macos_shapes() {
+        let listing = v080_listing();
+        assert!(
+            select_release_asset(
+                &listing,
+                "linux",
+                "x86_64-unknown-linux-gnu",
+                "vulkan",
+                "full",
+                "static",
+                None,
+            )
+            .is_some()
+        );
+        assert!(
+            select_release_asset(
+                &listing,
+                "macos",
+                "aarch64-apple-darwin",
+                "metal",
+                "full",
+                "static",
+                None,
+            )
+            .is_some()
+        );
+        // 不存在的后端/平台无命中。
+        assert!(
+            select_release_asset(
+                &listing,
+                "linux",
+                "x86_64-unknown-linux-gnu",
+                "cuda",
+                "full",
+                "static",
+                None,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn commit_gate_strict() {
+        let json: Value = serde_json::from_str(r#"{"audio_commit":"886076fc89c0"}"#).unwrap();
+        assert!(metadata_commit_ok(&json, "886076fc89c0"));
+        assert!(!metadata_commit_ok(&json, "aaaaaaaaaaaaaaaa"));
+        let missing: Value = serde_json::from_str(r#"{}"#).unwrap();
+        assert!(!metadata_commit_ok(&missing, "886076fc89c0"));
+    }
+
+    #[test]
+    fn registry_version_new_asset_strict() {
+        let json: Value = serde_json::from_str(r#"{"crate_version":"0.8.1"}"#).unwrap();
+        assert!(registry_version_ok(&json, "0.8.1", false));
+        assert!(!registry_version_ok(&json, "0.8.0", false));
+        // 显式覆盖也不豁免新资产的严格比对。
+        assert!(!registry_version_ok(&json, "0.8.0", true));
+    }
+
+    #[test]
+    fn registry_version_legacy_assets_trust_tag_or_user() {
+        // 老资产（v0.8.0 及之前，无 crate_version）：默认请求信任 tag 锚点放行。
+        let json: Value = serde_json::from_str(r#"{"audio_commit":"886076fc89c0"}"#).unwrap();
+        assert!(registry_version_ok(&json, "0.8.0", false));
+        // 显式覆盖同样放行（用户自担，告警口径不同）。
+        assert!(registry_version_ok(&json, "0.8.0", true));
+    }
+
+    #[test]
+    fn msvc_gate_cases() {
+        let win = "x86_64-pc-windows-msvc";
+        let none: Value = serde_json::from_str(r#"{}"#).unwrap();
+        // 无记录不拦截；非 Windows 直接通过。
+        assert!(msvc_identity_ok(&none, win, Some(1944)));
+        assert!(msvc_identity_ok(&none, "x86_64-unknown-linux-gnu", None));
+        let rec: Value = serde_json::from_str(r#"{"msvc_ver":1944}"#).unwrap();
+        assert!(msvc_identity_ok(&rec, win, Some(1944)));
+        assert!(msvc_identity_ok(&rec, win, Some(1950)));
+        assert!(msvc_identity_ok(&rec, win, None));
+        assert!(!msvc_identity_ok(&rec, win, Some(1930)));
+        assert!(msvc_identity_ok(
+            &rec,
+            "x86_64-unknown-linux-gnu",
+            Some(1900)
+        ));
+    }
+
+    #[test]
+    fn retry_markers() {
+        assert!(is_non_retryable(
+            "Release 不存在（HTTP 404）：x [non-retryable]"
+        ));
+        assert!(!is_non_retryable("Release 查询 x：connection refused"));
+    }
+
+    #[test]
+    fn api_url_default_and_override() {
+        env::remove_var("AUDIOCPP_PREBUILT_API");
+        assert_eq!(
+            release_api_url("launcher-rs/audio-cpp-rs", "v0.8.0"),
+            "https://api.github.com/repos/launcher-rs/audio-cpp-rs/releases/tags/v0.8.0"
+        );
+        env::set_var(
+            "AUDIOCPP_PREBUILT_API",
+            "https://ghes.example.com/api/v3/repos/{repo}/releases/tags/{tag}",
+        );
+        assert_eq!(
+            release_api_url("o/r", "v1"),
+            "https://ghes.example.com/api/v3/repos/o/r/releases/tags/v1"
+        );
+        env::remove_var("AUDIOCPP_PREBUILT_API");
+    }
 }

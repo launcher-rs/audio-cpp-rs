@@ -109,6 +109,12 @@ jobs:
             TAG="v${PKG_VER}"
           fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
+          # 打包时的 crate 版本：写入 metadata.json 的 crate_version，供 registry
+          # 消费端做版本锚定校验（TAG 可能是 dispatch 自定义 tag，不能直接复用）。
+          PKGID="$(cargo pkgid -p audio-cpp-sys)"
+          PKG_VER="${PKGID##*#}"
+          if [ "$PKG_VER" = "$PKGID" ]; then PKG_VER="${PKGID##*@}"; fi
+          echo "PKG_VER=$PKG_VER" >> "$GITHUB_ENV"
           echo "ASSET_NAME=audio-cpp-prebuilt-linux-${TARGET_TRIPLE}-${{ matrix.backend }}-${{ matrix.modelset }}-static-${AUDIO_COMMIT}.tar.gz" >> "$GITHUB_ENV"
 
       - name: Collect prebuilt libraries
@@ -118,7 +124,7 @@ jobs:
           ROOT="$RUNNER_TEMP/prebuilt"
           bash .github/scripts/collect-unix-prebuilt.sh "$ROOT" linux
           cat > "$ROOT/metadata.json" <<EOF
-          {"target":"${TARGET_TRIPLE}","features":"${{ matrix.features }}","modelset":"${{ matrix.modelset }}","audio_commit":"${AUDIO_COMMIT}"}
+          {"target":"${TARGET_TRIPLE}","features":"${{ matrix.features }}","modelset":"${{ matrix.modelset }}","audio_commit":"${AUDIO_COMMIT}","crate_version":"${PKG_VER}"}
           EOF
           tar -C "$ROOT" -czf "$RUNNER_TEMP/$ASSET_NAME" .
 
@@ -208,6 +214,12 @@ jobs:
             TAG="v${PKG_VER}"
           fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
+          # 打包时的 crate 版本：写入 metadata.json 的 crate_version，供 registry
+          # 消费端做版本锚定校验（TAG 可能是 dispatch 自定义 tag，不能直接复用）。
+          PKGID="$(cargo pkgid -p audio-cpp-sys)"
+          PKG_VER="${PKGID##*#}"
+          if [ "$PKG_VER" = "$PKGID" ]; then PKG_VER="${PKGID##*@}"; fi
+          echo "PKG_VER=$PKG_VER" >> "$GITHUB_ENV"
           echo "ASSET_NAME=audio-cpp-prebuilt-windows-${TARGET_TRIPLE}-${{ matrix.backend }}-${{ matrix.crt }}-${{ matrix.modelset }}-static-${AUDIO_COMMIT}.tar.gz" >> "$GITHUB_ENV"
 
       - name: Collect prebuilt libraries
@@ -239,6 +251,7 @@ jobs:
             crt           = "${{ matrix.crt }}"
             modelset      = "${{ matrix.modelset }}"
             audio_commit  = "$env:AUDIO_COMMIT"
+            crate_version = "$env:PKG_VER"
             msvc_ver      = [int]$msvcVer
           } | ConvertTo-Json -Compress
           Set-Content -Path "$ROOT/metadata.json" -Value $json -Encoding ascii
@@ -316,6 +329,12 @@ jobs:
             TAG="v${PKG_VER}"
           fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
+          # 打包时的 crate 版本：写入 metadata.json 的 crate_version，供 registry
+          # 消费端做版本锚定校验（TAG 可能是 dispatch 自定义 tag，不能直接复用）。
+          PKGID="$(cargo pkgid -p audio-cpp-sys)"
+          PKG_VER="${PKGID##*#}"
+          if [ "$PKG_VER" = "$PKGID" ]; then PKG_VER="${PKGID##*@}"; fi
+          echo "PKG_VER=$PKG_VER" >> "$GITHUB_ENV"
           echo "ASSET_NAME=audio-cpp-prebuilt-macos-${TARGET_TRIPLE}-${{ matrix.backend }}-${{ matrix.modelset }}-static-${AUDIO_COMMIT}.tar.gz" >> "$GITHUB_ENV"
 
       - name: Collect prebuilt libraries
@@ -325,7 +344,7 @@ jobs:
           ROOT="$RUNNER_TEMP/prebuilt"
           bash .github/scripts/collect-unix-prebuilt.sh "$ROOT" macos
           cat > "$ROOT/metadata.json" <<EOF
-          {"target":"${TARGET_TRIPLE}","features":"${{ matrix.features }}","modelset":"${{ matrix.modelset }}","audio_commit":"${AUDIO_COMMIT}"}
+          {"target":"${TARGET_TRIPLE}","features":"${{ matrix.features }}","modelset":"${{ matrix.modelset }}","audio_commit":"${AUDIO_COMMIT}","crate_version":"${PKG_VER}"}
           EOF
           tar -C "$ROOT" -czf "$RUNNER_TEMP/$ASSET_NAME" .
 

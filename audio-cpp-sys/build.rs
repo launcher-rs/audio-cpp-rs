@@ -606,7 +606,11 @@ fn main() {
     println!("cargo:rerun-if-env-changed=AUDIOCPP_PREBUILT_TAG");
     println!("cargo:rerun-if-env-changed=AUDIOCPP_PREBUILT_REPO");
     println!("cargo:rerun-if-env-changed=AUDIOCPP_PREBUILT_URL");
+    println!("cargo:rerun-if-env-changed=AUDIOCPP_PREBUILT_API");
     println!("cargo:rerun-if-env-changed=AUDIOCPP_PREBUILT_OFF");
+    // API token 变化也重跑：之前若因限流回落源码，配好 token 后能重新尝试下载。
+    println!("cargo:rerun-if-env-changed=GITHUB_TOKEN");
+    println!("cargo:rerun-if-env-changed=GH_TOKEN");
 
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR 未设置");
     let manifest_dir = PathBuf::from(&manifest_dir);

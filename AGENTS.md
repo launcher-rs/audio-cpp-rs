@@ -1039,6 +1039,28 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
   `file://` 前缀指本地归档直接复制）、`AUDIOCPP_PREBUILT_OFF`（禁用自动下载）。网络
   抖动重试 3 次带退避（404 等 4xx 为确定性失败不重试），仍失败回落源码。
   `AUDIOCPP_PREBUILT_DIR` 显式目录优先级高于自动下载。
+- **`prebuilt` 的 registry（crates.io）场景修复**（此前对 registry 消费者恒不生效：
+  `.crate` 内无 submodule，`local_audio_commit()` 恒为 `None`，旧 `ensure_prebuilt`
+  直接回落源码构建，`AUDIOCPP_PREBUILT_URL` 等覆盖也够不着）：`local_audio_commit()`
+  为 `None` 时改走“版本锚定 + Release 资产清单发现”路径——按 `v{CARGO_PKG_VERSION}`
+  拉 `api.github.com/.../releases/tags/{tag}` 的 `assets[]`，以前缀
+  （`asset_name_of` 口径，commit 段通配）+ `.tar.gz` 后缀选资产（精确 modelset
+  先、full 回退；CI 只发 full），再下载校验。身份改由版本锚定判定：
+  新资产的 `metadata.json:crate_version`（CI 已同步写入，见下）须等于
+  `CARGO_PKG_VERSION`；无该字段的老资产（v0.8.0 及之前）默认信任“官方 Release +
+  自身版本 tag”放行，显式覆盖 TAG / REPO / URL 时视为用户自担风险放行（均有告警）；
+  `msvc_ver` 门槛两条路径通用。任何存疑一律回落源码（git 检出路径零改动，
+  仍走 commit 精确寻址、无需 API）。新增 env：`AUDIOCPP_PREBUILT_API`
+  （清单 API 模板，GHES 可覆盖，纯传输层）/`GITHUB_TOKEN` / `GH_TOKEN`
+  （API 限流配额，token 变化触发重跑）。注意 registry + prebuilt 混用释放版 lib
+  与 clone 到 main HEAD 的 shim 头文件：`crate_version` 保证 lib 与本 crate 的
+  capi 同源，但上游 framework 头若在发版后发生破坏性变更，链接期会 loud 失败，
+  此时设 `AUDIOCPP_PREBUILT_OFF=1` 强制源码构建。验证：`prebuilt_download.rs`
+  末尾 `#[cfg(test)]` 10 用例（`rustc --test` 直编本文件跑，含 v0.8.0 真实资产名
+  回归，全过）+ 解包 `.crate` 到 repo 外实测 registry 全链通过
+  （v0.8.0 老资产 cpu-md-full：API 发现→下载→legacy 放行→clone 头文件→链接成功，
+  共 4m50s；此前同场景恒回落源码构建）。**要让下游用上此修复
+  须发新版 crate + 跑 prebuilt workflow（均属第 6 节发布操作，须用户显式下达）。**
 - **CI 预编译资产**：`.github/workflows/prebuilt-audio-cpp.yml` 在 `v*` tag、
   `workflow_dispatch` 时构建（linux 4 / windows 4（cpu/vulkan 各×md/mt）/ macos 1，
   共 9 cell，full × cpu/vulkan/metal）。**main 开发期推送不触发，submodule 指针变动也不触发**——
@@ -1046,12 +1068,13 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
   用 `.github/scripts/collect-unix-prebuilt.sh` 与
   `collect-windows-prebuilt.sh` 从 `target/**/out`（及 Windows 长路径重定向的
   `%TEMP%\acb*`）收集静态库打包，写 `metadata.json`（含 `audio_commit` 完整 SHA 前 12 位 +
-  `msvc_ver`），经 `gh release upload --clobber` 上传到 `v{CARGO_PKG_VERSION}`
+  `msvc_ver` + `crate_version`（打包时的 crate 版本，供 registry 版本锚定校验）），
+  经 `gh release upload --clobber` 上传到 `v{CARGO_PKG_VERSION}`
    Release（同一版本 Release 下按 commit 累积多个资产，天然按版本+commit 双重隔离）。
    消费端按自身 crate 版本查对应 tag，**旧版 Release 长期保留即可被旧版消费者寻址**，
    `--clobber` 只覆盖同名资产、不删旧 Release，故不存在“新版覆盖旧预编译”问题。
   Windows vulkan 用 `.github/actions/setup-vulkan-sdk-windows`（LunarG SDK）。资产命名
-  须与 `prebuilt_download.rs::asset_name()` 保持一致（含 commit 段）。
+  须与 `prebuilt_download.rs::asset_name_of()` 保持一致（含 commit 段）。
 - **MSVC `crt-static`（静态 CRT）**：消费端开 `-C target-feature=+crt-static`
   后，Rust 侧 std 与 cc 编译的 C shim（capi.o）均为 `/MT`，而 CMake 默认（及
   预编译资产）是 `/MD`，混链接报 LNK2038（RuntimeLibrary 不匹配）+ LNK2019

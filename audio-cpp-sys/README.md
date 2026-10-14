@@ -80,17 +80,22 @@ cargo build
 cargo build --features prebuilt
 ```
 
-按当前平台/后端/模型组合 **+ 本地 audio.cpp 的 commit（完整 SHA 前 12 位）** 自动拼资产名
-并下载，缓存到 `target/audio-cpp-prebuilt-cache/<tag>/<asset>`（`<asset>` 即不含
-`.tar.gz` 的资产名）。资产命名：
+按当前平台/后端/模型组合自动匹配资产并下载，缓存到
+`target/audio-cpp-prebuilt-cache/<tag>/<asset>`（`<asset>` 即不含 `.tar.gz` 的资产名）。
+资产命名：
 
 ```
 audio-cpp-prebuilt-{linux|macos|windows}-{target}-{backend}[-{crt}]-{modelset}-static-{commit}.tar.gz
 ```
 
-其中 `crt` 仅 Windows（`md` 动态 / `mt` 静态 CRT），`commit` 为本地 submodule 完整 SHA
-的前 12 位。消费端按自身 commit 精确请求：命中才下载、404 即立即回落源码构建，不会在
-commit 不符时白下整包。
+其中 `crt` 仅 Windows（`md` 动态 / `mt` 静态 CRT）。寻址分两种场景：
+
+- **本地 git 检出**（本仓库开发 / path 依赖）：`commit` 为本地 submodule 完整 SHA
+  的前 12 位。消费端按自身 commit 精确请求：命中才下载、404 即立即回落源码构建，
+  不会在 commit 不符时白下整包；
+- **registry（crates.io）消费**：发布包内无 submodule，无法拼 commit，只能先拉取
+  Release 的资产清单（`api.github.com`，见下），再按“前缀 + `.tar.gz` 后缀”匹配
+  当前平台/后端/模型组合。身份改由版本锚定判定（见下），同样找不到就回落源码构建。
 
 > **只发布 `full` 全模型资产**（full 是任何 model 组合的超集，见下）。core /
 > `custom-<族>` 组合会先尝试精确资产名，404 时自动回退下载 `full-{commit}` 资产
@@ -100,14 +105,17 @@ commit 不符时白下整包。
 
 | 环境变量 | 作用 |
 |---|---|
-| `AUDIOCPP_PREBUILT_URL` | 下载地址。可含 `{tag}` / `{asset}` 占位符（镜像站场景：`https://mirror.example.com/audio-cpp/{asset}`）；不含占位符视为完整地址；`file://` 前缀表示本地归档，直接复制不走网络 |
-| `AUDIOCPP_PREBUILT_TAG` | Release tag，默认 `v{version}` |
+| `AUDIOCPP_PREBUILT_URL` | 下载地址。可含 `{tag}` / `{asset}` 占位符（镜像站场景：`https://mirror.example.com/audio-cpp/{asset}`，`{asset}` 由官方清单发现结果代入）；不含占位符视为完整地址，直接使用（registry 场景同样生效）；`file://` 前缀表示本地归档，直接复制不走网络 |
+| `AUDIOCPP_PREBUILT_TAG` | Release tag，默认 `v{version}`（自身依赖的 crate 版本） |
 | `AUDIOCPP_PREBUILT_REPO` | GitHub 仓库，默认 `launcher-rs/audio-cpp-rs` |
+| `AUDIOCPP_PREBUILT_API` | Release 资产清单 API 地址模板（含 `{repo}` / `{tag}` 占位符，默认 `https://api.github.com/repos/{repo}/releases/tags/{tag}`）。仅 registry 场景使用；GHES / 镜像站用户可覆盖 |
+| `GITHUB_TOKEN` / `GH_TOKEN` | 可选。给 Releases API 做 Bearer 认证，避免匿名调用限流（403）。token 变化会触发构建脚本重跑 |
 | `AUDIOCPP_PREBUILT_DIR` | 显式本地库目录（不下载，直接链接） |
 | `AUDIOCPP_PREBUILT_OFF` | 设为 1/true 禁用自动下载，强制源码构建 |
 
 网络下载失败会自动重试 3 次（带退避）；HTTP 4xx（资源不存在等）为确定性
-失败不重试，直接回落源码构建。
+失败不重试，直接回落源码构建。Release 清单获取失败同样回落，并提示可用
+`AUDIOCPP_PREBUILT_DIR` 手动加速。
 
 要点：
 
@@ -120,10 +128,16 @@ commit 不符时白下整包。
   需要（须 `git submodule update --init --recursive` 补齐；`prebuilt` 旁路仅跳过
   CMake 构建，不免除源码树）；
 - 归档内 `metadata.json` 记录 `audio_commit`（打包时 audio.cpp submodule 完整 SHA
-  的前 12 位）与 `msvc_ver`（打包工具链的 `_MSC_VER`）。下载前已按资产名里的 commit
-  精确匹配，解压后再做兜底校验：`audio_commit` 与本地 submodule gitlink（前 12 位）
-  不一致，或本地 MSVC 版本低于归档的 `msvc_ver`，则删缓存回落源码构建
-  （避免 ABI 错配；MSVC 静态库绑定工具集版本）。
+  的前 12 位）、`crate_version`（打包时的 crate 版本，新资产才有）与 `msvc_ver`
+  （打包工具链的 `_MSC_VER`）。身份校验分场景：
+  - 本地 git 检出：下载前已按资产名里的 commit 精确匹配，解压后再做兜底校验：
+    `audio_commit` 与本地 submodule gitlink（前 12 位）不一致则删缓存回落源码构建；
+  - registry：无本地 commit 可比对，改查 `crate_version` 是否等于正在构建的 crate
+    版本（不等则删缓存回落）；无该字段的老资产（v0.8.0 及之前）默认信任“官方
+    Release + 自身版本 tag”并放行，显式覆盖 TAG / REPO / URL 时视为用户自担风险
+    放行（均有明确告警）；
+  - 两种场景下本地 MSVC 版本低于归档的 `msvc_ver` 都回落源码构建
+    （避免 ABI 错配；MSVC 静态库绑定工具集版本）。
 
 > 资产由 CI（`.github/workflows/prebuilt-audio-cpp.yml`）在打 `v*` tag、`workflow_dispatch`
 > 时生成并上传；**main 开发期推送与 submodule 指针变动均不触发**。重新发布预编译资产属发布
