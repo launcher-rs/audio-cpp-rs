@@ -1,0 +1,127 @@
+# 模型中文简介表：每行 <上游 family 名><TAB><中文一句话简介>
+# 键必须与上游 audio-cpp-sys/audio.cpp/model_specs/<family>.json 的 family 一致；
+# 供 scripts/gen-models-doc.ps1 生成 docs/models.md 使用，由人工维护。
+# 新增/改名模型族后请同步此表；缺失的族会回落为上游英文描述。
+ace_step	开源 ACE-Step 1.5 音乐生成模型，支持 50+ 语言的文生音乐与歌词转歌，并提供翻唱、重绘、续写、分轨、人声转伴奏等编辑路径。
+apollo	面向 44.1kHz 压缩音频的频带序列音乐修复模型。
+ast_audioset	MIT 音频频谱图 Transformer，对 527 个 AudioSet 声音类别做多标签分类。
+audio_flamingo	Audio Flamingo 3 / Next，支持语音、音乐与环境声的转写、描述与问答。
+audio8_asr	Audio8-ASR-0.1B 紧凑多语识别（en/zh/yue/ja/ko/fr/de）：Qwen3-ASR 音频编码器 + MLP-tower 适配 + 8 层 Qwen2 风格解码器，30 秒离线窗口。权重 CC-BY-NC-4.0，GGUF 仅本地转换、不公开分发。
+audio8_tts	Audio8 TTS Preview 0.6B DualAR 语音合成，覆盖粤/中/荷/英/法/德/意/日/韩/波/西共 11 语，自动语种处理，支持短参考快速克隆。
+audiosr	AudioSR：基于潜扩散的音频超分辨率（输入波形 → 高清波形）。
+auk	腾讯 AuK base / AuK-Flash 语音生成与编辑模型。
+breeze_tts	BreezeTTS 2 原生 GGUF：指令条件 TTS + 提示音频克隆，T5Gemma 文本条件、Qwen 风格声学码生成、深度码本解码、Mimi 波形还原。
+bs_roformer	BS-RoFormer 音乐分离：在显式非重叠频带上估计人声，并从混音推导伴奏。
+builtin_audio_utils	内置降噪 / 增强 / 超分工具（权重需另行下载）。
+canary_asr	NVIDIA Canary 多语语音识别与语音翻译。
+ced	CED（一致性集成蒸馏 ViT）音频分类，覆盖 527 个 AudioSet 类别。
+chatterbox_turbo	Resemble AI 蒸馏版 350M Chatterbox Turbo：GPT2 T3 主干 + GPT2 BPE 分词 + 2 步 meanflow S3Gen 解码，内置音色的快速英文 TTS。
+chatterbox	开源 Chatterbox 系列：情感夸张可控的表现力 TTS 与声音转换，支持快速生成、零样本克隆与多语 TTS 路径。
+citrinet_asr	NVIDIA Citrinet 端到端英文 ASR，卷积 CTC 结构，适合短语音转写。
+cohere_asr	Cohere 多语语音转写，支持标点控制。
+confucius4_r2t2	网易有道 Confucius4-R2T2 实时 ASR：Qwen3-ASR 微调 + 最长稳定前缀（LSP）流式，80ms–2s 分块，支持上下文/热词提示，覆盖 30 语。
+confucius4_tts	Confucius4-TTS 多语克隆 TTS（离线+流式）：参考音色 + 语种感知文本规范化、T2S 语义生成、S2A 流匹配、风格编码、语义音频特征与 BigVGAN 声码。
+controlfoley	多模态 Foley 音效生成模型。
+cosyvoice3	Fun-CosyVoice3 原生 GGUF：零样本 / 跨语种 / 指令条件 TTS，CosyVoice3 语音 token 自回归 + 因果掩码流 mel 解码 + CAM++ 说话人条件 + 因果 HiFT 波形解码。
+crisperwhisper	基于 Whisper 的逐字（verbatim）与意图转写。
+dots_tts	DotTTS 多语零样本 TTS / 克隆 / 语音编辑：SOAR + MeanFlow、提示音频+文本预填充、说话人参考条件、语言标签、多模板、长文分块与真流式输出。
+dramabox	DramaBox 英文表现力 TTS 与克隆（独立 GGUF）：Gemma 文本条件 + 扩散采样 + 参考音频条件 + 长文分块，48kHz 立体声输出。
+echo_tts	Echo-TTS 英文零样本克隆 TTS：2.8B 扩散 Transformer 在 PCA 空间生成 80 维潜变量，经 Fish S1-DAC 解码为 44.1kHz；生成为固定 29.72s（640 潜帧）窗口。
+f5_tts	社区 F5-TTS 流匹配扩散 Transformer，零样本克隆（含 Habibi-TTS 阿拉伯语微调）：文本卷积条件器 + RoPE DiT + CFM 采样 + Vocos 声码。
+firered_audio	FireRedAudio 原生 GGUF：Qwen3.5 混合主干 + FireRed RedAE 条件 + RedPatchEncoder + RedDiT 潜流 + RedAE 波形解码。
+firered_vad	FireRed DFSMN 语音活动检测，含离线与因果 Stream-VAD 两种权重。
+fireredtts3	FireRedTTS3 系列：Base 零样本克隆与 Instruct 指令 TTS、声音设计、语义/声学编辑，Qwen3 自回归隐状态 + FireRed DiT 潜 patch 流 + RedAE 波形解码。
+fish_audio	Fish Audio S2 Pro 语音合成，覆盖 80+ 语言，自动语种处理，支持行内韵律/情感控制与短参考快速克隆。
+fish_drama3	Fish Audio Drama 3 原生 MoE 语音生成、声音克隆与续写。
+fun_asr_nano	FunAudioLLM Fun-ASR-Nano-2512 离线多语识别。
+gigaam_asr	GigaAM v3 / 多语 Conformer 识别，CTC 或 RNN-T 解码。
+glm_tts	社区中英零样本合成与克隆：原生 Llama + Whisper-VQ + Flow/DiT + CAMPPlus + HiFT。
+granite5asr	IBM Granite Speech 5.0 TurboCTC 470M：紧凑高速英文 ASR，Conformer CTC + 分块自注意力 + 自条件。
+heartmula	开源音乐基础模型：由文本、歌词提示与风格标签生成完整歌曲，结构可控、多语歌词条件。
+higgs_audio_stt	Boson AI 英文语音转写：Whisper Large v3 编码器 + Qwen 解码器。
+higgs_audio_tts	Boson AI 对话式 TTS，覆盖 100+ 语言，零样本克隆，行内控制情感、风格、韵律、停顿与音效。
+htdemucs_6stems	HTDemucs 6 轨分离：波形+频谱 Transformer，分为鼓 / 贝斯 / 人声 / 其他 / 吉他 / 钢琴。
+htdemucs	HTDemucs 音乐分离：波形+频谱 Transformer，分为人声 / 鼓 / 贝斯 / 伴奏。
+hviske_asr_v6	丹麦语识别：旋转位置 Whisper 编码器 + Qwen3 解码器。
+hviske_asr	面向丹麦语优化的 Conformer 编解码 ASR（Hviske v5 微调），可选 Cohere ASR 语种提示。
+index_echo	Index-Echo 语音转文本翻译，输出双语时间戳字幕。
+index_tts2	IndexTTS2 零样本 TTS：克隆、情感-说话人解耦、文本或音频情感控制、显式时长控制；v2 覆盖中英，v2.5 增加日/西/阿等多语 tiktoken 分词。
+inflect_v2	紧凑英文 VITS TTS，原生 GGML 推理 + 外部 eSpeak-ng 音素化。
+irodori_tts	日语 TTS：基于 RF-DiT 连续音频潜表示，支持零样本克隆、自动时长预测、多模态声音设计与 emoji 风格控制。
+kitten_tts	KittenTTS Mini 0.8 英文 TTS，8 个内置音色，共享 eSpeak-ng 音素化。
+kitten_tts2	Kitten TTS 2 多语生成：Qwen3 语音生成 + S3 meanflow 解码 + 参考音频克隆。
+kokoro_tts	Kokoro 82M 多语 TTS，54 个预置音色，优化 CPU 推理，共享 eSpeak-ng 音素化。
+kroko_asr	Kroko Community 单语包原生 Zipformer2 RNN-T 识别：离线 + 有状态流式，greedy / 改进 beam 解码、热词、端点分段、部分结果与词级时间戳。
+kugelaudio	KugelAudio TTS，内置预置音色，支持增量音频输出。
+lfm2_audio	Liquid AI LFM2.5-Audio（加载 llama.cpp 格式 GGUF）：ASR 用 FastConformer 编码器接 LFM2 混合主干；TTS 经 depthformer 生成音频帧再由 ISTFT 还原 24kHz；S2S 输入语音问题、输出文字+音频交错。
+liveavatar	LiveAvatar 音频驱动数字人视频生成（Wan2.2 S2V 架构）。
+magpie_tts	NVIDIA MagpieTTS 多语 TTS：由文本生成 NanoCodec 音频 token（内置说话人上下文嵌入 + 纯解码器 Transformer + 自回归局部 Transformer），再解码为波形。
+maya1	Maya Research 3B 表现力英文 TTS，支持自然语言声音设计与行内情感控制。
+meanvc2	MeanVC2 轻量流式零样本声音转换；当前包覆盖推荐的 120ms/40ms 质量路径。
+mel_band_roformer	Mel-Band RoFormer 分离：mel 尺度重叠频带 + RoFormer 注意力，估计人声 / 鼓 / 伴奏等。
+micro_wake_word	microWakeWord MixedNet（TFLite 转 GGUF）流式唤醒词检测。
+midashenglm_gen	DashengLM 生成式音频模型，支持语音、音乐、音效与环境声提示生成。
+minimax_h3	MiniMax-H3 文生音视频（官方 T2VA 管线）：Qwen3-VL 文本条件 + 音视频联合 DiT 去噪 + MiniMax-H3 音视频 VAE 解码。
+minimax_music3	MiniMax Music 3 文生音乐，支持歌词条件。
+miocodec	MioCodec 轻量神经音频编解码：把 44.1kHz 音频编码为 25Hz 低码率离散 token，再带说话人条件解码。
+miotts	基于 MioCodec 的轻量 LLM 英文/日文 TTS，支持低延迟生成与短参考零样本克隆。
+mira_tts	MiraTTS 社区克隆 TTS：Qwen2 自回归语音 token 生成 + ECAPA/Perceiver 说话人分词 + 条件声学处理 + DAC 解码。
+mms_forced_aligner	Meta MMS-300M 多语 CTC 强制对齐（Wav2Vec2ForCTC）：把精确文本对齐到音频并给出词级时间戳。权重覆盖 1130 语，但本移植的原生文本规范化仅支持荷兰语与英语拉丁字母；可用 text_normalization=pre_romanized 传入 ASCII 罗马化，不支持的非拉丁输入会被拒绝。权重 CC-BY-NC-4.0，GGUF 仅本地转换、不公开分发。
+moonshine_asr	Moonshine tiny/small/medium 流式英文识别。
+moss_transcribe_diarize	Whisper 编码器 + Qwen3 解码器，联合输出 50+ 语言的转写、说话人分离与时间戳。
+moss_tts_local	MOSS-TTS 旗舰：高保真 31 语与语码混合语音、零样本克隆、长文生成，支持拼音/音素/时长细粒度控制。
+moss_tts_nano	MOSS-TTS-Nano 紧凑部署优先，实时多语生成、轻量集成与零样本克隆。
+moss_tts_v15	8B delay-pattern MOSS-TTS：短参考零样本克隆，24kHz，带显式时长预算。
+moss_ttsd	8B delay-pattern 对话 TTS：一遍生成带说话人标记的对话，逐说话人零样本克隆，24kHz、16 码本。
+moss_voicegen	MOSS 声音设计：用文字指令而非参考录音创建音色，再用该音色朗读文本。
+mossformer2	MossFormer2 16kHz 重叠语音分离。
+muscriptor	MuScriptor 音频转符号：把音乐音频转为符号音符事件或 MIDI，支持乐器约束、采样、beam 搜索、批量分块与流式最终结果输出。
+nemotron_3_diar	NVIDIA 八说话人流式分离，采用到达顺序身份与可配置延迟档位。
+nemotron_asr	NVIDIA 600M 流式 ASR，覆盖 40 种语言区域，支持低延迟与批处理、原生标点/大小写、自动语种检测与可配置分块。
+neutts	Neuphonic 英文 TTS 系列；当前 2E 包用 Qwen3 风格自回归 token 主干 + NeuCodec 波形解码 + 内置音色提示与情感 token 控制。
+niagara_asr	ABR Niagara 英文批处理 ASR（注意力状态空间模型），greedy CTC 解码 + SentencePiece 分词。
+omnivoice	k2-fsa 大规模多语零样本 TTS，覆盖 600+ 语言，支持短参考克隆、属性化声音设计、发音控制与非语言标签。
+outetts	基于 Llama 的开源权重 TTS，23 语合成，短参考单样本克隆并支持自动词对齐。
+owsm_ctc	ESPnet 非自回归多语识别与翻译，自条件 CTC。
+owsm	ESPnet Open Whisper 风格多语识别与翻译。
+parakeet_tdt	NVIDIA Parakeet-TDT 0.6B v3 FastConformer-TDT，覆盖 25 种欧洲语言并自动语种检测；支持上游 safetensors 包与独立 GGUF，提供离线全上下文、有界窗口长音频与缓冲流式；权重为无界双向注意力，非原生 cache-aware 流式模型。
+personaplex	PersonaPlex：Moshi 风格全双工语音对话模型，Mimi 音频分词，内置说话人/人设提示，流式音频输入 + 文本生成 + 合成回复语音。
+piper_tts	Piper TTS 音色的原生 VITS 推理，使用共享 eSpeak-ng 前端。
+pocket_tts	Kyutai 100M 参数 CPU 友好 TTS 包：英/法/德/意/葡/西的实时本地合成与小体积克隆。
+pulsevad	16kHz 单声道语音活动检测，提供 2.1K 学生与 81K 教师权重。
+qwen3_asr	Qwen ASR 系列：覆盖 30 语、22 种中文方言与多种英语口音的语种识别与识别，对噪声、长音频与歌唱鲁棒。
+qwen3_forced_aligner	Qwen3 非自回归强制对齐：把文本对齐到语音，11 语下给出词级/字级时间戳。
+qwen3_tts	Qwen TTS 系列：10 语可控合成，3 秒克隆、CustomVoice 指令控制预置音色、VoiceDesign 由自然语言描述设计音色。
+reuse	RE-USE 采样率无关语音修复，双向 Mamba。
+rvc	RVC 离线检索式声音转换：原生 HuBERT 内容特征 + RMVPE 音高提取 + 可选 IVF 检索混合，内置 v1/v2 音色并支持自备 RVC 权重。
+sam_audio	提示条件音频分离。
+samsone	SAMSONE 紧凑音频-语言模型：音频描述、问答与声音/音乐/语音理解。
+sanotts	sanoTTS Nano 超小多语 TTS（14 语）：nano 系（时长学生 + 上下文声学学生 → mel-100 + 噪声驱动 ConvNeXt-1D 解码 + iSTFT，音色 heart / heart-nano，24kHz）与确定性 piperlite 系（时长/声学学生 → 192 通道潜表示（可选校准适配）→ 3 级 ConvTranspose1d + 空洞残差，音色 amy / hfc / kristin，22.05kHz）；使用外部 eSpeak-ng 音素化。
+seed_vc	Seed-VC 零样本声音/歌声转换：从参考音频迁移音色与风格，支持低延迟实时转换与可选轻量微调。
+sense_asr	SenseVoice-Small 多语识别，经 SAN-M 编码器 + CTC 头输出丰富的事件/情感/ITN 标签。
+sheetsage2	SheetSage2 音频转符号：从自包含 GGUF 读取录音并输出 ABC 乐谱产物。
+sherpa_kws	sherpa-onnx Zipformer transducer 流式关键词检测。
+sidon	Sidon v0.1 单说话人语音修复，48kHz 输出。
+smart_turn	Smart Turn v3.2 音频原生轮次完成检测（Whisper-Tiny 编码器 + 注意力池化分类）。
+soprano_tts	Soprano 超轻量（约 80M）纯英文 TTS：17 层 Qwen3 风格因果 LM 自回归输出每帧 512 维特征，非迭代 Vocos 式解码器还原 32kHz 音频，无扩散细化。
+sopro_tts	社区 Sopro V2 Turbo（samuel-vitorino/sopro-v2-turbo）120M 零样本克隆 TTS：SentencePiece 分词 + 风格前缀条件的 FSQ 语义 LM + rectified-flow 声学 DiT + Vocos iSTFT 声码，24kHz。
+sortformer_diar_v2	NVIDIA Sortformer v2.1 流式说话人分离，四说话人通道、AOSC 状态、稳定到达顺序身份，支持有界上下文离线与流式；无官方语种白名单（以英语为主，含 AISHELL-4/AliMeeting 等非英语会议数据，其他语言可能退化）。权重受 NVIDIA Open Model License 约束，获再分发批准前仅限本地使用。
+sortformer_diar	NVIDIA 基于 Transformer 的端到端说话人分离，主要英语训练，直接从音频预测说话人标签并按到达时间排序，最多四说话人。
+stable_audio	Stability AI 生成式音频系列：文生音乐/音效、音频到音频编辑、修复、续写、变长生成与 LoRA 个性化。
+supertonic	Supertone 端侧 TTS，覆盖 31 语，预置音色，面向浏览器/移动/桌面的紧凑快速本地合成。
+tf_gridnet	TF-GridNet 时频重叠语音分离。
+tone_color_vc	Tone Color VC 独立声音转换，使用参考说话人录音。
+universr	UniverSR：复数 STFT 流匹配音频超分至 48kHz。
+vevo2	Vevo2 统一可控框架：中英语音与歌声生成、声音转换与编辑，分词器解耦内容、韵律、旋律、风格与音色。
+vibeasr	VibeASR.cpp 的 CPU 优先 VibeVoice ASR 移植：INT8（I8_S）音频 VAE 编码器 + 三值（I2_S）Qwen2 解码器。
+vibevoice_asr_streaming	微软 VibeVoice ASR 流式模型（7B 与 1.5B），分块流式转写并保持解码器状态。
+vibevoice_asr	微软长音频转写：一次处理最长 60 分钟音频，输出含说话人、时间戳、内容、热词的结构化转写，覆盖 50+ 语言。
+vibevoice	微软长音频多说话人 TTS，面向播客等对话音频，最长 90 分钟、最多 4 说话人。
+vieneu_v3_turbo	VieNeu-TTS v3 Turbo 端侧越/英 TTS（48kHz），3–5 秒参考即时克隆；文本输入为 SEA-G2P 音素。
+voxcpm1	OpenBMB VoxCPM 0.5B 无分词器 TTS，支持短参考克隆与流式输出（16kHz）。
+voxcpm2	OpenBMB 无分词器 TTS：覆盖 30 语与 9 种中文方言，48kHz 输出，支持自然语言声音设计、可控短参考克隆与表现力风格引导。
+voxtral_realtime	Mistral 13 语实时 ASR，原生流式因果音频编码器，可配置低延迟转写，精度接近离线开源系统。
+voxtral_tts	Mistral 基于 Ministral 的自回归 + 流匹配 TTS，内置 20 个预置音色。
+whistle_asr	Whistle 离线识别，本地转换 FP32 GGUF，运行于 CPU 或 Metal。
+yue2	YuE2 音乐生成：符号 ABC 规划 + 语义 codec 生成 + NAR 声学流合成 + Oobleck VAE 解码。
+zipvoice	社区 ZipVoice / ZipVoice-Distill 流匹配 TTS：TTSZipformer 主干、按提示比例预测时长、带 t-shift 与无分类器引导的 Euler 求解器、Vocos mel-24kHz 声码。

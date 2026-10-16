@@ -243,6 +243,11 @@ pub enum ModelFamily {
     DotsTts,
     /// Fish Audio
     FishAudio,
+    /// Fish Audio Drama 3（原生 MoE 语音生成/声音克隆/续写，社区模型，
+    /// 语言 `auto`；task 为 `tts` 长文 / `clon`，离线+流式；克隆需参考音频
+    /// 及其转写 `reference_text`，多参考/续写走 `multi_reference_cond` /
+    /// `previous_takes` 等 JSON 字符串选项）
+    FishDrama3,
     /// GLM TTS
     GlmTts,
     /// Higgs Audio TTS
@@ -380,6 +385,9 @@ pub enum ModelFamily {
     Sheetsage2,
     /// Voxtral Realtime
     VoxtralRealtime,
+    /// Voxtral 4B TTS（Mistral Ministral 系自回归 + 流匹配 TTS，内置 20 个预置音色；
+    /// task 为 `tts`，离线+流式；语言 en/fr/es/de/it/pt/nl/ar/hi）
+    VoxtralTts,
     /// AudioSR（语音/音频超分辨率）
     Audiosr,
     /// Apollo（44.1kHz 压缩音频音乐修复；task 为 `s2s` 仅离线）
@@ -564,6 +572,9 @@ impl ModelFamily {
             ("confucius", ModelFamily::Confucius4Tts),
             ("dots_tts", ModelFamily::DotsTts),
             ("dots-tts", ModelFamily::DotsTts),
+            // fish_drama3 与 fish_audio 无子串重叠，但仍按“更具体者优先”排列。
+            ("fish_drama3", ModelFamily::FishDrama3),
+            ("fish-drama3", ModelFamily::FishDrama3),
             ("fish_audio", ModelFamily::FishAudio),
             ("fish-audio", ModelFamily::FishAudio),
             ("glm_tts", ModelFamily::GlmTts),
@@ -755,6 +766,9 @@ impl ModelFamily {
             ("sheetsage2", ModelFamily::Sheetsage2),
             ("sheetsage-2", ModelFamily::Sheetsage2),
             ("sheetsage", ModelFamily::Sheetsage2),
+            // voxtral_tts 必须排在裸 "voxtral" 之前，否则会被吞掉。
+            ("voxtral_tts", ModelFamily::VoxtralTts),
+            ("voxtral-tts", ModelFamily::VoxtralTts),
             ("voxtral-realtime", ModelFamily::VoxtralRealtime),
             ("voxtral", ModelFamily::VoxtralRealtime),
             ("audiosr", ModelFamily::Audiosr),
@@ -847,6 +861,7 @@ impl ModelFamily {
             ModelFamily::Confucius4Tts => "confucius4_tts",
             ModelFamily::DotsTts => "dots_tts",
             ModelFamily::FishAudio => "fish_audio",
+            ModelFamily::FishDrama3 => "fish_drama3",
             ModelFamily::GlmTts => "glm_tts",
             ModelFamily::HiggsAudioTts => "higgs_audio_tts",
             ModelFamily::IndexTts2 => "index_tts2",
@@ -906,6 +921,7 @@ impl ModelFamily {
             ModelFamily::Yue2 => "yue2",
             ModelFamily::Sheetsage2 => "sheetsage2",
             ModelFamily::VoxtralRealtime => "voxtral_realtime",
+            ModelFamily::VoxtralTts => "voxtral_tts",
             ModelFamily::Audiosr => "audiosr",
             ModelFamily::Apollo => "apollo",
             ModelFamily::Universr => "universr",
@@ -986,6 +1002,8 @@ impl From<&str> for ModelFamily {
             "confucius4_tts" => ModelFamily::Confucius4Tts,
             "dots_tts" => ModelFamily::DotsTts,
             "fish_audio" => ModelFamily::FishAudio,
+            "fish_drama3" => ModelFamily::FishDrama3,
+            "fish-drama3" => ModelFamily::FishDrama3,
             "glm_tts" => ModelFamily::GlmTts,
             "higgs_audio_tts" => ModelFamily::HiggsAudioTts,
             "index_tts2" => ModelFamily::IndexTts2,
@@ -1054,6 +1072,8 @@ impl From<&str> for ModelFamily {
             "yue2" => ModelFamily::Yue2,
             "sheetsage2" => ModelFamily::Sheetsage2,
             "voxtral_realtime" => ModelFamily::VoxtralRealtime,
+            "voxtral_tts" => ModelFamily::VoxtralTts,
+            "voxtral-tts" => ModelFamily::VoxtralTts,
             "audiosr" => ModelFamily::Audiosr,
             "apollo" => ModelFamily::Apollo,
             "universr" => ModelFamily::Universr,
@@ -1532,6 +1552,7 @@ mod tests {
             Confucius4Tts,
             DotsTts,
             FishAudio,
+            FishDrama3,
             GlmTts,
             HiggsAudioTts,
             IndexTts2,
@@ -1592,6 +1613,7 @@ mod tests {
             Yue2,
             Sheetsage2,
             VoxtralRealtime,
+            VoxtralTts,
             Audiosr,
             Apollo,
             Universr,
@@ -1676,6 +1698,15 @@ mod tests {
         assert_eq!(
             ModelFamily::from_path("moss-tts-nano-q8_0.gguf"),
             Some(ModelFamily::MossTtsNano)
+        );
+        // fish_drama3 与 fish_audio 互不误判（无子串重叠，回归锁定）。
+        assert_eq!(
+            ModelFamily::from_path("fish-drama3-q8_0.gguf"),
+            Some(ModelFamily::FishDrama3)
+        );
+        assert_eq!(
+            ModelFamily::from_path("fish_audio-f16.gguf"),
+            Some(ModelFamily::FishAudio)
         );
         // moss_tts_v15 不被裸 "moss" 关键词吞掉。
         assert_eq!(
@@ -1837,6 +1868,15 @@ mod tests {
         assert_eq!(
             ModelFamily::from_path("sheetsage2-q8_0.gguf"),
             Some(ModelFamily::Sheetsage2)
+        );
+        // voxtral_tts 不被裸 "voxtral" 关键词吞掉（后者判回 realtime）。
+        assert_eq!(
+            ModelFamily::from_path("voxtral-tts-4b-q8_0.gguf"),
+            Some(ModelFamily::VoxtralTts)
+        );
+        assert_eq!(
+            ModelFamily::from_path("voxtral-realtime-q8_0.gguf"),
+            Some(ModelFamily::VoxtralRealtime)
         );
         assert_eq!(
             ModelFamily::from_path("pulsevad-2.1k-f32.gguf"),

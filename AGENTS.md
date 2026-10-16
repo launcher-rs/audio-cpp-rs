@@ -87,6 +87,8 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
    返回的字符串须与上游 loader 族名一致）+ `from_path()` 关键词表 + Cargo.toml 新增
    `model-*` feature（如适用）。若只是现有 loader 的行为/选项变化（如 dots_tts 新增
    edit 推理），枚举无需动，但需评估高层类型/示例是否要暴露新能力。
+   无论新增还是改名 loader 族，都要重跑 `pwsh -File scripts/gen-models-doc.ps1`
+   刷新 `docs/models.md`，并在 `scripts/model-desc-zh.tsv` 补/改对应中文简介。
 3. **C ABI 边界**：capi.cpp 只依赖 5 个头（`engine/framework/core/backend.h` /
    `engine/framework/io/json.h` /
    `engine/framework/runtime/{model,registry,session}.h`）。diff 这些头文件：
@@ -114,11 +116,72 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `26b89278`（origin/main；从 `886076fc` 快进 23 个提交）。
+- 当前 submodule HEAD = `22cad6af`（origin/main，v0.9.2；从 `26b89278` 快进 20 个提交）。
   crate 版本为 **0.8.1**（workspace 统一；0.8.0→0.8.1 为 patch：prebuilt registry
   修复 + audio.cpp 小同步，无 Rust 公共 API 增删改；已发布到 crates.io，
   预编译 9 资产随 `v0.8.1` tag 由 CI 构建发布成功且含 `crate_version`，
   下游 registry 实测严格路径通过）。历史升级记录见下方逐条。
+- **升级 `26b89278`→`22cad6af`（main，v0.9.2）审查结论**：
+  - diff 共 144 文件（+33.3k/-1.3k，20 个提交）：新增 1 个 CMake target
+    `fish_drama3`（族 `fish_drama3`，Fish Audio Drama 3 原生 MoE 语音生成/
+    声音克隆/续写，社区模型；task 为 `tts` 长文（`long_form`）+ `clon`
+    （`speaker_reference`），离线+流式；语言 `auto`；克隆需参考音频及其转写
+    `reference_text`，多参考/续写走 `multi_reference_cond`/`references`/
+    `previous_takes`/`previous_takes_file` JSON 字符串选项；`encode_reference_only`
+    可仅编码参考，产出 `drama3_reference_v1` 声学 token 产物，走既有
+    `output_artifacts`）。其余为 RKNN NPU sidecar 基础设施（`framework/rknn/
+    engine.h` + `options.h` 新增 `ComponentExecPlan`/`parse_exec_plan`；
+    qwen3_tts/kokoro_tts/piper_tts/inflect_v2 的 opt-in NPU 解码/生成 sidecar，
+    仅上游可选构建）/ granite5asr CTC 词级时间戳 / miotts 重复惩罚按 token
+    去重 / Vulkan 上取整溢出修复 / server 配置示例独立发布资产 / WebUI
+    Voice Library + Arena 等。上游 model target 118→119 个（`audiocpp_add_model`
+    计数；含 `fish_drama3`）。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 5 个头（`framework/core/backend.h` /
+    `framework/io/json.h` / `framework/runtime/{model,registry,session}.h`）本次
+    diff **零改动**（`task_vocabulary.h` / `session.h` 亦零改动；framework 下仅
+    `runtime/options.h` 新增 RKNN 组件执行计划解析 + `runtime/spec_backed_model.h`
+    的未知选项报错信息增强（附加拼写提示与上游链接），均不经 C ABI）。
+    `capi.h` / `capi.cpp` / build.rs bindgen allowlist 保持原样。
+  - 无新 task 类型 / 输出字段：新族用既有 `tts`/`clon`（`drama3_reference_v1`
+    产物走既有 `output_artifacts`）；granite5asr 时间戳走既有 `word_timestamps`；
+    全部新选项（fish_drama3 系、RKNN `exec_plan` 等）走通用 options 字符串透传，
+    spec diff 无 `*_list`/array 类型，无数组选项缺口。高层 `types.rs` serde
+    结构无需改。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 1 个枚举变体
+    `FishDrama3`（`as_str()` → `"fish_drama3"`，与上游 loader 族名一致）+
+    `from_path()` 关键词（`fish_drama3`/`fish-drama3`，置于 `fish_audio` 之前）
+    + `From<&str>`；并在 `audio-cpp-sys/Cargo.toml` 与 `audio-cpp/Cargo.toml`
+    新增 `model-fish-drama3` feature（build.rs 自动映射 CMake target）。
+    `model_family_roundtrip` / `model_family_from_path`（含 fish_drama3 与
+    fish_audio 互不误判的回归断言）测试已覆盖。
+  - **顺带修补历史遗漏**：`voxtral_tts` 是上游独立 loader 族（`audiocpp_add_model
+    (voxtral_tts ... make_voxtral_tts_loader)`，spec `model_specs/voxtral_tts.json`，
+    Mistral Voxtral 4B TTS，task `tts` 离线+流式）却从未收进 `ModelFamily`——本次
+    新增 `VoxtralTts`（`as_str()` → `"voxtral_tts"`）+ `from_path()` 关键词
+    （`voxtral_tts`/`voxtral-tts`，**置于裸 `"voxtral"` 之前**，否则会被误吞判成
+    `VoxtralRealtime`）+ `From<&str>` + 回归断言。`voxtral_tts` 无专用 feature
+    （与 `voxtral_realtime` 一致），用 `custom-models` + `AUDIOCPP_MODELS`。
+  - **计数修正**：此前 `full-models` 注释 / sys README 的 loader 族计数（117）
+    陈旧且有偏差；按上游 CMakeLists 实际统计，去重 loader 数 122→123（= spec
+    文件数 = `ModelFamily` 非内置族数），已把 Cargo.toml 注释与 sys README 统一
+    改为 **123**。
+  - 新增 `docs/models.md`：由上游 `model_specs/*.json` 生成的全模型目录
+    （123 族 + 2 内置 VAD，按任务分类，每族给出 family / 显示名 / 运行时任务
+    token / 离线·流式 / 语言 / 上游状态 / 专用 feature / 中文一句话简介 + 上游文档
+    链接）；README 增加「模型目录」入口与链接。生成器与中文简介表已入库：
+    `scripts/gen-models-doc.ps1` + `scripts/model-desc-zh.tsv`（升级 submodule 后
+    重跑即可刷新，缺简介的族会有 warning 提示）。
+  - 新族 session 自持资产（`shared_ptr<const Drama3Assets>`，spec-backed），
+    `Session` 独立于 `Model` 存活的保证成立。
+  - 验证：`cargo fmt --check` + `cargo build --workspace`（build.rs 跟踪
+    submodule HEAD 正常触发重编，约 1.5 分钟）+ `cargo test --workspace`
+    （32 lib + 12 doc 全过）+ `clippy --workspace --all-targets` 零警告 +
+    `cargo check -p audio-cpp-sys --features custom-models,model-fish-drama3`
+    （新 feature→CMake target 映射抽查通过，`engine_model_fish_drama3` 及其
+    utf8proc 依赖对象均已编译）。
+  - 注意：`metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制回落
+    源码构建（预编译自动下载被跳过），属预期；`cargo publish` / tag /
+    Release / 预编译资产上传均属第 6 节发布操作，须用户显式下达，本次未执行。
 - **升级 `886076fc`→`26b89278`（main）审查结论**：
   - diff 共 291 文件（+9.0k/-6.3k，23 个提交）：**无新增 `make_*_loader`**
     （新旧 CMakeLists 提取的 loader 名单比对一致）；其余为 server 大重构
@@ -1122,4 +1185,5 @@ git -C audio-cpp-sys/audio.cpp diff <旧commit>..HEAD --stat                 # �
 cargo build -p audio-cpp-sys                                              # 单独构建底层
 BUILD_DEBUG=1 cargo build                                                 # 调试构建脚本
 AUDIOCPP_PREBUILT_DIR=<预编译目录> cargo build                            # 跳过 CMake，直接用预编译静态库
+pwsh -File scripts/gen-models-doc.ps1                                     # 由上游 model_specs 重新生成 docs/models.md（升级 submodule 后）
 ```
