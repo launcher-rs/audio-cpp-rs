@@ -54,7 +54,7 @@ prebuilt = []
 # vendored 在 audio.cpp/assets/framework/models/，无需下载任何权重。
 # 这也是编译最快、开箱即用的最小编译集，适合仅用 VAD 或验证绑定链路的场景。
 core-models = []
-# 全量编译 audio.cpp 支持的 123 个 loader 族（随上游增长，以
+# 全量编译 audio.cpp 支持的 125 个 loader 族（随上游增长，以
 # audio.cpp/CMakeLists.txt 的 make_*_loader 为准）。注意：全量编译耗时很长且生成
 # 的静态库很大；并不等于"能运行任意模型"，权重文件仍需自行下载。
 # 日常建议优先用模型族 feature 或 custom-models 按需编译，只有需要一次
@@ -138,6 +138,7 @@ model-liveavatar = ["custom-models"]                    # Audio generation: Live
 model-piper-tts = ["custom-models"]                     # TTS: Piper VITS TTS (community, en, offline)
 model-kitten-tts = ["custom-models"]                    # TTS: KittenTTS Mini 0.8 (community, en, offline)
 model-kitten-tts2 = ["custom-models"]                   # TTS: Kitten TTS 2 (multilingual Qwen3 + cloning, offline)
+model-plapre = ["custom-models"]                        # TTS: Plapre 3 (Danish Llama AR + Kanade codec, offline+streaming)
 model-kugelaudio = ["custom-models"]                    # TTS: KugelAudio-0-Open (preset voices, offline+streaming)
 model-maya1 = ["custom-models"]                         # TTS: Maya1 3B expressive EN TTS (voice design, offline)
 model-moss-ttsd = ["custom-models"]                     # TTS: MOSS-TTSD 8B dialogue TTS (multi-speaker clone, offline)
@@ -160,6 +161,7 @@ model-firered-vad = ["custom-models"]                   # VAD: FireRed VAD DFSMN
 model-ced = ["custom-models"]                           # Audio classification: CED ViT 527 AudioSet classes (cls, offline)
 model-ast-audioset = ["custom-models"]                  # Audio classification: AST AudioSet 527 classes (cls, offline)
 model-micro-wake-word = ["custom-models"]               # Wake word: microWakeWord MixedNet (wake, offline+streaming)
+model-open-wake-word = ["custom-models"]                # Wake word: OpenWakeWord Alexa GGUF (wake, offline+streaming)
 model-sherpa-kws = ["custom-models"]                    # Wake word: sherpa-onnx Zipformer KWS (wake, offline+streaming)
 model-hviske-asr-v6 = ["custom-models"]                 # ASR: Hviske v6 Danish Whisper+Qwen3 (offline)
 model-whistle-asr = ["custom-models"]                   # ASR: Whistle offline (community, offline)

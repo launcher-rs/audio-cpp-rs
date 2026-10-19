@@ -319,6 +319,10 @@ pub enum ModelFamily {
     /// Kitten TTS 2（原生多语 Qwen3 语音生成 + S3 meanflow 解码 + 参考音频克隆；
     /// task 为 `tts`/`clon` 仅离线）
     KittenTts2,
+    /// Plapre 3（丹麦语 TTS：Llama 自回归解码器 + Kanade 音频 codec，
+    /// 内置 5 个音色；task 为 `tts`/`clon`，离线+流式（流式仅出完整文本块）；
+    /// 克隆需 `reference_text`，另有 `voice_id`/`context_text`/`edit_*_frame` 等选项）
+    Plapre,
     /// KugelAudio-0-Open（预置音色 TTS，增量音频输出；task 为 `tts`，离线+流式）
     Kugelaudio,
     /// Maya1（3B 表现力英文 TTS，自然语言音色设计 + 行内情感控制；
@@ -428,6 +432,10 @@ pub enum ModelFamily {
     /// task 为 `wake`（别名 `wake_word`），离线+流式，16kHz mono，
     /// 检测结果在 `speech_segments`）
     SherpaKws,
+    /// OpenWakeWord（共享语音嵌入 CNN + 转换分类器的唤醒词检测，英文
+    /// "alexa"；task 为 `wake`（别名 `wake_word`），离线+流式，
+    /// 检测结果在 `speech_segments`，请求选项 `threshold`）
+    OpenWakeWord,
     /// CED（Consistent Ensemble Distillation ViT 音频分类，527 个 AudioSet
     /// 类别；task 为 `cls`（别名 `classify`）仅离线，结果在
     /// `custom_schema_output`（schema `ced.classification.v1`））
@@ -642,6 +650,10 @@ impl ModelFamily {
             ("kitten_tts", ModelFamily::KittenTts),
             ("kitten-tts", ModelFamily::KittenTts),
             ("kitten", ModelFamily::KittenTts),
+            // plapre 置于裸关键词之前不受影响（无前缀家族），单独列出。
+            ("plapre_3", ModelFamily::Plapre),
+            ("plapre-3", ModelFamily::Plapre),
+            ("plapre", ModelFamily::Plapre),
             ("kugelaudio", ModelFamily::Kugelaudio),
             ("kugel-audio", ModelFamily::Kugelaudio),
             ("kugel_audio", ModelFamily::Kugelaudio),
@@ -806,6 +818,10 @@ impl ModelFamily {
             ("sherpa_kws", ModelFamily::SherpaKws),
             ("sherpa-kws", ModelFamily::SherpaKws),
             ("sherpa", ModelFamily::SherpaKws),
+            // open_wake_word 无裸前缀冲突，紧随其它唤醒词族列出。
+            ("open_wake_word", ModelFamily::OpenWakeWord),
+            ("open-wake-word", ModelFamily::OpenWakeWord),
+            ("openwake", ModelFamily::OpenWakeWord),
             ("ced", ModelFamily::Ced),
             ("ast_audioset", ModelFamily::AstAudioset),
             ("ast-audioset", ModelFamily::AstAudioset),
@@ -887,6 +903,7 @@ impl ModelFamily {
             ModelFamily::PiperTts => "piper_tts",
             ModelFamily::KittenTts => "kitten_tts",
             ModelFamily::KittenTts2 => "kitten_tts2",
+            ModelFamily::Plapre => "plapre",
             ModelFamily::Kugelaudio => "kugelaudio",
             ModelFamily::Maya1 => "maya1",
             ModelFamily::MossTtsd => "moss_ttsd",
@@ -935,6 +952,7 @@ impl ModelFamily {
             ModelFamily::SmartTurn => "smart_turn",
             ModelFamily::MicroWakeWord => "micro_wake_word",
             ModelFamily::SherpaKws => "sherpa_kws",
+            ModelFamily::OpenWakeWord => "open_wake_word",
             ModelFamily::Ced => "ced",
             ModelFamily::AstAudioset => "ast_audioset",
             ModelFamily::Miocodec => "miocodec",
@@ -1030,6 +1048,8 @@ impl From<&str> for ModelFamily {
             "piper_tts" => ModelFamily::PiperTts,
             "kitten_tts" => ModelFamily::KittenTts,
             "kitten_tts2" => ModelFamily::KittenTts2,
+            "plapre" => ModelFamily::Plapre,
+            "plapre_3" | "plapre-3" => ModelFamily::Plapre,
             "kugelaudio" => ModelFamily::Kugelaudio,
             "maya1" => ModelFamily::Maya1,
             "moss_ttsd" => ModelFamily::MossTtsd,
@@ -1089,6 +1109,8 @@ impl From<&str> for ModelFamily {
             "micro-wake-word" => ModelFamily::MicroWakeWord,
             "sherpa_kws" => ModelFamily::SherpaKws,
             "sherpa-kws" => ModelFamily::SherpaKws,
+            "open_wake_word" => ModelFamily::OpenWakeWord,
+            "open-wake-word" => ModelFamily::OpenWakeWord,
             "ced" => ModelFamily::Ced,
             "ast_audioset" => ModelFamily::AstAudioset,
             "ast-audioset" => ModelFamily::AstAudioset,
@@ -1578,6 +1600,7 @@ mod tests {
             PiperTts,
             KittenTts,
             KittenTts2,
+            Plapre,
             Kugelaudio,
             Maya1,
             MossTtsd,
@@ -1628,6 +1651,7 @@ mod tests {
             // 唤醒词 / 音频分类
             MicroWakeWord,
             SherpaKws,
+            OpenWakeWord,
             Ced,
             AstAudioset,
             // 其他
@@ -1754,6 +1778,20 @@ mod tests {
         assert_eq!(
             ModelFamily::from_path("kitten-tts-q8_0.gguf"),
             Some(ModelFamily::KittenTts)
+        );
+        // plapre_3 / plapre 均判回 Plapre。
+        assert_eq!(
+            ModelFamily::from_path("plapre-3-bf16.gguf"),
+            Some(ModelFamily::Plapre)
+        );
+        // open_wake_word 与 micro_wake_word 互不误判。
+        assert_eq!(
+            ModelFamily::from_path("open-wake-word-alexa-f32.gguf"),
+            Some(ModelFamily::OpenWakeWord)
+        );
+        assert_eq!(
+            ModelFamily::from_path("microwake-mixednet-q8_0.gguf"),
+            Some(ModelFamily::MicroWakeWord)
         );
         // index_echo 不被裸 "echo" 吞掉。
         assert_eq!(

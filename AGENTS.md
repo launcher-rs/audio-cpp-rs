@@ -116,11 +116,68 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `22cad6af`（origin/main，v0.9.2；从 `26b89278` 快进 20 个提交）。
-  crate 版本为 **0.8.1**（workspace 统一；0.8.0→0.8.1 为 patch：prebuilt registry
-  修复 + audio.cpp 小同步，无 Rust 公共 API 增删改；已发布到 crates.io，
-  预编译 9 资产随 `v0.8.1` tag 由 CI 构建发布成功且含 `crate_version`，
-  下游 registry 实测严格路径通过）。历史升级记录见下方逐条。
+- 当前 submodule HEAD = `ccdbe769`（origin/main；从 `22cad6af` 快进 49 个提交）。
+  crate 版本为 **0.8.1**（workspace 统一；历史见下条与逐条升级记录）。
+- **升级 `22cad6af`→`ccdbe769`（main）审查结论**：
+  - diff 共 260 文件（+18.7k/-2.1k，49 个提交）：新增 2 个 CMake target
+    （`audiocpp_add_model` 119→121，去重 loader 名 123→125 = spec 文件数 =
+    `ModelFamily` 非内置族数，各处计数已统一改为 **125**）：
+    `plapre`（族 `plapre`，Plapre 3 丹麦语 TTS：Llama 自回归解码 + Kanade
+    codec，内置 5 音色 `tor/ida/liv/ask/kaj`；task 为 `tts`/`clon`（spec 写
+    `clone` 别名），离线+流式（流式仅出完整文本块）；克隆需 `reference_text`，
+    另有 `voice_id`/`context_text`/`pronunciations`/`edit_start_frame`/
+    `edit_end_frame` 等选项，依赖 `utf8proc_vendor`）/
+    `open_wake_word`（族 `open_wake_word`，OpenWakeWord 唤醒词检测：共享语音
+    嵌入 CNN + 转换分类器，英文 "alexa"，FF32 GGUF；task 为 `wake`（别名
+    `wake_word`），离线+流式，结果走既有 `speech_segments`，请求选项
+    `threshold`，会话选项 `exec_plan`（NEON/GGML 执行计划，x86 上不生效））。
+    其余为 LoRA 适配器重构（`framework/assets/weight_adapter.{h,cpp}` 取代
+    `lora_tensor_source.h`，ComfyUI/LoKr 支持 YuE2/VibeVoice/ACE-Step）/
+    NEON 执行基础设施（`framework/neon/*`，仅 AArch64）/ fish_drama3 克隆与
+    VRAM 优化（磁盘专家权重量化 `disk_expert_weight_store`、流式 Studio 面板）/
+    i-quant（IQ）GGUF 张量存储类型 / server 每模型后端设备选择与
+    `default_session_options` / 语音预设携带请求选项 / kitten_tts2 新 BF16/Q8/Q4
+    权重 / RKNN 与 WebUI（越南语界面）等。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 5 个头（`framework/core/backend.h` /
+    `framework/io/json.h` / `framework/runtime/{model,registry,session}.h`）本次
+    diff **零改动**（`task_vocabulary.{h,cpp}` 亦零改动，14 种 task 不变；
+    `runtime/kv_cache.h` 仅加法 +22 行、`io/binary.h` 为内部实现，均不经 C ABI；
+    新增 `framework/neon/*`、`framework/rknn/engine.h` 改动也不经 C ABI）。
+    `capi.h` / `capi.cpp` / build.rs bindgen allowlist（`audiocpp_.*`）保持原样，
+    `bindings.docsrs.rs` 无需重拷。
+  - 无新 task 类型 / 输出字段：`open_wake_word` 复用既有 `wake` + `speech_segments`
+    （shim 早已导出），`plapre` 复用既有 `tts`/`clon`（spec 的 `clone` 是
+    `task_vocabulary` 里的既有别名，经通用任务字符串透传）；14 个改动 spec
+    diff **无 `*_list`/array 类型**（`word_duration_frames`/`pronunciations`
+    是 JSON 字符串选项），全部新选项走通用 options 字符串透传。
+    高层 `types.rs` serde 结构无需改。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 2 个枚举变体
+    `Plapre`（`as_str()` → `"plapre"`）/ `OpenWakeWord`（→ `"open_wake_word"`，
+    与上游 loader 族名一致）+ `from_path()` 关键词（`plapre_3`/`plapre-3`/
+    `plapre`；`open_wake_word`/`open-wake-word`/`openwake`，与 `micro_wake_word`
+    系关键词互不干扰，已用 287+ 关键词全表回放验证新文件名命中顺序）+
+    `From<&str>`；并在 `audio-cpp-sys/Cargo.toml` 与 `audio-cpp/Cargo.toml`
+    新增 `model-plapre` / `model-open-wake-word` feature（build.rs 自动映射
+    CMake target）；`model_family_roundtrip` / `model_family_from_path`
+    （含 `open-wake-word` vs `microwake` 防吞断言）测试已覆盖。
+  - 两族 session 均自持资产（`shared_ptr<const Assets>` / `shared_ptr<const
+    PlapreAssets>`，spec-backed 含 contract），`Session` 独立于 `Model` 存活的
+    保证成立。
+  - 验证：`cargo fmt --check` + `cargo build --workspace`（build.rs 跟踪
+    submodule HEAD 正常触发重编，48s）+ `cargo test --workspace`（32 lib +
+    12 doc 全过）+ `clippy --workspace --all-targets` 零警告 +
+    `cargo check -p audio-cpp-sys --features custom-models,model-plapre,
+    model-open-wake-word`（CMake 日志 `custom selected [open_wake_word;plapre]
+    linked [...]`，`engine_model_plapre` 6 obj / `engine_model_open_wake_word`
+    4 obj 编译通过；`neon_embedding.cpp` 因 x86 无 `ENGINE_ENABLE_NEON` 不编，
+    符合上游条件编译）。
+  - 重跑 `pwsh -File scripts/gen-models-doc.ps1` 刷新 `docs/models.md`
+    （125 族 + 2 内置 VAD，TTS 47→48 / 音频工具 22→23），并在
+    `scripts/model-desc-zh.tsv` 补 `open_wake_word` / `plapre` 两条中文简介
+    （missing zh desc = 0）。
+  - 注意：`metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制回落
+    源码构建（预编译自动下载被跳过），属预期；`cargo publish` / tag /
+    Release / 预编译资产上传均属第 6 节发布操作，须用户显式下达，本次未执行。
 - **升级 `26b89278`→`22cad6af`（main，v0.9.2）审查结论**：
   - diff 共 144 文件（+33.3k/-1.3k，20 个提交）：新增 1 个 CMake target
     `fish_drama3`（族 `fish_drama3`，Fish Audio Drama 3 原生 MoE 语音生成/

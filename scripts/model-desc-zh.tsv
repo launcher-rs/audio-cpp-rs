@@ -101,6 +101,8 @@ seed_vc	Seed-VC 零样本声音/歌声转换：从参考音频迁移音色与风
 sense_asr	SenseVoice-Small 多语识别，经 SAN-M 编码器 + CTC 头输出丰富的事件/情感/ITN 标签。
 sheetsage2	SheetSage2 音频转符号：从自包含 GGUF 读取录音并输出 ABC 乐谱产物。
 sherpa_kws	sherpa-onnx Zipformer transducer 流式关键词检测。
+open_wake_word	OpenWakeWord 唤醒词检测：共享语音嵌入 CNN + 分类器，英文 "alexa"。
+plapre	Plapre 3 丹麦语 TTS：Llama 自回归解码 + Kanade codec，内置 5 音色，支持克隆与流式。
 sidon	Sidon v0.1 单说话人语音修复，48kHz 输出。
 smart_turn	Smart Turn v3.2 音频原生轮次完成检测（Whisper-Tiny 编码器 + 注意力池化分类）。
 soprano_tts	Soprano 超轻量（约 80M）纯英文 TTS：17 层 Qwen3 风格因果 LM 自回归输出每帧 512 维特征，非迭代 Vocos 式解码器还原 32kHz 音频，无扩散细化。

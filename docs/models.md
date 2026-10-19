@@ -11,7 +11,7 @@
 > GGUF 加载时通常须**显式传 `family_hint`**（引擎自动探测可能误判），用法见 [audio-cpp/README.md](../audio-cpp/README.md)。
 > 上游“状态”为 audio.cpp 的成熟度标注：稳定（`supported`）/ 实验（`experimental`）/ 社区（`community`）/ 测试（`testing`）/ 开发中（`wip`），仅供参考。
 
-共收录 **123** 个上游模型族，另有 **2** 个内置 VAD 模型（随引擎编译、权重已 vendored，无需下载）。
+共收录 **125** 个上游模型族，另有 **2** 个内置 VAD 模型（随引擎编译、权重已 vendored，无需下载）。
 
 ## 内置模型（开箱即用，无需下载权重）
 
@@ -25,10 +25,10 @@
 | 分类 | 数量 | 跳转 |
 |---|---|---|
 | 语音识别（ASR） | 31 | [跳转](#cat-asr) |
-| 语音合成（TTS） | 47 | [跳转](#cat-tts) |
+| 语音合成（TTS） | 48 | [跳转](#cat-tts) |
 | 语音转换 / 声音克隆（VC） | 5 | [跳转](#cat-voice_conversion) |
 | 语音分析（VAD · 说话人分离 · 对齐 · 分类 · 唤醒 · 轮次检测） | 7 | [跳转](#cat-speech_analysis) |
-| 音频工具（降噪 / 修复 / 超分 / 源分离 / 转谱） | 22 | [跳转](#cat-audio_tools) |
+| 音频工具（降噪 / 修复 / 超分 / 源分离 / 转谱） | 23 | [跳转](#cat-audio_tools) |
 | 音频与音乐生成 | 8 | [跳转](#cat-audio_generation) |
 | 其他社区模型 | 3 | [跳转](#cat-community) |
 
@@ -115,6 +115,7 @@
 | `outetts` | Llama-OuteTTS 1.0 | `tts` `clon` | 离线 | ar, be, bn, de, en, es, fa, fr …（共 23 种） | 社区（community） | — | 基于 Llama 的开源权重 TTS，23 语合成，短参考单样本克隆并支持自动词对齐。 |
 | `personaplex` | PersonaPlex | `s2s` | 离线 + 流式 | en | 稳定（supported） | `model-personaplex` | PersonaPlex：Moshi 风格全双工语音对话模型，Mimi 音频分词，内置说话人/人设提示，流式音频输入 + 文本生成 + 合成回复语音。 |
 | `piper_tts` | Piper TTS | `tts` | 离线 | en | 社区（community） | `model-piper-tts` | Piper TTS 音色的原生 VITS 推理，使用共享 eSpeak-ng 前端。 |
+| `plapre` | Plapre 3 | `tts` `clon` | 离线 + 流式 | da | 稳定（supported） | — | Plapre 3 丹麦语 TTS：Llama 自回归解码 + Kanade codec，内置 5 音色，支持克隆与流式。 |
 | `pocket_tts` | PocketTTS | `tts` `clon` | 离线 + 流式 | en, fr, de, it, pt, es | 稳定（supported） | — | Kyutai 100M 参数 CPU 友好 TTS 包：英/法/德/意/葡/西的实时本地合成与小体积克隆。 |
 | `qwen3_tts` | Qwen3-TTS | `tts` `clon` `vdes` | 离线 + 流式 | zh, en, ja, ko, de, fr, ru, pt, es, it | 稳定（supported） | `model-qwen3-tts` | Qwen TTS 系列：10 语可控合成，3 秒克隆、CustomVoice 指令控制预置音色、VoiceDesign 由自然语言描述设计音色。 |
 | `sanotts` | sanoTTS Nano | `tts` | 离线 | en, vi, id, cs, de, es, fr, it …（共 14 种） | 社区（community） | `model-sanotts` | sanoTTS Nano 超小多语 TTS（14 语）：nano 系（时长学生 + 上下文声学学生 → mel-100 + 噪声驱动 ConvNeXt-1D 解码 + iSTFT，音色 heart / heart-nano，24kHz）与确定性 piperlite 系（时长/声学学生 → 192 通道潜表示（可选校准适配）→ 3 级 ConvTranspose1d + 空洞残差，音色 amy / hfc / kristin，22.05kHz）；使用外部 eSpeak-ng 音素化。 |
@@ -179,6 +180,7 @@
 | `miocodec` | MioCodec | `vc` `s2s` | 离线 | 语言无关 | 稳定（supported） | — | MioCodec 轻量神经音频编解码：把 44.1kHz 音频编码为 25Hz 低码率离散 token，再带说话人条件解码。 |
 | `mossformer2` | MossFormer2 | `sep` | 离线 | 语言无关 | 稳定（supported） | `model-mossformer2` | MossFormer2 16kHz 重叠语音分离。 |
 | `muscriptor` | MuScriptor | `midi` | 离线 + 流式 | 音乐 | 稳定（supported） | — | MuScriptor 音频转符号：把音乐音频转为符号音符事件或 MIDI，支持乐器约束、采样、beam 搜索、批量分块与流式最终结果输出。 |
+| `open_wake_word` | OpenWakeWord | `wake` | 离线 + 流式 | en | 实验（experimental） | — | OpenWakeWord 唤醒词检测：共享语音嵌入 CNN + 分类器，英文 "alexa"。 |
 | `pulsevad` | PulseVAD | `vad` | 离线 | 语言无关 | 稳定（supported） | `model-pulsevad` | 16kHz 单声道语音活动检测，提供 2.1K 学生与 81K 教师权重。 |
 | `reuse` | RE-USE | `s2s` | 离线 | 语言无关 | 稳定（supported） | `model-reuse` | RE-USE 采样率无关语音修复，双向 Mamba。 |
 | `sam_audio` | SAM Audio | `s2s` | 离线 | 语言无关 | 稳定（supported） | `model-sam-audio` | 提示条件音频分离。 |
@@ -286,12 +288,14 @@
 - [`nemotron_3_diar`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/nemotron_3_diar.md) — Nemotron 3 Diarization
 - [`neutts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/neutts.md) — NeuTTS
 - [`omnivoice`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/omnivoice.md) — OmniVoice
+- [`open_wake_word`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/open_wake_word.md) — OpenWakeWord
 - [`outetts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/outetts.md) — Llama-OuteTTS 1.0
 - [`owsm`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/owsm.md) — OWSM
 - [`owsm_ctc`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/owsm_ctc.md) — OWSM-CTC
 - [`parakeet_tdt`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/parakeet_tdt.md) — Parakeet-TDT 0.6B v3
 - [`personaplex`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/personaplex.md) — PersonaPlex
 - [`piper_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/piper_tts.md) — Piper TTS
+- [`plapre`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/plapre.md) — Plapre 3
 - [`pulsevad`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/pulsevad.md) — PulseVAD
 - [`qwen3_asr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/qwen3_asr.md) — Qwen3-ASR
 - [`qwen3_forced_aligner`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/qwen3_forced_aligner.md) — Qwen3 Forced Aligner
