@@ -11,7 +11,7 @@
 > GGUF 加载时通常须**显式传 `family_hint`**（引擎自动探测可能误判），用法见 [audio-cpp/README.md](../audio-cpp/README.md)。
 > 上游“状态”为 audio.cpp 的成熟度标注：稳定（`supported`）/ 实验（`experimental`）/ 社区（`community`）/ 测试（`testing`）/ 开发中（`wip`），仅供参考。
 
-共收录 **125** 个上游模型族，另有 **2** 个内置 VAD 模型（随引擎编译、权重已 vendored，无需下载）。
+共收录 **130** 个上游模型族，另有 **2** 个内置 VAD 模型（随引擎编译、权重已 vendored，无需下载）。
 
 ## 内置模型（开箱即用，无需下载权重）
 
@@ -24,12 +24,12 @@
 
 | 分类 | 数量 | 跳转 |
 |---|---|---|
-| 语音识别（ASR） | 31 | [跳转](#cat-asr) |
-| 语音合成（TTS） | 48 | [跳转](#cat-tts) |
+| 语音识别（ASR） | 32 | [跳转](#cat-asr) |
+| 语音合成（TTS） | 51 | [跳转](#cat-tts) |
 | 语音转换 / 声音克隆（VC） | 5 | [跳转](#cat-voice_conversion) |
 | 语音分析（VAD · 说话人分离 · 对齐 · 分类 · 唤醒 · 轮次检测） | 7 | [跳转](#cat-speech_analysis) |
 | 音频工具（降噪 / 修复 / 超分 / 源分离 / 转谱） | 23 | [跳转](#cat-audio_tools) |
-| 音频与音乐生成 | 8 | [跳转](#cat-audio_generation) |
+| 音频与音乐生成 | 9 | [跳转](#cat-audio_generation) |
 | 其他社区模型 | 3 | [跳转](#cat-community) |
 
 <a id="cat-asr"></a>
@@ -49,13 +49,14 @@
 | `crisperwhisper` | CrisperWhisper 2.0 | `asr` `align` | 离线 + 流式 | af, am, ar, as, az, ba, be, bg …（共 99 种） | 稳定（supported） | `model-crisperwhisper` | 基于 Whisper 的逐字（verbatim）与意图转写。 |
 | `fun_asr_nano` | Fun-ASR-Nano | `asr` | 离线 | 自动检测, zh, en, ja | 开发中（wip） | `model-fun-asr-nano` | FunAudioLLM Fun-ASR-Nano-2512 离线多语识别。 |
 | `gigaam_asr` | GigaAM ASR | `asr` | 离线 | ru, kk, ky, uz, en | 稳定（supported） | `model-gigaam-asr` | GigaAM v3 / 多语 Conformer 识别，CTC 或 RNN-T 解码。 |
-| `granite5asr` | Granite Speech 5.0 470M TurboCTC | `asr` | 离线 + 流式 | en | 稳定（supported） | `model-granite5asr` | IBM Granite Speech 5.0 TurboCTC 470M：紧凑高速英文 ASR，Conformer CTC + 分块自注意力 + 自条件。 |
+| `granite5asr` | Granite Speech 5.0 470M TurboCTC | `asr` | 离线 + 流式 | en, fr, de, es, pt, it, ja | 稳定（supported） | `model-granite5asr` | IBM Granite Speech 5.0 TurboCTC 470M：紧凑高速英文 ASR，Conformer CTC + 分块自注意力 + 自条件。 |
 | `higgs_audio_stt` | Higgs Audio v3 STT | `asr` | 离线 + 流式 | en | 稳定（supported） | — | Boson AI 英文语音转写：Whisper Large v3 编码器 + Qwen 解码器。 |
 | `hviske_asr` | Hviske ASR | `asr` | 离线 | ar, da, de, el, en, es, fr, it …（共 15 种） | 稳定（supported） | `model-hviske-asr` | 面向丹麦语优化的 Conformer 编解码 ASR（Hviske v5 微调），可选 Cohere ASR 语种提示。 |
 | `hviske_asr_v6` | Hviske v6 | `asr` | 离线 | da | 稳定（supported） | `model-hviske-asr-v6` | 丹麦语识别：旋转位置 Whisper 编码器 + Qwen3 解码器。 |
 | `index_echo` | Index-Echo-S2TT | `asr` | 离线 | zh, en, es, ja | 实验（experimental） | `model-index-echo` | Index-Echo 语音转文本翻译，输出双语时间戳字幕。 |
 | `kroko_asr` | Kroko Community ASR | `asr` | 离线 + 流式 | de, en, es, fr, it, he, nl, pt, sv, tr | 社区（community） | `model-kroko-asr` | Kroko Community 单语包原生 Zipformer2 RNN-T 识别：离线 + 有状态流式，greedy / 改进 beam 解码、热词、端点分段、部分结果与词级时间戳。 |
 | `lfm2_audio` | LFM2.5-Audio | `asr` `tts` `s2s` | 离线 + 流式 | en, ja | 实验（experimental） | `model-lfm2-audio` | Liquid AI LFM2.5-Audio（加载 llama.cpp 格式 GGUF）：ASR 用 FastConformer 编码器接 LFM2 混合主干；TTS 经 depthformer 生成音频帧再由 ISTFT 还原 24kHz；S2S 输入语音问题、输出文字+音频交错。 |
+| `ming3_audio` | Ming 3.0 Audio Tiny | `asr` `s2s` `tts` `clon` | 离线 | zh, en | 实验（experimental） | `model-ming3-audio` | Ming 3.0 Audio Tiny：Whisper 音频编码器 + 混合 KDA/MLA MoE Thinker，另有连续 latent Talker 产出语音；支持 ASR、语音问答、TTS 与声音克隆，zh/en。 |
 | `moonshine_asr` | Moonshine Streaming ASR | `asr` | 离线 + 流式 | en | 实验（experimental） | `model-moonshine-asr` | Moonshine tiny/small/medium 流式英文识别。 |
 | `moss_transcribe_diarize` | MOSS-Transcribe-Diarize | `asr` | 离线 + 流式 | 自动检测, 50+ 种语言 | 稳定（supported） | `model-moss-transcribe-diarize` | Whisper 编码器 + Qwen3 解码器，联合输出 50+ 语言的转写、说话人分离与时间戳。 |
 | `nemotron_asr` | Nemotron 3.5 ASR | `asr` | 离线 + 流式 | ar-AR, bg-BG, cs-CZ, da-DK, de-DE, el-GR, en-GB, en-US …（共 40 种） | 稳定（supported） | `model-nemotron-asr` | NVIDIA 600M 流式 ASR，覆盖 40 种语言区域，支持低延迟与批处理、原生标点/大小写、自动语种检测与可配置分块。 |
@@ -96,16 +97,18 @@
 | `fish_audio` | Fish Audio S2 Pro | `tts` `clon` | 离线 + 流式 | 80+ 种语言 | 稳定（supported） | `model-fish-audio` | Fish Audio S2 Pro 语音合成，覆盖 80+ 语言，自动语种处理，支持行内韵律/情感控制与短参考快速克隆。 |
 | `fish_drama3` | Fish Audio Drama 3 | `tts` `clon` | 离线 + 流式 | 自动检测 | 实验（experimental） | `model-fish-drama3` | Fish Audio Drama 3 原生 MoE 语音生成、声音克隆与续写。 |
 | `glm_tts` | GLM-TTS | `tts` `clon` | 离线 | zh, en | 社区（community） | — | 社区中英零样本合成与克隆：原生 Llama + Whisper-VQ + Flow/DiT + CAMPPlus + HiFT。 |
+| `gradium_phonon` | Gradium Phonon | `tts` | 离线 + 流式 | en | 实验（experimental） | `model-gradium-phonon` | Gradium Phonon 31M 英文 TTS（复用 PocketTTS 运行时）：Mimi codec + flow 声学模型，预置 default 音色，支持导出/复用 voice state 与流式输出。 |
 | `higgs_audio_tts` | Higgs Audio v3 TTS | `tts` `clon` | 离线 + 流式 | 100+ 种语言 | 稳定（supported） | — | Boson AI 对话式 TTS，覆盖 100+ 语言，零样本克隆，行内控制情感、风格、韵律、停顿与音效。 |
 | `index_tts2` | IndexTTS2 | `tts` `clon` | 离线 | zh, en, ja, es, ar | 稳定（supported） | — | IndexTTS2 零样本 TTS：克隆、情感-说话人解耦、文本或音频情感控制、显式时长控制；v2 覆盖中英，v2.5 增加日/西/阿等多语 tiktoken 分词。 |
 | `inflect_v2` | Inflect Micro v2 | `tts` | 离线 | en | 社区（community） | — | 紧凑英文 VITS TTS，原生 GGML 推理 + 外部 eSpeak-ng 音素化。 |
 | `irodori_tts` | Irodori-TTS | `tts` `clon` `vdes` | 离线 + 流式 | ja | 稳定（supported） | `model-irodori-tts` | 日语 TTS：基于 RF-DiT 连续音频潜表示，支持零样本克隆、自动时长预测、多模态声音设计与 emoji 风格控制。 |
 | `kitten_tts` | KittenTTS Mini 0.8 | `tts` | 离线 | en | 社区（community） | `model-kitten-tts` | KittenTTS Mini 0.8 英文 TTS，8 个内置音色，共享 eSpeak-ng 音素化。 |
-| `kitten_tts2` | Kitten TTS 2 | `tts` `clon` | 离线 | en, ar, zh, fr, de, hi, it, pt, ru, es | 实验（experimental） | `model-kitten-tts2` | Kitten TTS 2 多语生成：Qwen3 语音生成 + S3 meanflow 解码 + 参考音频克隆。 |
+| `kitten_tts2` | Kitten TTS 2 | `tts` `clon` | 离线 | en, ar, zh, fr, de, hi, it, pt …（共 16 种） | 实验（experimental） | `model-kitten-tts2` | Kitten TTS 2 多语生成：Qwen3 语音生成 + S3 meanflow 解码 + 参考音频克隆。 |
 | `kokoro_tts` | Kokoro 82M | `tts` | 离线 + 流式 | en-us, en-gb, es, fr-fr, hi, it, ja, pt-br, zh | 社区（community） | `model-kokoro-tts` | Kokoro 82M 多语 TTS，54 个预置音色，优化 CPU 推理，共享 eSpeak-ng 音素化。 |
 | `kugelaudio` | KugelAudio-0-Open | `tts` | 离线 + 流式 | en, de, fr, es, it, pt, nl, pl …（共 23 种） | 实验（experimental） | `model-kugelaudio` | KugelAudio TTS，内置预置音色，支持增量音频输出。 |
 | `magpie_tts` | MagpieTTS Multilingual 357M | `tts` | 离线 | ar-AE, ar-MSA, ar-SA, de, en, es, fr, hi …（共 13 种） | 稳定（supported） | `model-magpie-tts` | NVIDIA MagpieTTS 多语 TTS：由文本生成 NanoCodec 音频 token（内置说话人上下文嵌入 + 纯解码器 Transformer + 自回归局部 Transformer），再解码为波形。 |
 | `maya1` | Maya1 | `tts` `vdes` | 离线 | en | 稳定（supported） | `model-maya1` | Maya Research 3B 表现力英文 TTS，支持自然语言声音设计与行内情感控制。 |
+| `ming3_tts` | Ming 3.0 TTS 0.5B | `tts` `clon` `vdes` | 离线 | zh, en, ja, ko, de, fr, es | 稳定（supported） | `model-ming3-tts` | Ming 3.0 TTS 0.5B：Qwen 主干 + flow matching 声学头 + CAMPPlus 说话人条件 + 音频 VAE，覆盖 zh/en/ja/ko/de/fr/es，支持克隆、声音设计与模板化风格控制。 |
 | `miotts` | MioTTS | `tts` `clon` | 离线 | en, ja | 稳定（supported） | — | 基于 MioCodec 的轻量 LLM 英文/日文 TTS，支持低延迟生成与短参考零样本克隆。 |
 | `mira_tts` | MiraTTS | `tts` `clon` | 离线 + 流式 | en | 实验（experimental） | `model-mira-tts` | MiraTTS 社区克隆 TTS：Qwen2 自回归语音 token 生成 + ECAPA/Perceiver 说话人分词 + 条件声学处理 + DAC 解码。 |
 | `moss_tts_local` | MOSS-TTS-Local | `tts` `clon` | 离线 | ar, cs, da, de, el, en, es, fa …（共 31 种） | 稳定（supported） | `model-moss` | MOSS-TTS 旗舰：高保真 31 语与语码混合语音、零样本克隆、长文生成，支持拼音/音素/时长细粒度控制。 |
@@ -115,7 +118,7 @@
 | `outetts` | Llama-OuteTTS 1.0 | `tts` `clon` | 离线 | ar, be, bn, de, en, es, fa, fr …（共 23 种） | 社区（community） | — | 基于 Llama 的开源权重 TTS，23 语合成，短参考单样本克隆并支持自动词对齐。 |
 | `personaplex` | PersonaPlex | `s2s` | 离线 + 流式 | en | 稳定（supported） | `model-personaplex` | PersonaPlex：Moshi 风格全双工语音对话模型，Mimi 音频分词，内置说话人/人设提示，流式音频输入 + 文本生成 + 合成回复语音。 |
 | `piper_tts` | Piper TTS | `tts` | 离线 | en | 社区（community） | `model-piper-tts` | Piper TTS 音色的原生 VITS 推理，使用共享 eSpeak-ng 前端。 |
-| `plapre` | Plapre 3 | `tts` `clon` | 离线 + 流式 | da | 稳定（supported） | — | Plapre 3 丹麦语 TTS：Llama 自回归解码 + Kanade codec，内置 5 音色，支持克隆与流式。 |
+| `plapre` | Plapre 3 | `tts` `clon` | 离线 + 流式 | da | 稳定（supported） | `model-plapre` | Plapre 3 丹麦语 TTS：Llama 自回归解码 + Kanade codec，内置 5 音色，支持克隆与流式。 |
 | `pocket_tts` | PocketTTS | `tts` `clon` | 离线 + 流式 | en, fr, de, it, pt, es | 稳定（supported） | — | Kyutai 100M 参数 CPU 友好 TTS 包：英/法/德/意/葡/西的实时本地合成与小体积克隆。 |
 | `qwen3_tts` | Qwen3-TTS | `tts` `clon` `vdes` | 离线 + 流式 | zh, en, ja, ko, de, fr, ru, pt, es, it | 稳定（supported） | `model-qwen3-tts` | Qwen TTS 系列：10 语可控合成，3 秒克隆、CustomVoice 指令控制预置音色、VoiceDesign 由自然语言描述设计音色。 |
 | `sanotts` | sanoTTS Nano | `tts` | 离线 | en, vi, id, cs, de, es, fr, it …（共 14 种） | 社区（community） | `model-sanotts` | sanoTTS Nano 超小多语 TTS（14 语）：nano 系（时长学生 + 上下文声学学生 → mel-100 + 噪声驱动 ConvNeXt-1D 解码 + iSTFT，音色 heart / heart-nano，24kHz）与确定性 piperlite 系（时长/声学学生 → 192 通道潜表示（可选校准适配）→ 3 级 ConvTranspose1d + 空洞残差，音色 amy / hfc / kristin，22.05kHz）；使用外部 eSpeak-ng 音素化。 |
@@ -127,6 +130,7 @@
 | `voxcpm1` | VoxCPM1 | `tts` `clon` | 离线 + 流式 | zh, en, ja, ko | 稳定（supported） | `model-voxcpm1` | OpenBMB VoxCPM 0.5B 无分词器 TTS，支持短参考克隆与流式输出（16kHz）。 |
 | `voxcpm2` | VoxCPM2 | `tts` `clon` `vdes` | 离线 + 流式 | ar, my, zh, 中文方言, da, nl, en, fi …（共 31 种） | 稳定（supported） | — | OpenBMB 无分词器 TTS：覆盖 30 语与 9 种中文方言，48kHz 输出，支持自然语言声音设计、可控短参考克隆与表现力风格引导。 |
 | `voxtral_tts` | Voxtral 4B TTS | `tts` | 离线 + 流式 | en, fr, es, de, it, pt, nl, ar, hi | 稳定（supported） | — | Mistral 基于 Ministral 的自回归 + 流匹配 TTS，内置 20 个预置音色。 |
+| `xtts_v2` | XTTS v2 | `tts` | 离线 | en, es, fr, de, it, pt, pl, tr …（共 17 种） | 社区（community） | `model-xtts-v2` | Coqui XTTS v2 跨语 TTS + 声音克隆：GPT-2 mel-code 生成器 + perceiver 条件重采样 + HiFi-GAN 解码器，覆盖 17 语。 |
 | `zipvoice` | ZipVoice | `tts` `clon` | 离线 + 流式 | en, zh | 社区（community） | `model-zipvoice` | 社区 ZipVoice / ZipVoice-Distill 流匹配 TTS：TTSZipformer 主干、按提示比例预测时长、带 t-shift 与无分类器引导的 Euler 求解器、Vocos mel-24kHz 声码。 |
 
 <a id="cat-voice_conversion"></a>
@@ -180,7 +184,7 @@
 | `miocodec` | MioCodec | `vc` `s2s` | 离线 | 语言无关 | 稳定（supported） | — | MioCodec 轻量神经音频编解码：把 44.1kHz 音频编码为 25Hz 低码率离散 token，再带说话人条件解码。 |
 | `mossformer2` | MossFormer2 | `sep` | 离线 | 语言无关 | 稳定（supported） | `model-mossformer2` | MossFormer2 16kHz 重叠语音分离。 |
 | `muscriptor` | MuScriptor | `midi` | 离线 + 流式 | 音乐 | 稳定（supported） | — | MuScriptor 音频转符号：把音乐音频转为符号音符事件或 MIDI，支持乐器约束、采样、beam 搜索、批量分块与流式最终结果输出。 |
-| `open_wake_word` | OpenWakeWord | `wake` | 离线 + 流式 | en | 实验（experimental） | — | OpenWakeWord 唤醒词检测：共享语音嵌入 CNN + 分类器，英文 "alexa"。 |
+| `open_wake_word` | OpenWakeWord | `wake` | 离线 + 流式 | en | 实验（experimental） | `model-open-wake-word` | OpenWakeWord 唤醒词检测：共享语音嵌入 CNN + 分类器，英文 "alexa"。 |
 | `pulsevad` | PulseVAD | `vad` | 离线 | 语言无关 | 稳定（supported） | `model-pulsevad` | 16kHz 单声道语音活动检测，提供 2.1K 学生与 81K 教师权重。 |
 | `reuse` | RE-USE | `s2s` | 离线 | 语言无关 | 稳定（supported） | `model-reuse` | RE-USE 采样率无关语音修复，双向 Mamba。 |
 | `sam_audio` | SAM Audio | `s2s` | 离线 | 语言无关 | 稳定（supported） | `model-sam-audio` | 提示条件音频分离。 |
@@ -201,6 +205,7 @@
 |---|---|---|---|---|---|---|---|
 | `ace_step` | ACE-Step | `gen` | 离线 | 50+ 种语言 | 稳定（supported） | — | 开源 ACE-Step 1.5 音乐生成模型，支持 50+ 语言的文生音乐与歌词转歌，并提供翻唱、重绘、续写、分轨、人声转伴奏等编辑路径。 |
 | `heartmula` | HeartMuLa | `gen` | 离线 | 多语 | 稳定（supported） | — | 开源音乐基础模型：由文本、歌词提示与风格标签生成完整歌曲，结构可控、多语歌词条件。 |
+| `latentsync` | LatentSync 1.6 | `gen` | 离线 | 自动检测 | 实验（experimental） | `model-latentsync` | LatentSync 1.6 音频驱动唇形同步：按输入语音改写参考视频中的人脸口型（实验性，需 FFmpeg）。 |
 | `liveavatar` | LiveAvatar | `gen` | 离线 + 流式 | 自动检测 | 实验（experimental） | `model-liveavatar` | LiveAvatar 音频驱动数字人视频生成（Wan2.2 S2V 架构）。 |
 | `midashenglm_gen` | MiDashengLM-Gen | `gen` | 离线 | 自动检测 | 实验（experimental） | `model-midashenglm-gen` | DashengLM 生成式音频模型，支持语音、音乐、音效与环境声提示生成。 |
 | `minimax_h3` | MiniMax-H3 | `tts` `gen` | 离线 | 自动检测 | 实验（experimental） | — | MiniMax-H3 文生音视频（官方 T2VA 管线）：Qwen3-VL 文本条件 + 音视频联合 DiT 去噪 + MiniMax-H3 音视频 VAE 解码。 |
@@ -251,6 +256,7 @@
 - [`fun_asr_nano`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/fun_asr_nano.md) — Fun-ASR-Nano
 - [`gigaam_asr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/gigaam_asr.md) — GigaAM ASR
 - [`glm_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/glm_tts.md) — GLM-TTS
+- [`gradium_phonon`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/gradium_phonon.md) — Gradium Phonon
 - [`granite5asr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/granite5asr.md) — Granite Speech 5.0 470M TurboCTC
 - [`higgs_audio_stt`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/higgs_audio_stt.md) — Higgs Audio v3 STT
 - [`higgs_audio_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/higgs_audio_tts.md) — Higgs Audio v3 TTS
@@ -264,6 +270,7 @@
 - [`kokoro_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/kokoro_tts.md) — Kokoro 82M
 - [`kroko_asr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/kroko_asr.md) — Kroko Community ASR
 - [`kugelaudio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/kugelaudio.md) — KugelAudio-0-Open
+- [`latentsync`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/latentsync.md) — LatentSync 1.6
 - [`lfm2_audio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/lfm2_audio.md) — LFM2.5-Audio
 - [`liveavatar`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/liveavatar.md) — LiveAvatar
 - [`magpie_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/magpie_tts.md) — MagpieTTS Multilingual 357M
@@ -271,6 +278,8 @@
 - [`meanvc2`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/meanvc2.md) — MeanVC2
 - [`micro_wake_word`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/micro_wake_word.md) — microWakeWord
 - [`midashenglm_gen`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/midashenglm_gen.md) — MiDashengLM-Gen
+- [`ming3_audio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/ming3_audio.md) — Ming 3.0 Audio Tiny
+- [`ming3_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/ming3_tts.md) — Ming 3.0 TTS 0.5B
 - [`minimax_h3`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/minimax_h3.md) — MiniMax-H3
 - [`minimax_music3`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/minimax_music3.md) — MiniMax Music 3
 - [`miotts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/miotts.md) — MioTTS

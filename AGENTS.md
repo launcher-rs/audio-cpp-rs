@@ -116,8 +116,84 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `ccdbe769`（origin/main；从 `22cad6af` 快进 49 个提交）。
+- 当前 submodule HEAD = `e9303b76`（origin/main；从 `ccdbe769` 快进 77 个提交）。
   crate 版本为 **0.8.1**（workspace 统一；历史见下条与逐条升级记录）。
+- **升级 `ccdbe769`→`e9303b76`（main）审查结论**：
+  - diff 共 472 文件（+34.7k/-2.0k，77 个提交）：新增 5 个 loader 族
+    （`audiocpp_add_model` 121→125，去重 loader 名 125→130 = spec 文件数 =
+    `ModelFamily` 非内置族数，各处计数已统一改为 **130**）：
+    `gradium_phonon`（Gradium Phonon 31M 英文 TTS，复用 PocketTTS 运行时：
+    Mimi codec + flow 声学模型，预置 `default` 音色，支持导出/复用 voice
+    state；task `tts` 离线+流式；**与 `pocket_tts` 同属 `pocket_tts`
+    CMake target**，经 `ALIASES gradium_phonon` 作为 AUDIOCPP_MODELS 条目）/
+    `latentsync`（LatentSync 1.6 音频驱动唇形同步，实验性；task `sfx`
+    即 `gen` 仅离线，请求选项 `reference_video_file` 必填、需 FFmpeg）/
+    `ming3_audio`（Ming 3.0 Audio Tiny：Whisper 编码器 + 混合 KDA/MLA MoE
+    Thinker + 连续 latent Talker，zh/en；task `asr`/`s2s`/`tts`/`clon`
+    仅离线，300+ 内置 Talker 音色）/ `ming3_tts`（Ming 3.0 TTS 0.5B：
+    Qwen 主干 + flow matching 声学头 + CAMPPlus + 音频 VAE，7 语；
+    task `tts`/`clon`/`vdes` 仅离线）/ `xtts_v2`（Coqui XTTS v2 跨语 TTS +
+    克隆，17 语；task `tts` 仅离线，参考音频即说话人条件）。
+    其余为 LoRA 合并工具 / RKNN sidecar 扩展 / 各 TTS 的 CUDA·Metal 性能
+    选项与 `cuda_perf` 预设 / CJK 文本分块默认值调整 / GGUF 数组元数据批量
+    读取 / server/WebUI（LatentSync 面板等）等内部改进。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 5 个头中
+    `framework/core/backend.h` / `framework/io/json.h` /
+    `framework/runtime/session.h` 本次 diff **零改动**
+    （`task_vocabulary.{h,cpp}` / `errors.h` / `options.h` 亦零改动，
+    14 种 task 不变）。`model.h` 纯加法（`ModelEngineRequirement` /
+    `ModelResourcePlan` + `IVoiceModelLoader::model_resources` 带默认实现
+    的虚函数）、`registry.h` 纯加法（`Registry::model_resources`）、
+    `spec_backed_model.h` 纯加法（可选 `model_resources` 回调 + override），
+    均不经 C ABI；`runtime/kv_cache.h` 仅内部加法。`capi.h` / `capi.cpp` /
+    build.rs bindgen allowlist（`audiocpp_.*`）保持原样，
+    `bindings.docsrs.rs` 无需重拷。
+  - 无新 task 类型 / 输出字段：5 新族复用既有 `tts`/`clon`/`vdes`/`asr`/
+    `s2s`/`gen`（spec 的 `sfx`/`clone`/`design` 是既有别名），全部新选项
+    （latentsync 视频/步数系、ming3 模板/音色/flow 系、gradium voice state/
+    graph capacity 系、xtts 采样系）走通用 options 字符串透传。
+    高层 `types.rs` serde 结构无需改。
+  - **新增数组选项缺口（记录，不实现）**：`ming3_tts` 的
+    `speaker_embedding_file` 类型为 `path_list`（上游 spec 层要求数组，
+    走 `TaskRequest::option_arrays`）；本仓 shim 仍只暴露字符串 options
+    （未接上游 opt-in C API 的 `audiocpp_request_set_option_array`），
+    故该选项暂不可达。kokoro `phonemes`（`string_list`）缺口依旧。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 5 个枚举变体
+    `GradiumPhonon`（`as_str()` → `"gradium_phonon"`）/ `Latentsync`
+    （→ `"latentsync"`）/ `Ming3Audio`（→ `"ming3_audio"`）/ `Ming3Tts`
+    （→ `"ming3_tts"`）/ `XttsV2`（→ `"xtts_v2"`，均与上游 loader 族名
+    一致）+ `from_path()` 关键词表（`gradium_phonon`/`gradium`；
+    `latentsync`/`latent-sync`；`ming3_audio`/`ming-3.0-audio` 置于裸
+    `ming3` 之前；`ming3_tts`/`ming-3.0-tts` + 裸 `ming3` 兜底；
+    `xtts_v2`/`xtts-v2`/`xtts`；`phonon-31m`/`phonon-40m` 对应打包权重名，
+    **不收裸 `phonon`/`phonon-2`**，避免与 Parakeet Phonon-2 手动转换权重
+    误判）+ `From<&str>`；并在两个 Cargo.toml 新增
+    `model-gradium-phonon`（alias，等价 `model-pocket-tts`）/`model-latentsync`/
+    `model-ming3-audio`/`model-ming3-tts`/`model-xtts-v2` 五个 feature
+    （build.rs 自动映射 CMake target/alias）。`model_family_roundtrip` /
+    `model_family_from_path`（含 `phonon-*` 返回 None、ming3_audio 不被
+    `ming3` 吞掉的回归断言）测试已覆盖。
+  - **顺带修补**：`audio-cpp/Cargo.toml` 缺 `model-plapre` /
+    `model-open-wake-word` 的高层转发（sys 侧上次已加），本次补齐。
+  - 5 新族 session 均自持资产（`shared_ptr<const *Assets>` + contract），
+    `Session` 独立于 `Model` 存活的保证成立。
+  - 验证：`cargo fmt --check` + `cargo build --workspace`（build.rs 跟踪
+    submodule HEAD 正常触发全量重编，4m14s）+ `cargo test --workspace`
+    （32 lib + 12 doc 全过）+ `cargo clippy --workspace --all-targets`
+    零警告 + `cargo check -p audio-cpp-sys --features custom-models,
+    model-gradium-phonon,model-latentsync,model-ming3-audio,
+    model-ming3-tts,model-xtts-v2`（5 个 feature→CMake target/alias 映射
+    全部通过，3m44s）。
+  - 重跑 `pwsh -File scripts/gen-models-doc.ps1` 刷新 `docs/models.md`
+    （130 族 + 2 内置 VAD；ASR 31→32 / TTS 48→51 / 音频与音乐生成 8→9），
+    并在 `scripts/model-desc-zh.tsv` 补 5 条中文简介（missing zh desc = 0）。
+    顺带修脚本 feature 归因：同 target 多 loader 时，主 loader（族名 = target
+    名，如 `pocket_tts`）不再显示同 target 其它 loader 的专用 feature
+    （`model-gradium-phonon`），次级 loader（如 `vibevoice_asr_streaming`、
+    `htdemucs_6stems`、`moss_tts_nano`）仍显示 target 级 feature。
+  - 注意：`metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制回落
+    源码构建（预编译自动下载被跳过），属预期；`cargo publish` / tag /
+    Release / 预编译资产上传均属第 6 节发布操作，须用户显式下达，本次未执行。
 - **升级 `22cad6af`→`ccdbe769`（main）审查结论**：
   - diff 共 260 文件（+18.7k/-2.1k，49 个提交）：新增 2 个 CMake target
     （`audiocpp_add_model` 119→121，去重 loader 名 123→125 = spec 文件数 =

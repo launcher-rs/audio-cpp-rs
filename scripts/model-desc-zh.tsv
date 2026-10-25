@@ -36,6 +36,7 @@ fish_drama3	Fish Audio Drama 3 原生 MoE 语音生成、声音克隆与续写�
 fun_asr_nano	FunAudioLLM Fun-ASR-Nano-2512 离线多语识别。
 gigaam_asr	GigaAM v3 / 多语 Conformer 识别，CTC 或 RNN-T 解码。
 glm_tts	社区中英零样本合成与克隆：原生 Llama + Whisper-VQ + Flow/DiT + CAMPPlus + HiFT。
+gradium_phonon	Gradium Phonon 31M 英文 TTS（复用 PocketTTS 运行时）：Mimi codec + flow 声学模型，预置 default 音色，支持导出/复用 voice state 与流式输出。
 granite5asr	IBM Granite Speech 5.0 TurboCTC 470M：紧凑高速英文 ASR，Conformer CTC + 分块自注意力 + 自条件。
 heartmula	开源音乐基础模型：由文本、歌词提示与风格标签生成完整歌曲，结构可控、多语歌词条件。
 higgs_audio_stt	Boson AI 英文语音转写：Whisper Large v3 编码器 + Qwen 解码器。
@@ -53,6 +54,7 @@ kitten_tts2	Kitten TTS 2 多语生成：Qwen3 语音生成 + S3 meanflow 解码 
 kokoro_tts	Kokoro 82M 多语 TTS，54 个预置音色，优化 CPU 推理，共享 eSpeak-ng 音素化。
 kroko_asr	Kroko Community 单语包原生 Zipformer2 RNN-T 识别：离线 + 有状态流式，greedy / 改进 beam 解码、热词、端点分段、部分结果与词级时间戳。
 kugelaudio	KugelAudio TTS，内置预置音色，支持增量音频输出。
+latentsync	LatentSync 1.6 音频驱动唇形同步：按输入语音改写参考视频中的人脸口型（实验性，需 FFmpeg）。
 lfm2_audio	Liquid AI LFM2.5-Audio（加载 llama.cpp 格式 GGUF）：ASR 用 FastConformer 编码器接 LFM2 混合主干；TTS 经 depthformer 生成音频帧再由 ISTFT 还原 24kHz；S2S 输入语音问题、输出文字+音频交错。
 liveavatar	LiveAvatar 音频驱动数字人视频生成（Wan2.2 S2V 架构）。
 magpie_tts	NVIDIA MagpieTTS 多语 TTS：由文本生成 NanoCodec 音频 token（内置说话人上下文嵌入 + 纯解码器 Transformer + 自回归局部 Transformer），再解码为波形。
@@ -61,6 +63,8 @@ meanvc2	MeanVC2 轻量流式零样本声音转换；当前包覆盖推荐的 120
 mel_band_roformer	Mel-Band RoFormer 分离：mel 尺度重叠频带 + RoFormer 注意力，估计人声 / 鼓 / 伴奏等。
 micro_wake_word	microWakeWord MixedNet（TFLite 转 GGUF）流式唤醒词检测。
 midashenglm_gen	DashengLM 生成式音频模型，支持语音、音乐、音效与环境声提示生成。
+ming3_audio	Ming 3.0 Audio Tiny：Whisper 音频编码器 + 混合 KDA/MLA MoE Thinker，另有连续 latent Talker 产出语音；支持 ASR、语音问答、TTS 与声音克隆，zh/en。
+ming3_tts	Ming 3.0 TTS 0.5B：Qwen 主干 + flow matching 声学头 + CAMPPlus 说话人条件 + 音频 VAE，覆盖 zh/en/ja/ko/de/fr/es，支持克隆、声音设计与模板化风格控制。
 minimax_h3	MiniMax-H3 文生音视频（官方 T2VA 管线）：Qwen3-VL 文本条件 + 音视频联合 DiT 去噪 + MiniMax-H3 音视频 VAE 解码。
 minimax_music3	MiniMax Music 3 文生音乐，支持歌词条件。
 miocodec	MioCodec 轻量神经音频编解码：把 44.1kHz 音频编码为 25Hz 低码率离散 token，再带说话人条件解码。
@@ -125,5 +129,6 @@ voxcpm2	OpenBMB 无分词器 TTS：覆盖 30 语与 9 种中文方言，48kHz �
 voxtral_realtime	Mistral 13 语实时 ASR，原生流式因果音频编码器，可配置低延迟转写，精度接近离线开源系统。
 voxtral_tts	Mistral 基于 Ministral 的自回归 + 流匹配 TTS，内置 20 个预置音色。
 whistle_asr	Whistle 离线识别，本地转换 FP32 GGUF，运行于 CPU 或 Metal。
+xtts_v2	Coqui XTTS v2 跨语 TTS + 声音克隆：GPT-2 mel-code 生成器 + perceiver 条件重采样 + HiFi-GAN 解码器，覆盖 17 语。
 yue2	YuE2 音乐生成：符号 ABC 规划 + 语义 codec 生成 + NAR 声学流合成 + Oobleck VAE 解码。
 zipvoice	社区 ZipVoice / ZipVoice-Distill 流匹配 TTS：TTSZipformer 主干、按提示比例预测时长、带 t-shift 与无分类器引导的 Euler 求解器、Vocos mel-24kHz 声码。

@@ -117,7 +117,7 @@ foreach ($feat in $features) {
     $suffix = $feat.Substring('model-'.Length).Replace('-', '_')
     $tgt = if ($aliasMap.ContainsKey($suffix)) { $aliasMap[$suffix] } else { $suffix }
     if (-not $targetFeature.ContainsKey($tgt)) { $targetFeature[$tgt] = @() }
-    $targetFeature[$tgt] += $feat
+    $targetFeature[$tgt] += [pscustomobject]@{ feat = $feat; suffix = $suffix }
 }
 
 # ---- 上游 docs/models/*.md 集合 ----
@@ -129,7 +129,19 @@ if (Test-Path $upDocsDir) {
 function Get-FeatureCell($family) {
     if ($familyTarget.ContainsKey($family)) {
         $t = $familyTarget[$family]
-        if ($targetFeature.ContainsKey($t)) { return ('`' + ($targetFeature[$t] -join '` / `') + '`') }
+        if ($targetFeature.ContainsKey($t)) {
+            $feats = $targetFeature[$t]
+            # 族名即 target 名的主 loader：只列同名 feature 与不带族名后缀的
+            # 通用 feature；同 target 下其它 loader 的 feature（如
+            # model-gradium-phonon 之于 pocket_tts）虽也能编入，但不作为该族
+            # 的推荐入口（该族走 custom-models + AUDIOCPP_MODELS=<族>）。
+            if ($family -eq $t) {
+                $feats = $feats | Where-Object {
+                    -not ($familyTarget.ContainsKey($_.suffix) -and $_.suffix -ne $family)
+                }
+            }
+            if ($feats) { return ('`' + (($feats | ForEach-Object { $_.feat }) -join '` / `') + '`') }
+        }
     }
     return '—'
 }

@@ -54,7 +54,7 @@ prebuilt = []
 # vendored 在 audio.cpp/assets/framework/models/，无需下载任何权重。
 # 这也是编译最快、开箱即用的最小编译集，适合仅用 VAD 或验证绑定链路的场景。
 core-models = []
-# 全量编译 audio.cpp 支持的 125 个 loader 族（随上游增长，以
+# 全量编译 audio.cpp 支持的 130 个 loader 族（随上游增长，以
 # audio.cpp/CMakeLists.txt 的 make_*_loader 为准）。注意：全量编译耗时很长且生成
 # 的静态库很大；并不等于"能运行任意模型"，权重文件仍需自行下载。
 # 日常建议优先用模型族 feature 或 custom-models 按需编译，只有需要一次
@@ -165,6 +165,11 @@ model-open-wake-word = ["custom-models"]                # Wake word: OpenWakeWor
 model-sherpa-kws = ["custom-models"]                    # Wake word: sherpa-onnx Zipformer KWS (wake, offline+streaming)
 model-hviske-asr-v6 = ["custom-models"]                 # ASR: Hviske v6 Danish Whisper+Qwen3 (offline)
 model-whistle-asr = ["custom-models"]                   # ASR: Whistle offline (community, offline)
+model-gradium-phonon = ["custom-models"]                # TTS: Gradium Phonon on PocketTTS runtime (offline+streaming)
+model-latentsync = ["custom-models"]                    # Audio generation: LatentSync 1.6 lip sync (sfx, offline)
+model-ming3-audio = ["custom-models"]                   # ASR/TTS: Ming 3.0 Audio Tiny (asr/s2s/tts/clon, offline)
+model-ming3-tts = ["custom-models"]                     # TTS: Ming 3.0 TTS 0.5B (tts/clon/design, offline)
+model-xtts-v2 = ["custom-models"]                       # TTS: Coqui XTTS v2 multilingual cloning (offline)
 
 # ------------------------------------------------------------------------
 # 计算后端 feature（可叠加，映射 engine 的 ENGINE_ENABLE_*_CPU 选项）。

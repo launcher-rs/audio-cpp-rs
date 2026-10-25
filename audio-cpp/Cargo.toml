@@ -39,7 +39,7 @@ default = ["core-models"]
 prebuilt = ["audio-cpp-sys/prebuilt"]
 # 转发给 audio-cpp-sys 的模型组合 / 后端 feature。
 core-models = ["audio-cpp-sys/core-models"]   # 引擎核心 + 内置 VAD（默认，最小编译集）
-full-models = ["audio-cpp-sys/full-models"]   # 全量 125 个 loader 族（编译慢）
+full-models = ["audio-cpp-sys/full-models"]   # 全量 130 个 loader 族（编译慢）
 # 按需编译：可直接启用 `model-<族>` feature（推荐），或设置环境变量
 # `$env:AUDIOCPP_MODELS="qwen3_asr,citrinet_asr"` 后用本开关。
 # 示例：cargo run --features model-qwen3-asr
@@ -136,6 +136,13 @@ model-micro-wake-word = ["audio-cpp-sys/model-micro-wake-word"]  # Wake word: mi
 model-sherpa-kws = ["audio-cpp-sys/model-sherpa-kws"]  # Wake word: sherpa KWS (offline+streaming)
 model-hviske-asr-v6 = ["audio-cpp-sys/model-hviske-asr-v6"]  # ASR: Hviske v6 Danish
 model-whistle-asr = ["audio-cpp-sys/model-whistle-asr"]  # ASR: Whistle (community, offline)
+model-gradium-phonon = ["audio-cpp-sys/model-gradium-phonon"]  # TTS: Gradium Phonon (PocketTTS runtime)
+model-latentsync = ["audio-cpp-sys/model-latentsync"]  # Audio generation: LatentSync 1.6 lip sync
+model-ming3-audio = ["audio-cpp-sys/model-ming3-audio"]  # ASR/TTS: Ming 3.0 Audio Tiny
+model-ming3-tts = ["audio-cpp-sys/model-ming3-tts"]  # TTS: Ming 3.0 TTS 0.5B
+model-xtts-v2 = ["audio-cpp-sys/model-xtts-v2"]  # TTS: Coqui XTTS v2 multilingual cloning
+model-plapre = ["audio-cpp-sys/model-plapre"]  # TTS: Plapre 3 (Danish)
+model-open-wake-word = ["audio-cpp-sys/model-open-wake-word"]  # Wake word: OpenWakeWord
 cuda = ["audio-cpp-sys/cuda"]     # NVIDIA CUDA（需 CUDA Toolkit）
 hip = ["audio-cpp-sys/hip"]       # AMD HIP/ROCm（与 cuda 互斥）
 vulkan = ["audio-cpp-sys/vulkan"] # Vulkan 通用后端（需 Vulkan SDK）

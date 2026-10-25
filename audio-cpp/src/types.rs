@@ -272,6 +272,10 @@ pub enum ModelFamily {
     Outetts,
     /// Pocket TTS
     PocketTts,
+    /// Gradium Phonon（与 PocketTTS 同运行时：Mimi codec + flow 声学模型，
+    /// 预置音色 `default`，可导出/复用 voice state；task 为 `tts`，
+    /// 离线+流式；与 `pocket_tts` 同属 `pocket_tts` CMake target）
+    GradiumPhonon,
     /// VieNeu TTS v3 Turbo（越南语/英语 48kHz TTS + 即时声音克隆，社区模型；
     /// 上游族名由 `vietneu_tts` 改名而来，旧名仍可经 `From<&str>` 解析；
     /// task 为 `tts`/`clon` 仅离线；文本输入为 SEA-G2P 音素）
@@ -331,6 +335,14 @@ pub enum ModelFamily {
     /// MOSS-TTSD（8B delay-pattern 对话 TTS：单遍多说话人 + 逐人零样本克隆，
     /// 24kHz 16 codebook；task 为 `tts`/`clon` 仅离线）
     MossTtsd,
+    /// Ming 3.0 TTS 0.5B（Qwen 主干 + flow matching 声学头 + CAMPPlus 说话人
+    /// 条件 + 音频 VAE，zh/en/ja/ko/de/fr/es；task 为 `tts`/`clon`/`vdes`
+    /// 仅离线；`voice_design`/`freeform` 等模板经 `template_name` 选择）
+    Ming3Tts,
+    /// XTTS v2（Coqui 跨语 TTS + 声音克隆：GPT-2 mel-code 生成器 + perceiver
+    /// 条件重采样 + HiFi-GAN 解码器，17 语；task 为 `tts` 仅离线；
+    /// 参考音频即说话人条件，`language` 选项必填）
+    XttsV2,
 
     // ---- 说话人分离 / 语音转换 / 音乐生成 ----
     /// SortFormer 说话人分离（Diar）
@@ -412,6 +424,10 @@ pub enum ModelFamily {
     /// LiveAvatar（Wan S2V 音频驱动数字人；task 为 `sfx`（即 `gen`），
     /// 离线+流式）
     Liveavatar,
+    /// LatentSync 1.6（音频驱动唇形同步参考视频，实验性；task 为 `sfx`
+    /// （即 `gen`）仅离线；请求选项 `reference_video_file` 必填，
+    /// 需 FFmpeg 在 PATH）
+    Latentsync,
     /// RE-USE（采样率无关语音修复，双向 Mamba；task 为 `s2s` 仅离线）
     Reuse,
     /// SAM Audio（prompt 条件音频分离；task 为 `s2s` 仅离线）
@@ -462,6 +478,10 @@ pub enum ModelFamily {
     Qwen3ForcedAligner,
     /// MMS Forced Aligner（强制对齐，社区模型）
     MmsForcedAligner,
+    /// Ming 3.0 Audio Tiny（Whisper 音频编码器 + 混合 KDA/MLA MoE Thinker，
+    /// 另有连续 latent Talker 产出语音；task 为 `asr`/`s2s`/`tts`/`clon`
+    /// 仅离线，zh/en；内置 300+ Talker 音色，克隆需参考音频）
+    Ming3Audio,
 
     /// 未收录的模型族名（原样传给 C 边界）。
     Custom(String),
@@ -618,6 +638,15 @@ impl ModelFamily {
             ("moss", ModelFamily::MossTtsNano),
             ("neutts", ModelFamily::Neutts),
             ("outetts", ModelFamily::Outetts),
+            ("gradium_phonon", ModelFamily::GradiumPhonon),
+            ("gradium-phonon", ModelFamily::GradiumPhonon),
+            ("gradium", ModelFamily::GradiumPhonon),
+            // 打包权重名为 phonon-31m-en-*.gguf；只收带尺寸的 Phonon 名，
+            // 不收裸 "phonon"，避免与 Parakeet Phonon-2 手动转换权重误判。
+            ("phonon-31m", ModelFamily::GradiumPhonon),
+            ("phonon_31m", ModelFamily::GradiumPhonon),
+            ("phonon-40m", ModelFamily::GradiumPhonon),
+            ("phonon_40m", ModelFamily::GradiumPhonon),
             ("pocket_tts", ModelFamily::PocketTts),
             ("pocket-tts", ModelFamily::PocketTts),
             ("vietneu", ModelFamily::VieneuV3Turbo),
@@ -662,6 +691,19 @@ impl ModelFamily {
             ("maya-1", ModelFamily::Maya1),
             ("maya_1", ModelFamily::Maya1),
             ("maya", ModelFamily::Maya1),
+            // ming3_audio 必须排在裸 "ming3" 之前，否则会被吞成 Ming3Tts。
+            ("ming3_audio", ModelFamily::Ming3Audio),
+            ("ming3-audio", ModelFamily::Ming3Audio),
+            ("ming-3.0-audio", ModelFamily::Ming3Audio),
+            ("ming_3.0_audio", ModelFamily::Ming3Audio),
+            ("ming3_tts", ModelFamily::Ming3Tts),
+            ("ming3-tts", ModelFamily::Ming3Tts),
+            ("ming-3.0-tts", ModelFamily::Ming3Tts),
+            ("ming_3.0_tts", ModelFamily::Ming3Tts),
+            ("ming3", ModelFamily::Ming3Tts),
+            ("xtts_v2", ModelFamily::XttsV2),
+            ("xtts-v2", ModelFamily::XttsV2),
+            ("xtts", ModelFamily::XttsV2),
             ("voxcpm1", ModelFamily::Voxcpm1),
             ("voxcpm-1", ModelFamily::Voxcpm1),
             ("sanotts", ModelFamily::Sanotts),
@@ -717,6 +759,9 @@ impl ModelFamily {
             ("zip-voice", ModelFamily::Zipvoice),
             ("liveavatar", ModelFamily::Liveavatar),
             ("live-avatar", ModelFamily::Liveavatar),
+            ("latentsync", ModelFamily::Latentsync),
+            ("latent-sync", ModelFamily::Latentsync),
+            ("latent_sync", ModelFamily::Latentsync),
             ("reuse", ModelFamily::Reuse),
             ("re-use", ModelFamily::Reuse),
             ("sam_audio", ModelFamily::SamAudio),
@@ -889,6 +934,7 @@ impl ModelFamily {
             ModelFamily::Neutts => "neutts",
             ModelFamily::Outetts => "outetts",
             ModelFamily::PocketTts => "pocket_tts",
+            ModelFamily::GradiumPhonon => "gradium_phonon",
             ModelFamily::VieneuV3Turbo => "vieneu_v3_turbo",
             ModelFamily::Fireredtts3 => "fireredtts3",
             ModelFamily::F5Tts => "f5_tts",
@@ -907,6 +953,8 @@ impl ModelFamily {
             ModelFamily::Kugelaudio => "kugelaudio",
             ModelFamily::Maya1 => "maya1",
             ModelFamily::MossTtsd => "moss_ttsd",
+            ModelFamily::Ming3Tts => "ming3_tts",
+            ModelFamily::XttsV2 => "xtts_v2",
             ModelFamily::MinimaxH3 => "minimax_h3",
             ModelFamily::Sanotts => "sanotts",
             ModelFamily::SoproTts => "sopro_tts",
@@ -946,6 +994,7 @@ impl ModelFamily {
             ModelFamily::ControlFoley => "controlfoley",
             ModelFamily::MidashEnglmGen => "midashenglm_gen",
             ModelFamily::Liveavatar => "liveavatar",
+            ModelFamily::Latentsync => "latentsync",
             ModelFamily::Reuse => "reuse",
             ModelFamily::SamAudio => "sam_audio",
             ModelFamily::Sidon => "sidon",
@@ -963,6 +1012,7 @@ impl ModelFamily {
             ModelFamily::InflectV2 => "inflect_v2",
             ModelFamily::Qwen3ForcedAligner => "qwen3_forced_aligner",
             ModelFamily::MmsForcedAligner => "mms_forced_aligner",
+            ModelFamily::Ming3Audio => "ming3_audio",
             ModelFamily::Custom(s) => s,
         }
     }
@@ -1033,6 +1083,9 @@ impl From<&str> for ModelFamily {
             "neutts" => ModelFamily::Neutts,
             "outetts" => ModelFamily::Outetts,
             "pocket_tts" => ModelFamily::PocketTts,
+            "gradium_phonon" => ModelFamily::GradiumPhonon,
+            "gradium-phonon" => ModelFamily::GradiumPhonon,
+            "gradium" => ModelFamily::GradiumPhonon,
             "vietneu_tts" => ModelFamily::VieneuV3Turbo,
             "vieneu_v3_turbo" => ModelFamily::VieneuV3Turbo,
             "fireredtts3" => ModelFamily::Fireredtts3,
@@ -1053,6 +1106,13 @@ impl From<&str> for ModelFamily {
             "kugelaudio" => ModelFamily::Kugelaudio,
             "maya1" => ModelFamily::Maya1,
             "moss_ttsd" => ModelFamily::MossTtsd,
+            "ming3_tts" => ModelFamily::Ming3Tts,
+            "ming3-tts" => ModelFamily::Ming3Tts,
+            "ming3_audio" => ModelFamily::Ming3Audio,
+            "ming3-audio" => ModelFamily::Ming3Audio,
+            "xtts_v2" => ModelFamily::XttsV2,
+            "xtts-v2" => ModelFamily::XttsV2,
+            "xtts" => ModelFamily::XttsV2,
             "minimax_h3" => ModelFamily::MinimaxH3,
             "sanotts" => ModelFamily::Sanotts,
             "sopro_tts" => ModelFamily::SoproTts,
@@ -1101,6 +1161,8 @@ impl From<&str> for ModelFamily {
             "controlfoley" => ModelFamily::ControlFoley,
             "midashenglm_gen" => ModelFamily::MidashEnglmGen,
             "liveavatar" => ModelFamily::Liveavatar,
+            "latentsync" => ModelFamily::Latentsync,
+            "latent-sync" => ModelFamily::Latentsync,
             "reuse" => ModelFamily::Reuse,
             "sam_audio" => ModelFamily::SamAudio,
             "sidon" => ModelFamily::Sidon,
@@ -1586,6 +1648,7 @@ mod tests {
             Neutts,
             Outetts,
             PocketTts,
+            GradiumPhonon,
             VieneuV3Turbo,
             Fireredtts3,
             F5Tts,
@@ -1604,6 +1667,8 @@ mod tests {
             Kugelaudio,
             Maya1,
             MossTtsd,
+            Ming3Tts,
+            XttsV2,
             MinimaxH3,
             Sanotts,
             SoproTts,
@@ -1644,6 +1709,7 @@ mod tests {
             ControlFoley,
             MidashEnglmGen,
             Liveavatar,
+            Latentsync,
             Reuse,
             SamAudio,
             Sidon,
@@ -1663,6 +1729,7 @@ mod tests {
             InflectV2,
             Qwen3ForcedAligner,
             MmsForcedAligner,
+            Ming3Audio,
         ];
         assert!(
             variants.len() >= 40,
@@ -1974,6 +2041,37 @@ mod tests {
         assert_eq!(
             ModelFamily::from_path("deepfilternet2"),
             Some(ModelFamily::BuiltinAudioUtils)
+        );
+        // gradium_phonon 与 pocket_tts 互不误判（同 target、不同 loader 族）。
+        assert_eq!(ModelFamily::from_path("phonon-2-q8_0.gguf"), None);
+        assert_eq!(
+            ModelFamily::from_path("phonon-31m-en-q8_0.gguf"),
+            Some(ModelFamily::GradiumPhonon)
+        );
+        assert_eq!(
+            ModelFamily::from_path("gradium-phonon-31m-en-q8_0.gguf"),
+            Some(ModelFamily::GradiumPhonon)
+        );
+        assert_eq!(
+            ModelFamily::from_path("pocket-tts-q8_0.gguf"),
+            Some(ModelFamily::PocketTts)
+        );
+        // ming3_audio 不被裸 "ming3" 吞成 Ming3Tts；权重名两种写法均命中。
+        assert_eq!(
+            ModelFamily::from_path("ming-3.0-audio-tiny-bf16.gguf"),
+            Some(ModelFamily::Ming3Audio)
+        );
+        assert_eq!(
+            ModelFamily::from_path("ming-3.0-tts-0.5b-bf16.gguf"),
+            Some(ModelFamily::Ming3Tts)
+        );
+        assert_eq!(
+            ModelFamily::from_path("xtts-v2-gpt-q8_0.gguf"),
+            Some(ModelFamily::XttsV2)
+        );
+        assert_eq!(
+            ModelFamily::from_path("latentsync-1.6-q8_0-f16.gguf"),
+            Some(ModelFamily::Latentsync)
         );
         // 大小写不敏感
         assert_eq!(
