@@ -157,6 +157,13 @@ pub enum ModelFamily {
     /// FireRed VAD（DFSMN 语音活动检测，16kHz mono；离线+流式，
     /// 流式需 Stream-VAD checkpoint；选项 `threshold` 等）
     FireredVad,
+    /// Earshot VAD（原生 C++ 移植的语音活动检测，16kHz mono，16ms 帧；
+    /// task 为 `vad`，离线+流式；权重为 `earshot_vad.safetensors`（非 GGUF），
+    /// CMake target `earshot_vad`（alias `earshot`）；流式硬要求 16kHz 单声道；
+    /// 阈值选项 `threshold`/`neg_threshold`，另支持 `smoothing_factor`/
+    /// `speech_pad_ms`/`min_speech_duration_ms`/`min_silence_duration_ms`/
+    /// `start_delay_ms`/`keep_trailing_segment`/会话选项 `exec_plan`）
+    EarshotVad,
 
     // ---- ASR ----
     /// Qwen3 ASR
@@ -182,6 +189,13 @@ pub enum ModelFamily {
     /// CMake target `nemotron_3_diar`，用 `model-nemotron-3-diar` feature 编译；
     /// task 为 `diar`，离线+原生批+流式，16kHz 输入）
     Nemotron3Diar,
+    /// Nemotron 3.5 Transcribe 30B-A4B（NVIDIA Nemotron-H 语音大模型，实验性；
+    /// CMake target `nemotron_transcribe`，用 `model-nemotron-transcribe` feature
+    /// 编译；task 为 `asr` 仅离线；输出含 `word_timestamps` + `speaker_turns` +
+    /// `custom_schema_output`；请求选项 `template_name`/`return_timestamps`/
+    /// `diarization`，会话选项 `disk_experts`/`pin_experts`/`expert_cache_size`
+    /// 等 CPU 专家卸载系）
+    NemotronTranscribe,
     /// Parakeet TDT
     ParakeetTdt,
     /// Vibevoice ASR
@@ -224,6 +238,12 @@ pub enum ModelFamily {
     IndexEcho,
     /// LFM2-Audio（Liquid LFM2.5-Audio，FastConformer 编码器；task 为 `asr` 仅离线）
     Lfm2Audio,
+    /// LFM3-Audio（Liquid AI LFM3-Audio-2B，实验性；log-mel 编码器 + LFM3 混合
+    /// conv/attention 主干，TTS 走 MaskGIT depth 解码 + LiquidCodec 得 24kHz；
+    /// CMake target `lfm3_audio`，用 `model-lfm3-audio` feature 编译；
+    /// task 为 `asr`/`tts`/`s2s`，离线+流式，18 语种（无 auto）；
+    /// S2S 多轮历史经 `output_artifacts` 的 `lfm3_audio.reply` 产物回传）
+    Lfm3Audio,
     /// OWSM（ESPnet Open Whisper 式多语 ASR/翻译；task 为 `asr`，离线+流式）
     Owsm,
     /// OWSM-CTC（ESPnet 非自回归多语 ASR/翻译；task 为 `asr`，离线+流式）
@@ -396,6 +416,12 @@ pub enum ModelFamily {
     /// YuE2（音乐生成：符号 ABC 规划 + 语义 codec + NAR 声学流合成；
     /// 仅离线，task 为 `gen`；请求为纯文本（歌词）+ `style` 选项，不消费音频）
     Yue2,
+    /// Magenta RealTime 2（Google 帧自回归立体声音乐生成，实验性；文本/音频风格/
+    /// MIDI 条件；CMake target `magenta_realtime_2`，用 `model-magenta-realtime-2`
+    /// feature 编译；task 为 `music`（即 `gen`），离线+流式；结果在 `audio_output`；
+    /// 请求选项 `duration_sec`/`guidance_scale`/`note_guidance_scale`/
+    /// `drum_guidance_scale`/`use_mapper`/`pianoroll_file`（JSON 字符串）/`drums`）
+    MagentaRealtime2,
     /// SheetSage2（音频转符号谱：输入录音，输出 ABC 乐谱产物；
     /// 仅离线，task 为 `midi`；结果在 `artifact_output` / `output_artifacts`）
     Sheetsage2,
@@ -428,6 +454,13 @@ pub enum ModelFamily {
     /// （即 `gen`）仅离线；请求选项 `reference_video_file` 必填，
     /// 需 FFmpeg 在 PATH）
     Latentsync,
+    /// SoulX-FlashHead Lite（音频驱动的流行人像视频生成，实验性；
+    /// CMake target `soulx_flashhead`，用 `model-soulx-flashhead` feature 编译；
+    /// task 为 `sfx`（即 `gen`），离线+流式；请求选项 `reference_image_file`
+    /// 必填（单个 path），另有 `height`/`width`/`num_inference_steps`/
+    /// `color_correction_strength`/`audio_guidance_scale`；视频帧经
+    /// `output_artifacts` 回传，会话选项 `exec_plan`（vae.impl ggml/cudnn））
+    SoulxFlashhead,
     /// RE-USE（采样率无关语音修复，双向 Mamba；task 为 `s2s` 仅离线）
     Reuse,
     /// SAM Audio（prompt 条件音频分离；task 为 `s2s` 仅离线）
@@ -534,6 +567,9 @@ impl ModelFamily {
             ("firered_vad", ModelFamily::FireredVad),
             ("firered-vad", ModelFamily::FireredVad),
             ("fireredvad", ModelFamily::FireredVad),
+            ("earshot_vad", ModelFamily::EarshotVad),
+            ("earshot-vad", ModelFamily::EarshotVad),
+            ("earshot", ModelFamily::EarshotVad),
             ("qwen3_asr", ModelFamily::Qwen3Asr),
             ("qwen3-asr", ModelFamily::Qwen3Asr),
             ("qwen3_tts", ModelFamily::Qwen3Tts),
@@ -561,6 +597,15 @@ impl ModelFamily {
             ("whistle-asr", ModelFamily::WhistleAsr),
             ("whistle", ModelFamily::WhistleAsr),
             ("kroko", ModelFamily::KrokoAsr),
+            // nemotron_transcribe 必须排在 nemotron_3_diar / 裸 "nemotron" 之前：
+            // 上游权重目录名 `NVIDIA-Nemotron-3.5-Transcribe-30B-A4B-GGUF` 小写后
+            // 含子串 "nemotron-3"，会被 diar 的关键词抢先吞掉。
+            ("nemotron_transcribe", ModelFamily::NemotronTranscribe),
+            ("nemotron-transcribe", ModelFamily::NemotronTranscribe),
+            ("nemotron_3.5_transcribe", ModelFamily::NemotronTranscribe),
+            ("nemotron-3.5-transcribe", ModelFamily::NemotronTranscribe),
+            ("nemotron-3.5", ModelFamily::NemotronTranscribe),
+            ("nemotron_3.5", ModelFamily::NemotronTranscribe),
             ("nemotron_3_diar", ModelFamily::Nemotron3Diar),
             ("nemotron-3-diar", ModelFamily::Nemotron3Diar),
             ("nemotron_3", ModelFamily::Nemotron3Diar),
@@ -748,6 +793,9 @@ impl ModelFamily {
             ("lfm2_audio", ModelFamily::Lfm2Audio),
             ("lfm2-audio", ModelFamily::Lfm2Audio),
             ("lfm2", ModelFamily::Lfm2Audio),
+            ("lfm3_audio", ModelFamily::Lfm3Audio),
+            ("lfm3-audio", ModelFamily::Lfm3Audio),
+            ("lfm3", ModelFamily::Lfm3Audio),
             // owsm_ctc 必须排在裸 "owsm" 之前，否则会被吞掉。
             ("owsm_ctc", ModelFamily::OwsmCtc),
             ("owsm-ctc", ModelFamily::OwsmCtc),
@@ -762,6 +810,10 @@ impl ModelFamily {
             ("latentsync", ModelFamily::Latentsync),
             ("latent-sync", ModelFamily::Latentsync),
             ("latent_sync", ModelFamily::Latentsync),
+            ("soulx_flashhead", ModelFamily::SoulxFlashhead),
+            ("soulx-flashhead", ModelFamily::SoulxFlashhead),
+            ("soulx", ModelFamily::SoulxFlashhead),
+            ("flashhead", ModelFamily::SoulxFlashhead),
             ("reuse", ModelFamily::Reuse),
             ("re-use", ModelFamily::Reuse),
             ("sam_audio", ModelFamily::SamAudio),
@@ -819,6 +871,11 @@ impl ModelFamily {
             ("minimax-music3", ModelFamily::MinimaxMusic3),
             ("supertonic", ModelFamily::Supertonic),
             ("yue2", ModelFamily::Yue2),
+            ("magenta_realtime_2", ModelFamily::MagentaRealtime2),
+            ("magenta-realtime-2", ModelFamily::MagentaRealtime2),
+            ("magenta_rt2", ModelFamily::MagentaRealtime2),
+            ("magenta-rt2", ModelFamily::MagentaRealtime2),
+            ("magenta", ModelFamily::MagentaRealtime2),
             ("yue-2", ModelFamily::Yue2),
             ("sheetsage2", ModelFamily::Sheetsage2),
             ("sheetsage-2", ModelFamily::Sheetsage2),
@@ -885,6 +942,7 @@ impl ModelFamily {
             ModelFamily::MarblenetVad => "marblenet_vad",
             ModelFamily::Pulsevad => "pulsevad",
             ModelFamily::FireredVad => "firered_vad",
+            ModelFamily::EarshotVad => "earshot_vad",
             ModelFamily::Qwen3Asr => "qwen3_asr",
             ModelFamily::CitrinetAsr => "citrinet_asr",
             ModelFamily::SenseAsr => "sense_asr",
@@ -895,6 +953,7 @@ impl ModelFamily {
             ModelFamily::KrokoAsr => "kroko_asr",
             ModelFamily::NemotronAsr => "nemotron_asr",
             ModelFamily::Nemotron3Diar => "nemotron_3_diar",
+            ModelFamily::NemotronTranscribe => "nemotron_transcribe",
             ModelFamily::ParakeetTdt => "parakeet_tdt",
             ModelFamily::VibevoiceAsr => "vibevoice_asr",
             ModelFamily::VibevoiceAsrStreaming => "vibevoice_asr_streaming",
@@ -914,6 +973,7 @@ impl ModelFamily {
             ModelFamily::GigaamAsr => "gigaam_asr",
             ModelFamily::IndexEcho => "index_echo",
             ModelFamily::Lfm2Audio => "lfm2_audio",
+            ModelFamily::Lfm3Audio => "lfm3_audio",
             ModelFamily::Owsm => "owsm",
             ModelFamily::OwsmCtc => "owsm_ctc",
             ModelFamily::Samsone => "samsone",
@@ -984,6 +1044,7 @@ impl ModelFamily {
             ModelFamily::MinimaxMusic3 => "minimax_music3",
             ModelFamily::Supertonic => "supertonic",
             ModelFamily::Yue2 => "yue2",
+            ModelFamily::MagentaRealtime2 => "magenta_realtime_2",
             ModelFamily::Sheetsage2 => "sheetsage2",
             ModelFamily::VoxtralRealtime => "voxtral_realtime",
             ModelFamily::VoxtralTts => "voxtral_tts",
@@ -995,6 +1056,7 @@ impl ModelFamily {
             ModelFamily::MidashEnglmGen => "midashenglm_gen",
             ModelFamily::Liveavatar => "liveavatar",
             ModelFamily::Latentsync => "latentsync",
+            ModelFamily::SoulxFlashhead => "soulx_flashhead",
             ModelFamily::Reuse => "reuse",
             ModelFamily::SamAudio => "sam_audio",
             ModelFamily::Sidon => "sidon",
@@ -1027,6 +1089,10 @@ impl From<&str> for ModelFamily {
             "pulsevad" => ModelFamily::Pulsevad,
             "firered_vad" => ModelFamily::FireredVad,
             "firered-vad" => ModelFamily::FireredVad,
+            "earshot_vad" => ModelFamily::EarshotVad,
+            "earshot-vad" => ModelFamily::EarshotVad,
+            // 上游 loader 声明的家族别名（family_aliases）。
+            "earshot" => ModelFamily::EarshotVad,
             "qwen3_asr" => ModelFamily::Qwen3Asr,
             "citrinet_asr" => ModelFamily::CitrinetAsr,
             "sense_asr" => ModelFamily::SenseAsr,
@@ -1038,6 +1104,8 @@ impl From<&str> for ModelFamily {
             "kroko_asr" => ModelFamily::KrokoAsr,
             "nemotron_asr" => ModelFamily::NemotronAsr,
             "nemotron_3_diar" => ModelFamily::Nemotron3Diar,
+            "nemotron_transcribe" => ModelFamily::NemotronTranscribe,
+            "nemotron-transcribe" => ModelFamily::NemotronTranscribe,
             "parakeet_tdt" => ModelFamily::ParakeetTdt,
             "vibevoice_asr" => ModelFamily::VibevoiceAsr,
             "vibevoice_asr_streaming" => ModelFamily::VibevoiceAsrStreaming,
@@ -1061,6 +1129,8 @@ impl From<&str> for ModelFamily {
             "gigaam_asr" => ModelFamily::GigaamAsr,
             "index_echo" => ModelFamily::IndexEcho,
             "lfm2_audio" => ModelFamily::Lfm2Audio,
+            "lfm3_audio" => ModelFamily::Lfm3Audio,
+            "lfm3-audio" => ModelFamily::Lfm3Audio,
             "owsm" => ModelFamily::Owsm,
             "owsm_ctc" => ModelFamily::OwsmCtc,
             "samsone" => ModelFamily::Samsone,
@@ -1150,6 +1220,8 @@ impl From<&str> for ModelFamily {
             "minimax_music3" => ModelFamily::MinimaxMusic3,
             "supertonic" => ModelFamily::Supertonic,
             "yue2" => ModelFamily::Yue2,
+            "magenta_realtime_2" => ModelFamily::MagentaRealtime2,
+            "magenta-realtime-2" => ModelFamily::MagentaRealtime2,
             "sheetsage2" => ModelFamily::Sheetsage2,
             "voxtral_realtime" => ModelFamily::VoxtralRealtime,
             "voxtral_tts" => ModelFamily::VoxtralTts,
@@ -1163,6 +1235,8 @@ impl From<&str> for ModelFamily {
             "liveavatar" => ModelFamily::Liveavatar,
             "latentsync" => ModelFamily::Latentsync,
             "latent-sync" => ModelFamily::Latentsync,
+            "soulx_flashhead" => ModelFamily::SoulxFlashhead,
+            "soulx-flashhead" => ModelFamily::SoulxFlashhead,
             "reuse" => ModelFamily::Reuse,
             "sam_audio" => ModelFamily::SamAudio,
             "sidon" => ModelFamily::Sidon,
@@ -1597,6 +1671,7 @@ mod tests {
             MarblenetVad,
             Pulsevad,
             FireredVad,
+            EarshotVad,
             // ASR
             Qwen3Asr,
             CitrinetAsr,
@@ -1608,6 +1683,7 @@ mod tests {
             KrokoAsr,
             NemotronAsr,
             Nemotron3Diar,
+            NemotronTranscribe,
             ParakeetTdt,
             VibevoiceAsr,
             VibevoiceAsrStreaming,
@@ -1627,6 +1703,7 @@ mod tests {
             GigaamAsr,
             IndexEcho,
             Lfm2Audio,
+            Lfm3Audio,
             Owsm,
             OwsmCtc,
             Samsone,
@@ -1699,6 +1776,7 @@ mod tests {
             MinimaxMusic3,
             Supertonic,
             Yue2,
+            MagentaRealtime2,
             Sheetsage2,
             VoxtralRealtime,
             VoxtralTts,
@@ -1710,6 +1788,7 @@ mod tests {
             MidashEnglmGen,
             Liveavatar,
             Latentsync,
+            SoulxFlashhead,
             Reuse,
             SamAudio,
             Sidon,
@@ -2090,6 +2169,61 @@ mod tests {
         assert_eq!(
             ModelFamily::from_path("model.gguf#family=qwen3_tts"),
             Some(ModelFamily::Qwen3Tts)
+        );
+        // ---- cc21c9ea 新增 5 族：按上游真实权重名/目录名校验 ----
+        assert_eq!(
+            ModelFamily::from_path("earshot_vad.safetensors"),
+            Some(ModelFamily::EarshotVad)
+        );
+        assert_eq!(
+            ModelFamily::from_path("nemotron-transcribe-30b-a4b-experts-iq4_nl.gguf"),
+            Some(ModelFamily::NemotronTranscribe)
+        );
+        // nemotron 的 encoder 侧 mmproj 与权重目录名都含 "nemotron-3"，
+        // 必须命中 Transcribe 而非被 nemotron_3_diar 的关键词吞掉。
+        assert_eq!(
+            ModelFamily::from_path(
+                "mmproj-NVIDIA-Nemotron-3.5-Transcribe-30B-A4B-Encoder-F16.gguf"
+            ),
+            Some(ModelFamily::NemotronTranscribe)
+        );
+        assert_eq!(
+            ModelFamily::from_path("NVIDIA-Nemotron-3.5-Transcribe-30B-A4B-GGUF"),
+            Some(ModelFamily::NemotronTranscribe)
+        );
+        // 反向回归：真正的 Nemotron 3 Diar 仍判成 diar。
+        assert_eq!(
+            ModelFamily::from_path("nemotron-3-diarization-bf16.gguf"),
+            Some(ModelFamily::Nemotron3Diar)
+        );
+        assert_eq!(
+            ModelFamily::from_path("LFM3-Audio-2B-Q8_0.gguf"),
+            Some(ModelFamily::Lfm3Audio)
+        );
+        assert_eq!(
+            ModelFamily::from_path("mmproj-LFM3-Audio-2B-F16.gguf"),
+            Some(ModelFamily::Lfm3Audio)
+        );
+        // 反向回归：lfm2 不被新增的 lfm3 关键词影响。
+        assert_eq!(
+            ModelFamily::from_path("lfm2.5-audio-1.5b-q8_0.gguf"),
+            Some(ModelFamily::Lfm2Audio)
+        );
+        assert_eq!(
+            ModelFamily::from_path("magenta-rt2-small-f16.gguf"),
+            Some(ModelFamily::MagentaRealtime2)
+        );
+        assert_eq!(
+            ModelFamily::from_path("Magenta-RealTime-2-GGUF/magenta-rt2-base-q8_0.gguf"),
+            Some(ModelFamily::MagentaRealtime2)
+        );
+        assert_eq!(
+            ModelFamily::from_path("SoulX-FlashHead-Lite-Q8_0.gguf"),
+            Some(ModelFamily::SoulxFlashhead)
+        );
+        assert_eq!(
+            ModelFamily::from_path("SoulX-FlashHead-GGUF"),
+            Some(ModelFamily::SoulxFlashhead)
         );
         // 无法识别
         assert_eq!(ModelFamily::from_path("my-weights.gguf"), None);

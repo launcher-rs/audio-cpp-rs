@@ -56,6 +56,28 @@ foreach ($f in Get-ChildItem $specDir -Filter *.json | Sort-Object Name) {
     }
 }
 
+# ---- 无 spec 的手写 loader 族 ----
+# 上游绝大多数 loader 族都带 model_specs/<族>.json，少数为纯手写 loader
+# （CMakeLists 的 audiocpp_add_model 有条目、LOADERS 有 make_*_loader，但
+# model_specs 下没有同名 json）。这类族无法从 json 取元数据，在此手工登记，
+# 保证 docs/models.md 的族数与 `ModelFamily` 收录数、上游 loader 数一致。
+$specless = @(
+    [pscustomobject]@{
+        family  = 'earshot_vad'
+        display = 'Earshot VAD'
+        desc    = 'Earshot VAD 的原生 C++ 移植（16kHz 单声道，16ms 帧）。'
+        cat     = 'speech_analysis'
+        status  = 'community'
+        tasks   = @('vad')
+        modes   = @('offline', 'streaming')
+        langs   = @('language_agnostic')
+    }
+)
+$knownFamilies = @($specs | ForEach-Object { $_.family })
+foreach ($m in $specless) {
+    if ($knownFamilies -notcontains $m.family) { $specs += $m }
+}
+
 # ---- 中文简介表（family<TAB>中文），缺失时回落上游英文描述 ----
 $zhMap = @{}
 if (Test-Path $zhPath) {

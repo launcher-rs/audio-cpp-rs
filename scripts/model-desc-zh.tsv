@@ -27,6 +27,7 @@ crisperwhisper	基于 Whisper 的逐字（verbatim）与意图转写。
 dots_tts	DotTTS 多语零样本 TTS / 克隆 / 语音编辑：SOAR + MeanFlow、提示音频+文本预填充、说话人参考条件、语言标签、多模板、长文分块与真流式输出。
 dramabox	DramaBox 英文表现力 TTS 与克隆（独立 GGUF）：Gemma 文本条件 + 扩散采样 + 参考音频条件 + 长文分块，48kHz 立体声输出。
 echo_tts	Echo-TTS 英文零样本克隆 TTS：2.8B 扩散 Transformer 在 PCA 空间生成 80 维潜变量，经 Fish S1-DAC 解码为 44.1kHz；生成为固定 29.72s（640 潜帧）窗口。
+earshot_vad	Earshot VAD 的原生 C++ 移植（与 Rust 参考实现逐位对齐）：16kHz 单声道、16ms 帧，按 CPU ISA 选 SIMD 内核；离线+流式，权重为 earshot_vad.safetensors，阈值键 threshold / neg_threshold。
 f5_tts	社区 F5-TTS 流匹配扩散 Transformer，零样本克隆（含 Habibi-TTS 阿拉伯语微调）：文本卷积条件器 + RoPE DiT + CFM 采样 + Vocos 声码。
 firered_audio	FireRedAudio 原生 GGUF：Qwen3.5 混合主干 + FireRed RedAE 条件 + RedPatchEncoder + RedDiT 潜流 + RedAE 波形解码。
 firered_vad	FireRed DFSMN 语音活动检测，含离线与因果 Stream-VAD 两种权重。
@@ -56,7 +57,9 @@ kroko_asr	Kroko Community 单语包原生 Zipformer2 RNN-T 识别：离线 + 有
 kugelaudio	KugelAudio TTS，内置预置音色，支持增量音频输出。
 latentsync	LatentSync 1.6 音频驱动唇形同步：按输入语音改写参考视频中的人脸口型（实验性，需 FFmpeg）。
 lfm2_audio	Liquid AI LFM2.5-Audio（加载 llama.cpp 格式 GGUF）：ASR 用 FastConformer 编码器接 LFM2 混合主干；TTS 经 depthformer 生成音频帧再由 ISTFT 还原 24kHz；S2S 输入语音问题、输出文字+音频交错。
+lfm3_audio	Liquid AI LFM3-Audio-2B（llama.cpp 格式 GGUF 或上游 safetensors）：log-mel 编码器 + LFM3 混合 conv/attention 主干；TTS 由 MaskGIT depth 解码 + LiquidCodec + ISTFT 出 24kHz；S2S 多轮历史经产物回传；asr/tts/s2s 离线+流式，18 语种。
 liveavatar	LiveAvatar 音频驱动数字人视频生成（Wan2.2 S2V 架构）。
+magenta_realtime_2	Google Magenta RealTime 2 帧自回归立体声音乐生成（实验性）：文本 / 音频风格 / MIDI（pianoroll_file）条件，按帧生成，离线+流式，含 small 与 base 两档权重。
 magpie_tts	NVIDIA MagpieTTS 多语 TTS：由文本生成 NanoCodec 音频 token（内置说话人上下文嵌入 + 纯解码器 Transformer + 自回归局部 Transformer），再解码为波形。
 maya1	Maya Research 3B 表现力英文 TTS，支持自然语言声音设计与行内情感控制。
 meanvc2	MeanVC2 轻量流式零样本声音转换；当前包覆盖推荐的 120ms/40ms 质量路径。
@@ -82,6 +85,7 @@ mossformer2	MossFormer2 16kHz 重叠语音分离。
 muscriptor	MuScriptor 音频转符号：把音乐音频转为符号音符事件或 MIDI，支持乐器约束、采样、beam 搜索、批量分块与流式最终结果输出。
 nemotron_3_diar	NVIDIA 八说话人流式分离，采用到达顺序身份与可配置延迟档位。
 nemotron_asr	NVIDIA 600M 流式 ASR，覆盖 40 种语言区域，支持低延迟与批处理、原生标点/大小写、自动语种检测与可配置分块。
+nemotron_transcribe	NVIDIA Nemotron 3.5 Transcribe 30B-A4B（Nemotron-H 语音大模型，实验性）：离线转录/翻译/音频问答/语种识别，带词级时间戳与说话人标签，支持 CPU 专家卸载（disk_experts / pin_experts）。
 neutts	Neuphonic 英文 TTS 系列；当前 2E 包用 Qwen3 风格自回归 token 主干 + NeuCodec 波形解码 + 内置音色提示与情感 token 控制。
 niagara_asr	ABR Niagara 英文批处理 ASR（注意力状态空间模型），greedy CTC 解码 + SentencePiece 分词。
 omnivoice	k2-fsa 大规模多语零样本 TTS，覆盖 600+ 语言，支持短参考克隆、属性化声音设计、发音控制与非语言标签。
@@ -113,6 +117,7 @@ soprano_tts	Soprano 超轻量（约 80M）纯英文 TTS：17 层 Qwen3 风格因
 sopro_tts	社区 Sopro V2 Turbo（samuel-vitorino/sopro-v2-turbo）120M 零样本克隆 TTS：SentencePiece 分词 + 风格前缀条件的 FSQ 语义 LM + rectified-flow 声学 DiT + Vocos iSTFT 声码，24kHz。
 sortformer_diar_v2	NVIDIA Sortformer v2.1 流式说话人分离，四说话人通道、AOSC 状态、稳定到达顺序身份，支持有界上下文离线与流式；无官方语种白名单（以英语为主，含 AISHELL-4/AliMeeting 等非英语会议数据，其他语言可能退化）。权重受 NVIDIA Open Model License 约束，获再分发批准前仅限本地使用。
 sortformer_diar	NVIDIA 基于 Transformer 的端到端说话人分离，主要英语训练，直接从音频预测说话人标签并按到达时间排序，最多四说话人。
+soulx_flashhead	SoulX-FlashHead Lite 音频驱动的人像视频生成（DiT + VAE 管线，实验性）：参考图 + 语音输入，离线+流式输出视频帧，CUDA 下可选 cuDNN conv 执行计划。
 stable_audio	Stability AI 生成式音频系列：文生音乐/音效、音频到音频编辑、修复、续写、变长生成与 LoRA 个性化。
 supertonic	Supertone 端侧 TTS，覆盖 31 语，预置音色，面向浏览器/移动/桌面的紧凑快速本地合成。
 tf_gridnet	TF-GridNet 时频重叠语音分离。

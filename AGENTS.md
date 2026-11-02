@@ -82,6 +82,15 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
 每次把 `audio-cpp-sys/audio.cpp` submodule 更新到上游新 commit 后，按下表顺序审查，缺一不可：
 
 1. **定位 diff**：`git -C audio-cpp-sys/audio.cpp diff <旧commit>..HEAD --stat`，先看整体改动面。
+   计数口径三件事要分别核：`audiocpp_add_model` 的 **target** 数、`make_*_loader` 的
+   **去重 loader 名**数、`model_specs/*.json` 的 **spec** 数。自 `cc21c9ea` 起
+   「loader 数 = spec 数」不再恒成立（`earshot_vad` 为无 spec 的手写 loader）：
+   新增此类族时除了同步 `ModelFamily`，还要在 `scripts/gen-models-doc.ps1` 的
+   `$specless` 表补登记，否则 `docs/models.md` 会静默漏族。
+   另：升级后务必确认 submodule **工作树**已切到新 commit
+   （`git -C audio-cpp-sys/audio.cpp log -1` 与父仓库 `git ls-tree HEAD audio-cpp-sys/audio.cpp`
+   一致，`git status` 不应长期挂 ` M audio-cpp-sys/audio.cpp`）——只改指针不切工作树时，
+   构建验证跑的是旧源码，结论无效。
 2. **新增模型 loader → 同步 `ModelFamily`**：查 `audio.cpp/CMakeLists.txt` 是否新增
    `make_*_loader`。有则同步 `audio-cpp/src/types.rs`：`ModelFamily` 枚举（`as_str()`
    返回的字符串须与上游 loader 族名一致）+ `from_path()` 关键词表 + Cargo.toml 新增
@@ -116,8 +125,125 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `e9303b76`（origin/main；从 `ccdbe769` 快进 77 个提交）。
+- 当前 submodule HEAD = `cc21c9ea`（origin/main；从记录的 `e9303b76` 快进 91 个提交）。
   crate 版本为 **0.8.1**（workspace 统一；历史见下条与逐条升级记录）。
+  ⚠️ **上次升级的工作树/gitlink 不一致（本次已纠正，记录以防再犯）**：`5a5b7a1` 把
+  gitlink 提交为 `e9303b76`，但 submodule **工作树始终停在 `ccdbe769`**（submodule
+  reflog 只有 `22cad6af → ccdbe769` 一次 checkout，无 `e9303b76` 记录）。因此那条
+  记录里「cargo build 4m14s 全量重编」的验证实际是对 `ccdbe769` 源码跑的，并非
+  `e9303b76`。本次推进到 `cc21c9ea`（包含 `e9303b76`）已一并覆盖该校验。
+  教训：升级 submodule 后必须 `git -C audio-cpp-sys/audio.cpp log -1` 确认**工作树**
+  与父仓库 gitlink 一致（`git status` 里 ` M audio-cpp-sys/audio.cpp` 长期挂着即为不一致），
+  只看 `git ls-tree HEAD` 的指针不足以证明源码已切换。
+  注：本次已按 `e9303b76` 实际文件复核上次的 130 计数（`audiocpp_add_model` 125 /
+  去重 loader 130 / spec 130 全部吻合），Rust 侧同步内容本身无误。
+- **升级 `e9303b76`→`cc21c9ea`（main）审查结论**：
+  - diff 共 579 文件（+77.4k/-21.5k，91 个提交）：新增 5 个 loader 族
+    （`audiocpp_add_model` 125→130，去重 loader 名 130→135，spec 文件 130→134）：
+    `earshot_vad`（Earshot VAD 原生 C++ 移植，alias `earshot`；task `vad` 离线+流式，
+    16kHz mono、16ms 帧，权重为 `earshot_vad.safetensors`（**非 GGUF**，文件名不等于
+    该名的须显式 `family_hint`）；选项 `threshold`/`neg_threshold`/`smoothing_factor`/
+    `speech_pad_ms`/`min_speech_duration_ms`/`min_silence_duration_ms`/`start_delay_ms`/
+    `keep_trailing_segment`，会话选项 `exec_plan`）/
+    `nemotron_transcribe`（NVIDIA Nemotron 3.5 Transcribe 30B-A4B，实验性；task `asr`
+    仅离线；输出含 `word_timestamps` + `speaker_turns` + `custom_schema_output`；
+    请求选项 `template_name`/`return_timestamps`/`diarization` 等，会话选项为
+    `disk_experts`/`pin_experts`/`expert_cache_size` 等 CPU 专家卸载系）/
+    `lfm3_audio`（Liquid AI LFM3-Audio-2B，实验性；task `asr`/`tts`/`s2s` 离线+流式，
+    18 语种且**无 auto**；S2S 多轮历史经 `output_artifacts` 的 `lfm3_audio.reply`
+    产物回传）/ `magenta_realtime_2`（Google Magenta RealTime 2 帧自回归立体声音乐
+    生成，实验性；spec task 写 `music`（即 `gen` 别名），离线+流式；`pianoroll_file`
+    是**字符串**（内含 JSON）而非数组选项）/ `soulx_flashhead`（SoulX-FlashHead Lite
+    音频驱动人像视频生成，实验性；spec task 写 `sfx`（即 `gen` 别名），离线+流式，
+    请求选项 `reference_image_file`（单个 `path`，必填）+ 尺寸/步数系，视频帧经
+    `output_artifacts`）。其余为 WebGPU 后端集成（`fb09bde9`/`dcec826b`/`611131c8`，
+    仅上游 browser/native WebGPU，本仓未接 feature）/ Metal IM2COL_3D·SSM kernel /
+    HIP·CUDA lowering / irodori_tts v4 Large（同族既有 loader）/ Ming3 TTS 流式化 /
+    Nemotron ASR CPU 专家卸载 / LoRA 与 package 解析重构（`model_package.h` +
+    `resolve_package_load`，不经本 shim）/ Earshot SIMD 内核 / server 与 WebUI 等。
+  - **不变式首次被打破（后续升级注意）**：`earshot_vad` 是**纯手写 loader、无
+    `model_specs/*.json`**，故「去重 loader 名 = spec 文件数 = `ModelFamily` 非内置族数」
+    不再成立（135 vs 134）。`scripts/gen-models-doc.ps1` 已新增 `$specless` 手工登记表
+    （含幂等的 family 去重），把这类无 spec 的族也收进 `docs/models.md`；新增此类族时
+    需在 `$specless` 补一条（family/display/cat/status/tasks/modes/langs），
+    否则文档会静默漏族、族数与枚举对不上。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 5 个头中 `framework/io/json.h` 与
+    `framework/runtime/session.h` 本次 diff **零改动**（`TaskResult` / `StreamEvent`
+    结构体无新字段，`dump_task_result` / `dump_stream_event` / `dump_audio_buffer`
+    无需补字段）；`backend.h` +40/-9 为源码兼容的加法（`BackendConfig::impl` 带默认值、
+    `BackendDeviceInfo` 新增 `backend_option`/`device_name`/`description`/`pci_bus_id`/
+    `memory`/`caps`、`list_backend_devices(bool query_properties = false)` 加默认参数、
+    新增 `print_backend_devices_json`/`is_hip_buffer`/`set_backend_round_bf16_fusion`
+    自由函数，`BackendMemorySnapshot` 仅文件内移位；`name` 字段取值口径未变），
+    shim 不调用任一新项；`model.h` +12（`PackageLoadTarget` + 带默认实现的
+    `IVoiceModelLoader::resolve_package_load`，我们不自实现 loader，够不着）、
+    `registry.h` +10（`ModelRegistry::resolve_package_load` + 自由函数
+    `load_vad_model`），均为加法且不进 C ABI。`task_vocabulary.{h,cpp}` 与 `errors.h`
+    **零改动**（17 个规范 token + 别名不变，无新异常类型），故 `TaskKind` 无需动。
+    `capi.h` / `capi.cpp` / build.rs bindgen allowlist（`audiocpp_.*`）保持原样，
+    `bindings.docsrs.rs` 无需重拷。
+  - 无新 task 类型 / 输出字段：5 新族复用既有 `vad`/`asr`/`tts`/`s2s`/`gen`
+    （spec 的 `music`/`sfx` 是既有别名，经通用任务字符串透传；文档生成器已换算为
+    `gen`）；`custom_schema_output` / `speaker_turns` / `word_timestamps` /
+    `output_artifacts` / `speech_segments` 全部为 shim 早已导出的字段。
+    高层 `types.rs` serde 结构无需改。
+  - **数组选项缺口未变**：本次 4 个新 spec 无任何 `*_list`/`path_list` 类型（已逐个
+    核对 options `type`），`kokoro phonemes`（string_list）与 `ming3_tts
+    speaker_embedding_file`（path_list）两处既有缺口依旧未接。
+  - 破坏性改名（上游 spec 层，无兼容保留）：`liveavatar` 请求选项
+    `fused_cfg` → `batched_cfg`（`model_specs/liveavatar.json:98`，同时改写
+    `denoiser_layerwise` 描述里的引用）。本仓 Rust 侧未硬编码旧键（全仓 grep 无
+    `fused_cfg`），无需代码改动；手写旧键的调用方需自行更新（传旧键会被上游
+    未知选项校验拒绝，经 `audiocpp_last_error` 报错，非静默）。
+    本次 spec diff 中唯一的 `- "name"` 行即此处，其余全是加法。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 5 个枚举变体 `EarshotVad`
+    （`as_str()` → `"earshot_vad"`）/ `NemotronTranscribe`（→ `"nemotron_transcribe"`）/
+    `Lfm3Audio`（→ `"lfm3_audio"`）/ `MagentaRealtime2`（→ `"magenta_realtime_2"`）/
+    `SoulxFlashhead`（→ `"soulx_flashhead"`，均与上游 loader 族名一致：
+    每个族的 `kFamily` 常量都等于其 CMake target 名，无改名）+ `from_path()` 关键词表
+    （`earshot_vad`/`earshot-vad`/`earshot`；`nemotron_transcribe`/`nemotron-transcribe`/
+    `nemotron_3.5_transcribe`/`nemotron-3.5-transcribe`/`nemotron-3.5`/`nemotron_3.5`；
+    `lfm3_audio`/`lfm3-audio`/`lfm3`；`magenta_realtime_2`/`magenta-realtime-2`/
+    `magenta_rt2`/`magenta-rt2`/`magenta`；`soulx_flashhead`/`soulx-flashhead`/`soulx`/
+    `flashhead`）+ `From<&str>`（含上游 `family_aliases()` 声明的 `earshot`）；
+    并在两个 Cargo.toml 新增 `model-earshot-vad` / `model-nemotron-transcribe` /
+    `model-lfm3-audio` / `model-magenta-realtime-2` / `model-soulx-flashhead`
+    五个 feature（build.rs 自动映射 CMake target，无需改 build.rs）。
+    - **`nemotron_transcribe` 的 from_path 排序陷阱（已加回归断言）**：上游权重目录名
+      `NVIDIA-Nemotron-3.5-Transcribe-30B-A4B-GGUF` 与 encoder 侧 `mmproj-*` 文件小写后
+      都含子串 **`nemotron-3`**，会被既有 `("nemotron-3", Nemotron3Diar)` 关键词抢先吞掉，
+      故 Transcribe 的 6 条关键词必须**整体排在 diar 的 4 条之前**；反向断言
+      `nemotron-3-diarization-bf16.gguf` 仍判 `Nemotron3Diar`、
+      `lfm2.5-audio-1.5b-q8_0.gguf` 仍判 `Lfm2Audio` 一并锁定。
+      另按上游真实文件名补了 13 条 `model_family_from_path` 断言
+      （`earshot_vad.safetensors` / `nemotron-transcribe-30b-a4b-experts-iq4_nl.gguf` /
+      `LFM3-Audio-2B-Q8_0.gguf` / `mmproj-LFM3-Audio-2B-F16.gguf` /
+      `magenta-rt2-small-f16.gguf` / `SoulX-FlashHead-Lite-Q8_0.gguf` 等），
+      `model_family_roundtrip` 的 `push![...]` 变体表已补 5 项。
+  - 计数同步：`docs/models.md` 重跑生成器刷新（**135** 族 + 2 内置 VAD；
+    ASR 32→34 / 语音分析 7→8 / 音频与音乐生成 9→11，TTS 51 不变，
+    missing zh desc = 0），`scripts/model-desc-zh.tsv` 补 5 条中文简介（135 行数据）；
+    `README.md`（3 处）/ `audio-cpp-sys/README.md` / 两个 Cargo.toml 的族数注释
+    统一 130→**135**。注意 `audiocpp_add_model` 的 **target** 数是 130，
+    去重 **loader** 名才是 135（一个 target 可挂多个 loader，`earshot_vad` 无 spec）。
+  - 5 新族 session 均自持资产：earshot_vad 持 `shared_ptr<const EarshotWeights>`、
+    nemotron_transcribe 持 `shared_ptr<const TranscribeAssets>`、
+    magenta_realtime_2 持 `shared_ptr<const MagentaAssets>`；
+    soulx_flashhead **间接**自持（session 存 `Pipeline`，`Pipeline::State` 持
+    `shared_ptr<const Assets>`）；lfm3_audio 亦间接（session 存 `Model` 结构体，
+    其 `assets` 为 `shared_ptr<const Lfm3AudioAssets>`，另持 `contract` shared_ptr）。
+    `Session` 独立于 `Model` 存活的保证成立。
+  - 验证：`cargo fmt --all -- --check` + `cargo test --workspace`（32 lib + 12 doc 全过，
+    含本次新增断言；build.rs 跟踪 submodule HEAD 正常触发重编，2m24s）+
+    `cargo clippy --workspace --all-targets` 零警告 + `cargo check -p audio-cpp-sys
+    --features custom-models,model-earshot-vad,model-nemotron-transcribe,
+    model-lfm3-audio,model-magenta-realtime-2,model-soulx-flashhead`
+    （5 个 feature→CMake target 映射全部通过）。
+  - 注意：`metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制回落
+    源码构建（预编译自动下载被跳过），属预期；`cargo publish` / tag /
+    Release / 预编译资产上传均属第 6 节发布操作，须用户显式下达，本次未执行。
+    上游本次范围内已发布 `v0.9.3` tag（`41c1f8ff`，2026-10-26），main 在其后 61 个
+    提交；本仓按惯例跟 origin/main HEAD，不跟随 tag。
 - **升级 `ccdbe769`→`e9303b76`（main）审查结论**：
   - diff 共 472 文件（+34.7k/-2.0k，77 个提交）：新增 5 个 loader 族
     （`audiocpp_add_model` 121→125，去重 loader 名 125→130 = spec 文件数 =

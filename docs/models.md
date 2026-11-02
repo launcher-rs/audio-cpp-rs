@@ -11,7 +11,7 @@
 > GGUF 加载时通常须**显式传 `family_hint`**（引擎自动探测可能误判），用法见 [audio-cpp/README.md](../audio-cpp/README.md)。
 > 上游“状态”为 audio.cpp 的成熟度标注：稳定（`supported`）/ 实验（`experimental`）/ 社区（`community`）/ 测试（`testing`）/ 开发中（`wip`），仅供参考。
 
-共收录 **130** 个上游模型族，另有 **2** 个内置 VAD 模型（随引擎编译、权重已 vendored，无需下载）。
+共收录 **135** 个上游模型族，另有 **2** 个内置 VAD 模型（随引擎编译、权重已 vendored，无需下载）。
 
 ## 内置模型（开箱即用，无需下载权重）
 
@@ -24,12 +24,12 @@
 
 | 分类 | 数量 | 跳转 |
 |---|---|---|
-| 语音识别（ASR） | 32 | [跳转](#cat-asr) |
+| 语音识别（ASR） | 34 | [跳转](#cat-asr) |
 | 语音合成（TTS） | 51 | [跳转](#cat-tts) |
 | 语音转换 / 声音克隆（VC） | 5 | [跳转](#cat-voice_conversion) |
-| 语音分析（VAD · 说话人分离 · 对齐 · 分类 · 唤醒 · 轮次检测） | 7 | [跳转](#cat-speech_analysis) |
+| 语音分析（VAD · 说话人分离 · 对齐 · 分类 · 唤醒 · 轮次检测） | 8 | [跳转](#cat-speech_analysis) |
 | 音频工具（降噪 / 修复 / 超分 / 源分离 / 转谱） | 23 | [跳转](#cat-audio_tools) |
-| 音频与音乐生成 | 9 | [跳转](#cat-audio_generation) |
+| 音频与音乐生成 | 11 | [跳转](#cat-audio_generation) |
 | 其他社区模型 | 3 | [跳转](#cat-community) |
 
 <a id="cat-asr"></a>
@@ -40,7 +40,7 @@
 
 | 族 | 模型 | 任务 | 模式 | 语言 | 状态 | 专用 feature | 简介 |
 |---|---|---|---|---|---|---|---|
-| `audio_flamingo` | Audio Flamingo 3 / Next | `asr` | 离线 | en | 稳定（supported） | `model-audio-flamingo` | Audio Flamingo 3 / Next，支持语音、音乐与环境声的转写、描述与问答。 |
+| `audio_flamingo` | Audio Flamingo 3 / Next / Music Flamingo | `asr` | 离线 | en | 稳定（supported） | `model-audio-flamingo` | Audio Flamingo 3 / Next，支持语音、音乐与环境声的转写、描述与问答。 |
 | `audio8_asr` | Audio8-ASR-0.1B | `asr` | 离线 | en, zh, yue, ja, ko, fr, de | 社区（community） | `model-audio8-asr` | Audio8-ASR-0.1B 紧凑多语识别（en/zh/yue/ja/ko/fr/de）：Qwen3-ASR 音频编码器 + MLP-tower 适配 + 8 层 Qwen2 风格解码器，30 秒离线窗口。权重 CC-BY-NC-4.0，GGUF 仅本地转换、不公开分发。 |
 | `canary_asr` | Canary 180M Flash | `asr` | 离线 | en, de, es, fr | 稳定（supported） | `model-canary-asr` | NVIDIA Canary 多语语音识别与语音翻译。 |
 | `citrinet_asr` | Citrinet ASR | `asr` | 离线 | en | 稳定（supported） | `model-citrinet-asr` | NVIDIA Citrinet 端到端英文 ASR，卷积 CTC 结构，适合短语音转写。 |
@@ -56,10 +56,12 @@
 | `index_echo` | Index-Echo-S2TT | `asr` | 离线 | zh, en, es, ja | 实验（experimental） | `model-index-echo` | Index-Echo 语音转文本翻译，输出双语时间戳字幕。 |
 | `kroko_asr` | Kroko Community ASR | `asr` | 离线 + 流式 | de, en, es, fr, it, he, nl, pt, sv, tr | 社区（community） | `model-kroko-asr` | Kroko Community 单语包原生 Zipformer2 RNN-T 识别：离线 + 有状态流式，greedy / 改进 beam 解码、热词、端点分段、部分结果与词级时间戳。 |
 | `lfm2_audio` | LFM2.5-Audio | `asr` `tts` `s2s` | 离线 + 流式 | en, ja | 实验（experimental） | `model-lfm2-audio` | Liquid AI LFM2.5-Audio（加载 llama.cpp 格式 GGUF）：ASR 用 FastConformer 编码器接 LFM2 混合主干；TTS 经 depthformer 生成音频帧再由 ISTFT 还原 24kHz；S2S 输入语音问题、输出文字+音频交错。 |
+| `lfm3_audio` | LFM3-Audio | `asr` `tts` `s2s` | 离线 + 流式 | en, ar, da, de, el, es, fi, fr …（共 18 种） | 实验（experimental） | `model-lfm3-audio` | Liquid AI LFM3-Audio-2B（llama.cpp 格式 GGUF 或上游 safetensors）：log-mel 编码器 + LFM3 混合 conv/attention 主干；TTS 由 MaskGIT depth 解码 + LiquidCodec + ISTFT 出 24kHz；S2S 多轮历史经产物回传；asr/tts/s2s 离线+流式，18 语种。 |
 | `ming3_audio` | Ming 3.0 Audio Tiny | `asr` `s2s` `tts` `clon` | 离线 | zh, en | 实验（experimental） | `model-ming3-audio` | Ming 3.0 Audio Tiny：Whisper 音频编码器 + 混合 KDA/MLA MoE Thinker，另有连续 latent Talker 产出语音；支持 ASR、语音问答、TTS 与声音克隆，zh/en。 |
 | `moonshine_asr` | Moonshine Streaming ASR | `asr` | 离线 + 流式 | en | 实验（experimental） | `model-moonshine-asr` | Moonshine tiny/small/medium 流式英文识别。 |
 | `moss_transcribe_diarize` | MOSS-Transcribe-Diarize | `asr` | 离线 + 流式 | 自动检测, 50+ 种语言 | 稳定（supported） | `model-moss-transcribe-diarize` | Whisper 编码器 + Qwen3 解码器，联合输出 50+ 语言的转写、说话人分离与时间戳。 |
 | `nemotron_asr` | Nemotron 3.5 ASR | `asr` | 离线 + 流式 | ar-AR, bg-BG, cs-CZ, da-DK, de-DE, el-GR, en-GB, en-US …（共 40 种） | 稳定（supported） | `model-nemotron-asr` | NVIDIA 600M 流式 ASR，覆盖 40 种语言区域，支持低延迟与批处理、原生标点/大小写、自动语种检测与可配置分块。 |
+| `nemotron_transcribe` | NVIDIA Nemotron 3.5 Transcribe 30B-A4B | `asr` | 离线 | 自动检测 | 实验（experimental） | `model-nemotron-transcribe` | NVIDIA Nemotron 3.5 Transcribe 30B-A4B（Nemotron-H 语音大模型，实验性）：离线转录/翻译/音频问答/语种识别，带词级时间戳与说话人标签，支持 CPU 专家卸载（disk_experts / pin_experts）。 |
 | `niagara_asr` | Niagara ASR | `asr` | 离线 | en | 稳定（supported） | `model-niagara-asr` | ABR Niagara 英文批处理 ASR（注意力状态空间模型），greedy CTC 解码 + SentencePiece 分词。 |
 | `owsm` | OWSM | `asr` | 离线 + 流式 | abk, afr, amh, ara, asm, ast, aze, bak …（共 151 种） | 稳定（supported） | `model-owsm` | ESPnet Open Whisper 风格多语识别与翻译。 |
 | `owsm_ctc` | OWSM-CTC | `asr` | 离线 + 流式 | abk, afr, amh, ara, asm, ast, aze, bak …（共 151 种） | 稳定（supported） | `model-owsm-ctc` | ESPnet 非自回归多语识别与翻译，自条件 CTC。 |
@@ -108,7 +110,7 @@
 | `kugelaudio` | KugelAudio-0-Open | `tts` | 离线 + 流式 | en, de, fr, es, it, pt, nl, pl …（共 23 种） | 实验（experimental） | `model-kugelaudio` | KugelAudio TTS，内置预置音色，支持增量音频输出。 |
 | `magpie_tts` | MagpieTTS Multilingual 357M | `tts` | 离线 | ar-AE, ar-MSA, ar-SA, de, en, es, fr, hi …（共 13 种） | 稳定（supported） | `model-magpie-tts` | NVIDIA MagpieTTS 多语 TTS：由文本生成 NanoCodec 音频 token（内置说话人上下文嵌入 + 纯解码器 Transformer + 自回归局部 Transformer），再解码为波形。 |
 | `maya1` | Maya1 | `tts` `vdes` | 离线 | en | 稳定（supported） | `model-maya1` | Maya Research 3B 表现力英文 TTS，支持自然语言声音设计与行内情感控制。 |
-| `ming3_tts` | Ming 3.0 TTS 0.5B | `tts` `clon` `vdes` | 离线 | zh, en, ja, ko, de, fr, es | 稳定（supported） | `model-ming3-tts` | Ming 3.0 TTS 0.5B：Qwen 主干 + flow matching 声学头 + CAMPPlus 说话人条件 + 音频 VAE，覆盖 zh/en/ja/ko/de/fr/es，支持克隆、声音设计与模板化风格控制。 |
+| `ming3_tts` | Ming 3.0 TTS 0.5B | `tts` `clon` `vdes` | 离线 + 流式 | zh, en, ja, ko, de, fr, es | 稳定（supported） | `model-ming3-tts` | Ming 3.0 TTS 0.5B：Qwen 主干 + flow matching 声学头 + CAMPPlus 说话人条件 + 音频 VAE，覆盖 zh/en/ja/ko/de/fr/es，支持克隆、声音设计与模板化风格控制。 |
 | `miotts` | MioTTS | `tts` `clon` | 离线 | en, ja | 稳定（supported） | — | 基于 MioCodec 的轻量 LLM 英文/日文 TTS，支持低延迟生成与短参考零样本克隆。 |
 | `mira_tts` | MiraTTS | `tts` `clon` | 离线 + 流式 | en | 实验（experimental） | `model-mira-tts` | MiraTTS 社区克隆 TTS：Qwen2 自回归语音 token 生成 + ECAPA/Perceiver 说话人分词 + 条件声学处理 + DAC 解码。 |
 | `moss_tts_local` | MOSS-TTS-Local | `tts` `clon` | 离线 | ar, cs, da, de, el, en, es, fa …（共 31 种） | 稳定（supported） | `model-moss` | MOSS-TTS 旗舰：高保真 31 语与语码混合语音、零样本克隆、长文生成，支持拼音/音素/时长细粒度控制。 |
@@ -157,6 +159,7 @@
 |---|---|---|---|---|---|---|---|
 | `ast_audioset` | AST AudioSet | `cls` | 离线 | 语言无关 | 稳定（supported） | `model-ast-audioset` | MIT 音频频谱图 Transformer，对 527 个 AudioSet 声音类别做多标签分类。 |
 | `ced` | CED Audio Tagging | `cls` | 离线 | 语言无关 | 稳定（supported） | `model-ced` | CED（一致性集成蒸馏 ViT）音频分类，覆盖 527 个 AudioSet 类别。 |
+| `earshot_vad` | Earshot VAD | `vad` | 离线 + 流式 | 语言无关 | 社区（community） | `model-earshot-vad` | Earshot VAD 的原生 C++ 移植（与 Rust 参考实现逐位对齐）：16kHz 单声道、16ms 帧，按 CPU ISA 选 SIMD 内核；离线+流式，权重为 earshot_vad.safetensors，阈值键 threshold / neg_threshold。 |
 | `mms_forced_aligner` | Meta MMS-300M Forced Aligner | `align` | 离线 | 多语 | 社区（community） | `model-mms-forced-aligner` | Meta MMS-300M 多语 CTC 强制对齐（Wav2Vec2ForCTC）：把精确文本对齐到音频并给出词级时间戳。权重覆盖 1130 语，但本移植的原生文本规范化仅支持荷兰语与英语拉丁字母；可用 text_normalization=pre_romanized 传入 ASCII 罗马化，不支持的非拉丁输入会被拒绝。权重 CC-BY-NC-4.0，GGUF 仅本地转换、不公开分发。 |
 | `nemotron_3_diar` | Nemotron 3 Diarization | `diar` | 离线 + 流式 | 多语 | 稳定（supported） | `model-nemotron-3-diar` | NVIDIA 八说话人流式分离，采用到达顺序身份与可配置延迟档位。 |
 | `qwen3_forced_aligner` | Qwen3 Forced Aligner | `align` | 离线 | zh, en, yue, fr, de, it, ja, ko …（共 11 种） | 稳定（supported） | `model-qwen3-forced-aligner` | Qwen3 非自回归强制对齐：把文本对齐到语音，11 语下给出词级/字级时间戳。 |
@@ -207,9 +210,11 @@
 | `heartmula` | HeartMuLa | `gen` | 离线 | 多语 | 稳定（supported） | — | 开源音乐基础模型：由文本、歌词提示与风格标签生成完整歌曲，结构可控、多语歌词条件。 |
 | `latentsync` | LatentSync 1.6 | `gen` | 离线 | 自动检测 | 实验（experimental） | `model-latentsync` | LatentSync 1.6 音频驱动唇形同步：按输入语音改写参考视频中的人脸口型（实验性，需 FFmpeg）。 |
 | `liveavatar` | LiveAvatar | `gen` | 离线 + 流式 | 自动检测 | 实验（experimental） | `model-liveavatar` | LiveAvatar 音频驱动数字人视频生成（Wan2.2 S2V 架构）。 |
+| `magenta_realtime_2` | Magenta RealTime 2 | `gen` | 离线 + 流式 | 自动检测 | 实验（experimental） | `model-magenta-realtime-2` | Google Magenta RealTime 2 帧自回归立体声音乐生成（实验性）：文本 / 音频风格 / MIDI（pianoroll_file）条件，按帧生成，离线+流式，含 small 与 base 两档权重。 |
 | `midashenglm_gen` | MiDashengLM-Gen | `gen` | 离线 | 自动检测 | 实验（experimental） | `model-midashenglm-gen` | DashengLM 生成式音频模型，支持语音、音乐、音效与环境声提示生成。 |
 | `minimax_h3` | MiniMax-H3 | `tts` `gen` | 离线 | 自动检测 | 实验（experimental） | — | MiniMax-H3 文生音视频（官方 T2VA 管线）：Qwen3-VL 文本条件 + 音视频联合 DiT 去噪 + MiniMax-H3 音视频 VAE 解码。 |
 | `minimax_music3` | MiniMax Music 3 | `gen` | 离线 | 自动检测 | 实验（experimental） | `model-minimax-music3` | MiniMax Music 3 文生音乐，支持歌词条件。 |
+| `soulx_flashhead` | SoulX-FlashHead | `gen` | 离线 + 流式 | 自动检测 | 实验（experimental） | `model-soulx-flashhead` | SoulX-FlashHead Lite 音频驱动的人像视频生成（DiT + VAE 管线，实验性）：参考图 + 语音输入，离线+流式输出视频帧，CUDA 下可选 cuDNN conv 执行计划。 |
 | `stable_audio` | Stable Audio 3 | `gen` | 离线 | en | 稳定（supported） | — | Stability AI 生成式音频系列：文生音乐/音效、音频到音频编辑、修复、续写、变长生成与 LoRA 个性化。 |
 | `yue2` | YuE2 | `gen` | 离线 | en | 稳定（supported） | `model-yue2` | YuE2 音乐生成：符号 ABC 规划 + 语义 codec 生成 + NAR 声学流合成 + Oobleck VAE 解码。 |
 
@@ -232,7 +237,7 @@
 - [`ace_step`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/ace_step.md) — ACE-Step
 - [`apollo`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/apollo.md) — Apollo
 - [`ast_audioset`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/ast_audioset.md) — AST AudioSet
-- [`audio_flamingo`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/audio_flamingo.md) — Audio Flamingo 3 / Next
+- [`audio_flamingo`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/audio_flamingo.md) — Audio Flamingo 3 / Next / Music Flamingo
 - [`audio8_asr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/audio8_asr.md) — Audio8-ASR-0.1B
 - [`audio8_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/audio8_tts.md) — Audio8 TTS Preview 0.6B
 - [`audiosr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/audiosr.md) — AudioSR
@@ -246,6 +251,7 @@
 - [`cosyvoice3`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/cosyvoice3.md) — CosyVoice3
 - [`crisperwhisper`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/crisperwhisper.md) — CrisperWhisper 2.0
 - [`dots_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/dots_tts.md) — DotTTS
+- [`earshot_vad`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/earshot_vad.md) — Earshot VAD
 - [`echo_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/echo_tts.md) — Echo-TTS
 - [`f5_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/f5_tts.md) — F5-TTS
 - [`firered_audio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/firered_audio.md) — FireRedAudio
@@ -272,7 +278,9 @@
 - [`kugelaudio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/kugelaudio.md) — KugelAudio-0-Open
 - [`latentsync`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/latentsync.md) — LatentSync 1.6
 - [`lfm2_audio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/lfm2_audio.md) — LFM2.5-Audio
+- [`lfm3_audio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/lfm3_audio.md) — LFM3-Audio
 - [`liveavatar`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/liveavatar.md) — LiveAvatar
+- [`magenta_realtime_2`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/magenta_realtime_2.md) — Magenta RealTime 2
 - [`magpie_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/magpie_tts.md) — MagpieTTS Multilingual 357M
 - [`maya1`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/maya1.md) — Maya1
 - [`meanvc2`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/meanvc2.md) — MeanVC2
@@ -295,6 +303,7 @@
 - [`mossformer2`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/mossformer2.md) — MossFormer2
 - [`muscriptor`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/muscriptor.md) — MuScriptor
 - [`nemotron_3_diar`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/nemotron_3_diar.md) — Nemotron 3 Diarization
+- [`nemotron_transcribe`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/nemotron_transcribe.md) — NVIDIA Nemotron 3.5 Transcribe 30B-A4B
 - [`neutts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/neutts.md) — NeuTTS
 - [`omnivoice`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/omnivoice.md) — OmniVoice
 - [`open_wake_word`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/open_wake_word.md) — OpenWakeWord
@@ -321,6 +330,7 @@
 - [`soprano_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/soprano_tts.md) — Soprano
 - [`sopro_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/sopro_tts.md) — Sopro V2 Turbo
 - [`sortformer_diar_v2`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/sortformer_diar_v2.md) — Sortformer Diarization v2.1
+- [`soulx_flashhead`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/soulx_flashhead.md) — SoulX-FlashHead
 - [`stable_audio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/stable_audio.md) — Stable Audio 3
 - [`tf_gridnet`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/tf_gridnet.md) — TF-GridNet
 - [`tone_color_vc`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/tone_color_vc.md) — Tone Color VC
