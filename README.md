@@ -280,4 +280,9 @@ cargo run -p audio-cpp --example download_model -- `
 
 ## 许可
 
-Apache-2.0
+Apache-2.0，完整条款见 [LICENSE](LICENSE)。
+
+上游 [audio.cpp](https://github.com/0xShug0/audio.cpp) 以 git submodule 引入，同为
+Apache-2.0（版权归 ShugoAI LLC，见其仓库 `LICENSE`）；其源码内容不进入本仓库，
+也不改变本仓库的许可口径。构建产物同时受 ggml 及其依赖的许可证约束，第三方
+分发时请一并保留各上游的版权与许可声明。
