@@ -11,7 +11,7 @@
 > GGUF 加载时通常须**显式传 `family_hint`**（引擎自动探测可能误判），用法见 [audio-cpp/README.md](../audio-cpp/README.md)。
 > 上游“状态”为 audio.cpp 的成熟度标注：稳定（`supported`）/ 实验（`experimental`）/ 社区（`community`）/ 测试（`testing`）/ 开发中（`wip`），仅供参考。
 
-共收录 **135** 个上游模型族，另有 **2** 个内置 VAD 模型（随引擎编译、权重已 vendored，无需下载）。
+共收录 **141** 个上游模型族，另有 **2** 个内置 VAD 模型（随引擎编译、权重已 vendored，无需下载）。
 
 ## 内置模型（开箱即用，无需下载权重）
 
@@ -24,11 +24,11 @@
 
 | 分类 | 数量 | 跳转 |
 |---|---|---|
-| 语音识别（ASR） | 34 | [跳转](#cat-asr) |
-| 语音合成（TTS） | 51 | [跳转](#cat-tts) |
+| 语音识别（ASR） | 37 | [跳转](#cat-asr) |
+| 语音合成（TTS） | 52 | [跳转](#cat-tts) |
 | 语音转换 / 声音克隆（VC） | 5 | [跳转](#cat-voice_conversion) |
-| 语音分析（VAD · 说话人分离 · 对齐 · 分类 · 唤醒 · 轮次检测） | 8 | [跳转](#cat-speech_analysis) |
-| 音频工具（降噪 / 修复 / 超分 / 源分离 / 转谱） | 23 | [跳转](#cat-audio_tools) |
+| 语音分析（VAD · 说话人分离 · 对齐 · 分类 · 唤醒 · 轮次检测） | 9 | [跳转](#cat-speech_analysis) |
+| 音频工具（降噪 / 修复 / 超分 / 源分离 / 转谱） | 24 | [跳转](#cat-audio_tools) |
 | 音频与音乐生成 | 11 | [跳转](#cat-audio_generation) |
 | 其他社区模型 | 3 | [跳转](#cat-community) |
 
@@ -50,6 +50,7 @@
 | `fun_asr_nano` | Fun-ASR-Nano | `asr` | 离线 | 自动检测, zh, en, ja | 开发中（wip） | `model-fun-asr-nano` | FunAudioLLM Fun-ASR-Nano-2512 离线多语识别。 |
 | `gigaam_asr` | GigaAM ASR | `asr` | 离线 | ru, kk, ky, uz, en | 稳定（supported） | `model-gigaam-asr` | GigaAM v3 / 多语 Conformer 识别，CTC 或 RNN-T 解码。 |
 | `granite5asr` | Granite Speech 5.0 470M TurboCTC | `asr` | 离线 + 流式 | en, fr, de, es, pt, it, ja | 稳定（supported） | `model-granite5asr` | IBM Granite Speech 5.0 TurboCTC 470M：紧凑高速英文 ASR，Conformer CTC + 分块自注意力 + 自条件。 |
+| `haas_asr` | Haas-ja-v1.0 | `asr` | 离线 + 流式 | ja | 社区（community） | `model-parakeet-tdt` / `model-phonon2-asr` / `model-underdog-bark3` / `model-haas-asr` | Haas-ja-v1.0 日文 FastConformer-TDT 识别，配 Kimi Delta Attention 预测器（复用 Parakeet 实现），离线+流式。 |
 | `higgs_audio_stt` | Higgs Audio v3 STT | `asr` | 离线 + 流式 | en | 稳定（supported） | — | Boson AI 英文语音转写：Whisper Large v3 编码器 + Qwen 解码器。 |
 | `hviske_asr` | Hviske ASR | `asr` | 离线 | ar, da, de, el, en, es, fr, it …（共 15 种） | 稳定（supported） | `model-hviske-asr` | 面向丹麦语优化的 Conformer 编解码 ASR（Hviske v5 微调），可选 Cohere ASR 语种提示。 |
 | `hviske_asr_v6` | Hviske v6 | `asr` | 离线 | da | 稳定（supported） | `model-hviske-asr-v6` | 丹麦语识别：旋转位置 Whisper 编码器 + Qwen3 解码器。 |
@@ -66,9 +67,11 @@
 | `owsm` | OWSM | `asr` | 离线 + 流式 | abk, afr, amh, ara, asm, ast, aze, bak …（共 151 种） | 稳定（supported） | `model-owsm` | ESPnet Open Whisper 风格多语识别与翻译。 |
 | `owsm_ctc` | OWSM-CTC | `asr` | 离线 + 流式 | abk, afr, amh, ara, asm, ast, aze, bak …（共 151 种） | 稳定（supported） | `model-owsm-ctc` | ESPnet 非自回归多语识别与翻译，自条件 CTC。 |
 | `parakeet_tdt` | Parakeet-TDT 0.6B v3 | `asr` | 离线 + 流式 | bg, cs, da, de, el, en, es, et …（共 25 种） | 社区（community） | `model-parakeet-tdt` | NVIDIA Parakeet-TDT 0.6B v3 FastConformer-TDT，覆盖 25 种欧洲语言并自动语种检测；支持上游 safetensors 包与独立 GGUF，提供离线全上下文、有界窗口长音频与缓冲流式；权重为无界双向注意力，非原生 cache-aware 流式模型。 |
+| `phonon2_asr` | Phonon-2 | `asr` | 离线 + 流式 | en | 社区（community） | `model-parakeet-tdt` / `model-phonon2-asr` / `model-underdog-bark3` / `model-haas-asr` | Fermion Research Phonon-2 英文 ASR（复用 Parakeet 实现）：原生热词偏置与短语级流式，离线+流式。 |
 | `qwen3_asr` | Qwen3-ASR | `asr` | 离线 + 流式 | zh, en, yue, ar, de, fr, es, pt …（共 31 种） | 稳定（supported） | `model-qwen3-asr` | Qwen ASR 系列：覆盖 30 语、22 种中文方言与多种英语口音的语种识别与识别，对噪声、长音频与歌唱鲁棒。 |
 | `samsone` | SAMSONE | `asr` | 离线 | en | 稳定（supported） | `model-samsone` | SAMSONE 紧凑音频-语言模型：音频描述、问答与声音/音乐/语音理解。 |
 | `sense_asr` | SenseVoice-Small | `asr` | 离线 + 流式 | 自动检测, zh, en, yue, ja, ko, pt, ru …（共 23 种） | 社区（community） | `model-sense-asr` | SenseVoice-Small 多语识别，经 SAN-M 编码器 + CTC 头输出丰富的事件/情感/ITN 标签。 |
+| `underdog_bark3` | Underdog Bark 3 | `asr` | 离线 + 流式 | en | 社区（community） | `model-parakeet-tdt` / `model-phonon2-asr` / `model-underdog-bark3` / `model-haas-asr` | Conway Research Underdog Bark 3 Standard/Plus/Pro 英文 ASR（复用 Parakeet 实现）：带发布方输入前缀与模型内流式前端，离线+流式。 |
 | `vibeasr` | VibeVoice-ASR-BitNet | `asr` | 离线 | en, zh, fr, it, ko, pt, vi | 社区（community） | `model-vibeasr` | VibeASR.cpp 的 CPU 优先 VibeVoice ASR 移植：INT8（I8_S）音频 VAE 编码器 + 三值（I2_S）Qwen2 解码器。 |
 | `vibevoice_asr` | VibeVoice ASR | `asr` | 离线 | 自动检测, 51 种语言 | 稳定（supported） | `model-vibevoice-asr` | 微软长音频转写：一次处理最长 60 分钟音频，输出含说话人、时间戳、内容、热词的结构化转写，覆盖 50+ 语言。 |
 | `vibevoice_asr_streaming` | VibeVoice ASR Streaming | `asr` | 离线 + 流式 | en, zh, es, pt, de, ja, ko, fr, ru, it | 稳定（supported） | `model-vibevoice-asr` | 微软 VibeVoice ASR 流式模型（7B 与 1.5B），分块流式转写并保持解码器状态。 |
@@ -101,7 +104,7 @@
 | `glm_tts` | GLM-TTS | `tts` `clon` | 离线 | zh, en | 社区（community） | — | 社区中英零样本合成与克隆：原生 Llama + Whisper-VQ + Flow/DiT + CAMPPlus + HiFT。 |
 | `gradium_phonon` | Gradium Phonon | `tts` | 离线 + 流式 | en | 实验（experimental） | `model-gradium-phonon` | Gradium Phonon 31M 英文 TTS（复用 PocketTTS 运行时）：Mimi codec + flow 声学模型，预置 default 音色，支持导出/复用 voice state 与流式输出。 |
 | `higgs_audio_tts` | Higgs Audio v3 TTS | `tts` `clon` | 离线 + 流式 | 100+ 种语言 | 稳定（supported） | — | Boson AI 对话式 TTS，覆盖 100+ 语言，零样本克隆，行内控制情感、风格、韵律、停顿与音效。 |
-| `index_tts2` | IndexTTS2 | `tts` `clon` | 离线 | zh, en, ja, es, ar | 稳定（supported） | — | IndexTTS2 零样本 TTS：克隆、情感-说话人解耦、文本或音频情感控制、显式时长控制；v2 覆盖中英，v2.5 增加日/西/阿等多语 tiktoken 分词。 |
+| `index_tts2` | IndexTTS2 | `tts` `clon` | 离线 + 流式 | zh, en, ja, es, ar | 稳定（supported） | — | IndexTTS2 零样本 TTS：克隆、情感-说话人解耦、文本或音频情感控制、显式时长控制；v2 覆盖中英，v2.5 增加日/西/阿等多语 tiktoken 分词。 |
 | `inflect_v2` | Inflect Micro v2 | `tts` | 离线 | en | 社区（community） | — | 紧凑英文 VITS TTS，原生 GGML 推理 + 外部 eSpeak-ng 音素化。 |
 | `irodori_tts` | Irodori-TTS | `tts` `clon` `vdes` | 离线 + 流式 | ja | 稳定（supported） | `model-irodori-tts` | 日语 TTS：基于 RF-DiT 连续音频潜表示，支持零样本克隆、自动时长预测、多模态声音设计与 emoji 风格控制。 |
 | `kitten_tts` | KittenTTS Mini 0.8 | `tts` | 离线 | en | 社区（community） | `model-kitten-tts` | KittenTTS Mini 0.8 英文 TTS，8 个内置音色，共享 eSpeak-ng 音素化。 |
@@ -122,6 +125,7 @@
 | `piper_tts` | Piper TTS | `tts` | 离线 | en | 社区（community） | `model-piper-tts` | Piper TTS 音色的原生 VITS 推理，使用共享 eSpeak-ng 前端。 |
 | `plapre` | Plapre 3 | `tts` `clon` | 离线 + 流式 | da | 稳定（supported） | `model-plapre` | Plapre 3 丹麦语 TTS：Llama 自回归解码 + Kanade codec，内置 5 音色，支持克隆与流式。 |
 | `pocket_tts` | PocketTTS | `tts` `clon` | 离线 + 流式 | en, fr, de, it, pt, es | 稳定（supported） | — | Kyutai 100M 参数 CPU 友好 TTS 包：英/法/德/意/葡/西的实时本地合成与小体积克隆。 |
+| `pocket_tts_small` | PocketTTS Small | `tts` `clon` | 离线 + 流式 | en | 实验（experimental） | `model-pocket-tts-small` | PocketTTS Small 英文 18m/7m/2m 及 ReFL 变体 TTS 与克隆（实验性，离线+流式），默认音色 alba，克隆走 voice embedding。 |
 | `qwen3_tts` | Qwen3-TTS | `tts` `clon` `vdes` | 离线 + 流式 | zh, en, ja, ko, de, fr, ru, pt, es, it | 稳定（supported） | `model-qwen3-tts` | Qwen TTS 系列：10 语可控合成，3 秒克隆、CustomVoice 指令控制预置音色、VoiceDesign 由自然语言描述设计音色。 |
 | `sanotts` | sanoTTS Nano | `tts` | 离线 | en, vi, id, cs, de, es, fr, it …（共 14 种） | 社区（community） | `model-sanotts` | sanoTTS Nano 超小多语 TTS（14 语）：nano 系（时长学生 + 上下文声学学生 → mel-100 + 噪声驱动 ConvNeXt-1D 解码 + iSTFT，音色 heart / heart-nano，24kHz）与确定性 piperlite 系（时长/声学学生 → 192 通道潜表示（可选校准适配）→ 3 级 ConvTranspose1d + 空洞残差，音色 amy / hfc / kristin，22.05kHz）；使用外部 eSpeak-ng 音素化。 |
 | `soprano_tts` | Soprano | `tts` | 离线 + 流式 | en | 社区（community） | `model-soprano-tts` | Soprano 超轻量（约 80M）纯英文 TTS：17 层 Qwen3 风格因果 LM 自回归输出每帧 512 维特征，非迭代 Vocos 式解码器还原 32kHz 音频，无扩散细化。 |
@@ -160,6 +164,7 @@
 | `ast_audioset` | AST AudioSet | `cls` | 离线 | 语言无关 | 稳定（supported） | `model-ast-audioset` | MIT 音频频谱图 Transformer，对 527 个 AudioSet 声音类别做多标签分类。 |
 | `ced` | CED Audio Tagging | `cls` | 离线 | 语言无关 | 稳定（supported） | `model-ced` | CED（一致性集成蒸馏 ViT）音频分类，覆盖 527 个 AudioSet 类别。 |
 | `earshot_vad` | Earshot VAD | `vad` | 离线 + 流式 | 语言无关 | 社区（community） | `model-earshot-vad` | Earshot VAD 的原生 C++ 移植（与 Rust 参考实现逐位对齐）：16kHz 单声道、16ms 帧，按 CPU ISA 选 SIMD 内核；离线+流式，权重为 earshot_vad.safetensors，阈值键 threshold / neg_threshold。 |
+| `lfm_d1_omni` | d1-Omni-2B | `cls` | 离线 | en, ar, zh, fr, de, it, ja, ko …（共 12 种） | 稳定（supported） | `model-lfm-d1-omni` | Liquid AI d1-Omni-2B 音频决策：对音频与具名问题输出校准的是/否、选项、评分与数值估计（cls，仅离线，12 语种）。 |
 | `mms_forced_aligner` | Meta MMS-300M Forced Aligner | `align` | 离线 | 多语 | 社区（community） | `model-mms-forced-aligner` | Meta MMS-300M 多语 CTC 强制对齐（Wav2Vec2ForCTC）：把精确文本对齐到音频并给出词级时间戳。权重覆盖 1130 语，但本移植的原生文本规范化仅支持荷兰语与英语拉丁字母；可用 text_normalization=pre_romanized 传入 ASCII 罗马化，不支持的非拉丁输入会被拒绝。权重 CC-BY-NC-4.0，GGUF 仅本地转换、不公开分发。 |
 | `nemotron_3_diar` | Nemotron 3 Diarization | `diar` | 离线 + 流式 | 多语 | 稳定（supported） | `model-nemotron-3-diar` | NVIDIA 八说话人流式分离，采用到达顺序身份与可配置延迟档位。 |
 | `qwen3_forced_aligner` | Qwen3 Forced Aligner | `align` | 离线 | zh, en, yue, fr, de, it, ja, ko …（共 11 种） | 稳定（supported） | `model-qwen3-forced-aligner` | Qwen3 非自回归强制对齐：把文本对齐到语音，11 语下给出词级/字级时间戳。 |
@@ -189,6 +194,7 @@
 | `muscriptor` | MuScriptor | `midi` | 离线 + 流式 | 音乐 | 稳定（supported） | — | MuScriptor 音频转符号：把音乐音频转为符号音符事件或 MIDI，支持乐器约束、采样、beam 搜索、批量分块与流式最终结果输出。 |
 | `open_wake_word` | OpenWakeWord | `wake` | 离线 + 流式 | en | 实验（experimental） | `model-open-wake-word` | OpenWakeWord 唤醒词检测：共享语音嵌入 CNN + 分类器，英文 "alexa"。 |
 | `pulsevad` | PulseVAD | `vad` | 离线 | 语言无关 | 稳定（supported） | `model-pulsevad` | 16kHz 单声道语音活动检测，提供 2.1K 学生与 81K 教师权重。 |
+| `realtime_reuse` | Real-time RE-USE | `s2s` | 离线 + 流式 | 语言无关 | 稳定（supported） | `model-realtime-reuse` | Real-time RE-USE 因果通用语音修复（RE-USE 的实时流式变体）：exit layer 与 lookahead 可选，语言无关，离线+流式。 |
 | `reuse` | RE-USE | `s2s` | 离线 | 语言无关 | 稳定（supported） | `model-reuse` | RE-USE 采样率无关语音修复，双向 Mamba。 |
 | `sam_audio` | SAM Audio | `s2s` | 离线 | 语言无关 | 稳定（supported） | `model-sam-audio` | 提示条件音频分离。 |
 | `sheetsage2` | SheetSage2 | `midi` | 离线 | 音乐 | 稳定（supported） | `model-sheetsage2` | SheetSage2 音频转符号：从自包含 GGUF 读取录音并输出 ABC 乐谱产物。 |
@@ -277,6 +283,7 @@
 - [`kroko_asr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/kroko_asr.md) — Kroko Community ASR
 - [`kugelaudio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/kugelaudio.md) — KugelAudio-0-Open
 - [`latentsync`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/latentsync.md) — LatentSync 1.6
+- [`lfm_d1_omni`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/lfm_d1_omni.md) — d1-Omni-2B
 - [`lfm2_audio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/lfm2_audio.md) — LFM2.5-Audio
 - [`lfm3_audio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/lfm3_audio.md) — LFM3-Audio
 - [`liveavatar`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/liveavatar.md) — LiveAvatar
@@ -312,12 +319,15 @@
 - [`owsm_ctc`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/owsm_ctc.md) — OWSM-CTC
 - [`parakeet_tdt`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/parakeet_tdt.md) — Parakeet-TDT 0.6B v3
 - [`personaplex`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/personaplex.md) — PersonaPlex
+- [`phonon2_asr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/phonon2_asr.md) — Phonon-2
 - [`piper_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/piper_tts.md) — Piper TTS
 - [`plapre`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/plapre.md) — Plapre 3
+- [`pocket_tts_small`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/pocket_tts_small.md) — PocketTTS Small
 - [`pulsevad`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/pulsevad.md) — PulseVAD
 - [`qwen3_asr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/qwen3_asr.md) — Qwen3-ASR
 - [`qwen3_forced_aligner`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/qwen3_forced_aligner.md) — Qwen3 Forced Aligner
 - [`qwen3_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/qwen3_tts.md) — Qwen3-TTS
+- [`realtime_reuse`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/realtime_reuse.md) — Real-time RE-USE
 - [`reuse`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/reuse.md) — RE-USE
 - [`sam_audio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/sam_audio.md) — SAM Audio
 - [`samsone`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/samsone.md) — SAMSONE
@@ -334,6 +344,7 @@
 - [`stable_audio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/stable_audio.md) — Stable Audio 3
 - [`tf_gridnet`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/tf_gridnet.md) — TF-GridNet
 - [`tone_color_vc`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/tone_color_vc.md) — Tone Color VC
+- [`underdog_bark3`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/underdog_bark3.md) — Underdog Bark 3
 - [`universr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/universr.md) — UniverSR
 - [`vevo2`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/vevo2.md) — Vevo2
 - [`vibeasr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/vibeasr.md) — VibeVoice-ASR-BitNet

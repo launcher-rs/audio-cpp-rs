@@ -39,7 +39,7 @@ default = ["core-models"]
 prebuilt = ["audio-cpp-sys/prebuilt"]
 # 转发给 audio-cpp-sys 的模型组合 / 后端 feature。
 core-models = ["audio-cpp-sys/core-models"]   # 引擎核心 + 内置 VAD（默认，最小编译集）
-full-models = ["audio-cpp-sys/full-models"]   # 全量 135 个 loader 族（编译慢）
+full-models = ["audio-cpp-sys/full-models"]   # 全量 141 个 loader 族（编译慢）
 # 按需编译：可直接启用 `model-<族>` feature（推荐），或设置环境变量
 # `$env:AUDIOCPP_MODELS="qwen3_asr,citrinet_asr"` 后用本开关。
 # 示例：cargo run --features model-qwen3-asr
@@ -148,6 +148,12 @@ model-nemotron-transcribe = ["audio-cpp-sys/model-nemotron-transcribe"]  # ASR: 
 model-lfm3-audio = ["audio-cpp-sys/model-lfm3-audio"]  # ASR/TTS/S2S: LFM3-Audio-2B
 model-magenta-realtime-2 = ["audio-cpp-sys/model-magenta-realtime-2"]  # Music generation: Magenta RealTime 2
 model-soulx-flashhead = ["audio-cpp-sys/model-soulx-flashhead"]  # Audio generation: SoulX-FlashHead
+model-phonon2-asr = ["audio-cpp-sys/model-phonon2-asr"]  # ASR: Phonon-2（Parakeet 运行时）
+model-underdog-bark3 = ["audio-cpp-sys/model-underdog-bark3"]  # ASR: Underdog Bark 3（Parakeet 运行时）
+model-haas-asr = ["audio-cpp-sys/model-haas-asr"]  # ASR: Haas-ja-v1.0 日文
+model-lfm-d1-omni = ["audio-cpp-sys/model-lfm-d1-omni"]  # 音频分类: d1-Omni-2B audio decisions
+model-pocket-tts-small = ["audio-cpp-sys/model-pocket-tts-small"]  # TTS: PocketTTS Small
+model-realtime-reuse = ["audio-cpp-sys/model-realtime-reuse"]  # 语音修复: Real-time RE-USE（流式）
 cuda = ["audio-cpp-sys/cuda"]     # NVIDIA CUDA（需 CUDA Toolkit）
 hip = ["audio-cpp-sys/hip"]       # AMD HIP/ROCm（与 cuda 互斥）
 vulkan = ["audio-cpp-sys/vulkan"] # Vulkan 通用后端（需 Vulkan SDK）

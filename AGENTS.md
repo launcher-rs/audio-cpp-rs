@@ -125,18 +125,119 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `cc21c9ea`（origin/main；从记录的 `e9303b76` 快进 91 个提交）。
-  crate 版本为 **0.8.1**（workspace 统一；历史见下条与逐条升级记录）。
-  ⚠️ **上次升级的工作树/gitlink 不一致（本次已纠正，记录以防再犯）**：`5a5b7a1` 把
+- 当前 submodule HEAD = `d2da530b`（origin/main）。
+  crate 版本为 **0.9.0**（workspace 统一；历史见下条与逐条升级记录）。
+  ⚠️ **`e9303b76`→`cc21c9ea` 那次升级的工作树/gitlink 不一致（当时已纠正，记录以防再犯）**：
+  `5a5b7a1` 把
   gitlink 提交为 `e9303b76`，但 submodule **工作树始终停在 `ccdbe769`**（submodule
   reflog 只有 `22cad6af → ccdbe769` 一次 checkout，无 `e9303b76` 记录）。因此那条
   记录里「cargo build 4m14s 全量重编」的验证实际是对 `ccdbe769` 源码跑的，并非
-  `e9303b76`。本次推进到 `cc21c9ea`（包含 `e9303b76`）已一并覆盖该校验。
+  `e9303b76`。推进到 `cc21c9ea`（包含 `e9303b76`）时已一并覆盖该校验。
   教训：升级 submodule 后必须 `git -C audio-cpp-sys/audio.cpp log -1` 确认**工作树**
   与父仓库 gitlink 一致（`git status` 里 ` M audio-cpp-sys/audio.cpp` 长期挂着即为不一致），
   只看 `git ls-tree HEAD` 的指针不足以证明源码已切换。
-  注：本次已按 `e9303b76` 实际文件复核上次的 130 计数（`audiocpp_add_model` 125 /
+  注：当时已按 `e9303b76` 实际文件复核更早的 130 计数（`audiocpp_add_model` 125 /
   去重 loader 130 / spec 130 全部吻合），Rust 侧同步内容本身无误。
+- **升级 `cc21c9ea`→`d2da530b`（main）审查结论**：
+  - diff 共 368 文件（+27.6k/-9.1k）：新增 **3 个 `audiocpp_add_model` target**
+    （130→133）`lfm_d1_omni`（Liquid AI d1-Omni-2B 音频决策：对音频+具名问题输出
+    校准的是/否、选项、评分与数值估计，12 语种；task `cls`（spec 写 `classify`）
+    仅离线，结果走既有 `custom_schema_output`，schema `audio_decisions`）/
+    `realtime_reuse`（RE-USE 的实时流式变体，因果通用语音修复，语言无关；
+    task `s2s` 离线+流式，会话选项 `realtime_reuse.exit_layer`/`lookahead_frames`/
+    `weight_type`）/ `pocket_tts_small`（PocketTTS Small 英文 18m/7m/2m 及 ReFL
+    变体，实验性；task `tts`/`clon` 离线+流式，默认音色 `alba`，克隆走 voice
+    embedding），另有 **3 个 `parakeet_tdt` target 的 ALIASES loader**
+    （`phonon2_asr` Fermion Phonon-2 英文 / `underdog_bark3` Conway Underdog Bark 3
+    Standard·Plus·Pro 英文 / `haas_asr` Haas-ja-v1.0 日文，均复用 Parakeet 实现、
+    task `asr` 离线+流式）。去重 loader 名 135→**141**，spec 文件 134→**140**
+    （仍只有 `earshot_vad` 无 spec，`gen-models-doc.ps1` 的 `$specless` 无需补）。
+    其余为 lfm3_audio 模块重构（backbone/blocks/chat/encoder/published_gguf 等
+    删除、提升为框架共享 `lfm_decoder_runtime` + `lfm3_audio_encoder_runtime`）/
+    nemotron_transcribe `repetition_guard` / index_tts2 流式化 / soulx_flashhead
+    自 `community_models` 迁至 `models` 命名空间（target 与 loader 名不变）/
+    ggml ssm-scan Vulkan·Metal·CUDA 内核与 WebGPU 后端等。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 5 个头（`framework/core/backend.h` /
+    `framework/io/json.h` / `framework/runtime/{model,registry,session}.h`）与
+    `task_vocabulary.{h,cpp}`、`errors.h`、`spec_backed_model.h` 本次 diff
+    **零改动**；`runtime/cache_slots.h` 仅 +5 行内部加法（不经 C ABI）。
+    `capi.h` / `capi.cpp` / build.rs bindgen allowlist（`audiocpp_.*`）保持原样，
+    `bindings.docsrs.rs` 无需重拷。
+  - 无新 task 类型 / 输出字段：6 新族复用既有 `asr`/`cls`/`tts`/`clon`/`s2s`
+    （spec 的 `classify` 是既有 `cls` 别名，经通用任务字符串透传）；
+    `lfm_d1_omni` 结果走既有 `custom_schema_output`（shim 早已导出）。
+    高层 `types.rs` serde 结构无需改。
+  - **无数组选项缺口**：6 个新 spec 的 options `type` 全为
+    `bool`/`int`/`enum`/`float`/`string`/`path`，无 `*_list` 类型。
+  - 破坏性 spec 变更（上游层）：`parakeet_tdt.json` **删除** `hotwords` /
+    `hotwords_score`（连同 Phonon-2/Bark 描述一并迁入 `phonon2_asr.json` 与
+    `underdog_bark3.json`，`haas_asr` 无此选项）——传旧键的 parakeet_tdt 请求
+    会被上游未知选项校验拒绝；本仓 Rust 侧全仓 grep 无 `hotwords` 硬编码，
+    无需代码改动。`index_tts2` modes 增 `streaming`（能力增强）+ 新选项
+    `text_chunk_tokens`/`text_normalization`；`fish_drama3` 增 `skip_empty_chunks`；
+    `nemotron_transcribe` 增 `repetition_guard`；`muscriptor` 增 medium/large
+    权重包。全部走通用 options 字符串透传，高层无需改。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 6 个枚举变体
+    `LfmD1Omni`（`as_str()` → `"lfm_d1_omni"`）/ `Phonon2Asr`（→ `"phonon2_asr"`）/
+    `UnderdogBark3`（→ `"underdog_bark3"`）/ `HaasAsr`（→ `"haas_asr"`）/
+    `PocketTtsSmall`（→ `"pocket_tts_small"`）/ `RealtimeReuse`
+    （→ `"realtime_reuse"`，均与上游 loader 族名一致：3 个 parakeet ALIASES
+    的 `kFamily` 即其族名，3 个新 target 同名）+ `from_path()` 关键词表
+    （**排序陷阱**：`pocket_tts_small`/`pocket-tts-small`/`pockettts-small`
+    必须排在裸 `pocket_tts` 之前；`realtime_reuse`/`realtime-reuse`/
+    `real-time-reuse`/`realtimereuse` 必须排在 `reuse`/`re-use` 之前——官方目录名
+    `RE-USE-GGUF` 小写后含 `re-use`、文件名 `realtime-reuse-f32.gguf` 含 `reuse`；
+    phonon2 系/underdog 系/haas 系关键词置于 `parakeet` 关键词之前；
+    `lfm_d1_omni`/`lfm-d1-omni`/`d1_omni`/`d1-omni` 不收裸 `d1`）+ `From<&str>`
+    （含 `"phonon2-asr"`/`"underdog-bark3"`/`"haas-asr"` 连字符写法）；
+    并在两个 Cargo.toml 新增 `model-phonon2-asr` / `model-underdog-bark3` /
+    `model-haas-asr` / `model-lfm-d1-omni` / `model-pocket-tts-small` /
+    `model-realtime-reuse` 六个 feature（build.rs 自动映射 CMake target/alias，
+    无需改 build.rs）。`model_family_roundtrip` / `model_family_from_path`
+    （含按上游真实权重文件名的 6 组防吞断言：`phonon-2-mixed-q8.gguf` /
+    `Phonon-2-GGUF/phonon-2-mixed-q8.gguf` /
+    `PocketTTS-Small-GGUF/english-18m-refl/english-18m-refl-f32.gguf` /
+    `RE-USE-GGUF/realtime-reuse-f32.gguf` /
+    `Haas-ja-v1.0-GGUF/haas-ja-v1.0-q8_0.gguf` /
+    `Underdog-Bark-3.0-GGUF/underdog-bark-3.0-mixed-f16.gguf` /
+    `d1-Omni-2B-GGUF/d1-Omni-2B-Q8_0.gguf` /
+    `d1-Omni-2B-GGUF/mmproj-d1-Omni-2B-F16.gguf`）测试已覆盖。
+  - 6 新族 session 自持资产：`pocket_tts_small` 持 `shared_ptr<const Assets>
+    manifest_` + `shared_ptr<const BackendWeights> weights_`；`lfm_d1_omni` 持
+    `shared_ptr<const LfmD1OmniAssets> assets_` + contract；3 个 parakeet ALIASES
+    共享 `ParakeetTDTSession`（持 `shared_ptr<const ParakeetTDTAssets> assets_`）。
+    `realtime_reuse` **例外但自足**：`Session` 把 assets `std::move` 进
+    `std::unique_ptr<Runtime> runtime_`，而 `Runtime::Impl` 构造时仅把张量搬进
+    自身成员 `weights`/`store` 后即 `assets->tensors->release_storage()`，
+    **不保留任何 Assets 引用**（`Assets` 仅 `resources`+`tensors`，两者均只在
+    `load_assets` 与 `Impl` 构造期使用）；`StreamingFrontend` 只依赖 `Runtime&`。
+    `Session` 独立于 `Model` 存活的保证成立。
+  - 计数同步：`README.md`（3 处）/ `audio-cpp-sys/README.md` / 两个 Cargo.toml 的
+    族数注释统一 135→**141**；重跑 `pwsh -File scripts/gen-models-doc.ps1` 刷新
+    `docs/models.md`（**141** 族 + 2 内置 VAD，missing zh desc = 0），
+    `scripts/model-desc-zh.tsv` 补 6 条中文简介。
+    注意 `audiocpp_add_model` 的 **target** 数是 133，去重 **loader** 名才是 141
+    （一个 target 可挂多个 loader；`earshot_vad` 无 spec，故 spec 140）。
+  - 已知小瑕疵（不阻塞）：上游把 `haas` 的说明页命名为 `docs/models/haas.md`，
+    与 family 名 `haas_asr` 不一致，而 `gen-models-doc.ps1` 按 family 名匹配
+    上游文档，故 `haas_asr` 行缺上游文档链接（同因既有：`qwen3`/`r2t2`/
+    `vocalrender` 等 orphan doc）。
+  - **版本 0.8.1 → 0.9.0**（`workspace.package.version` + `workspace.dependencies.
+    audio-cpp-sys` 版本 + `audio-cpp-sys/README.md` 四处 + 本文件；`Cargo.lock`
+    随 `cargo check` 同步）。`prebuilt_download.rs` 测试 fixture 里的 `0.8.1`
+    是纯逻辑测试数据，未改。
+  - 验证：`cargo fmt --all -- --check` + `cargo build --workspace`（1m43s，
+    build.rs 跟踪 submodule HEAD 正常触发重编）+ `cargo test --workspace`
+    （32 lib + 12 doc 全过）+ `cargo clippy --workspace --all-targets` 零警告 +
+    `cargo check -p audio-cpp-sys --features custom-models,model-phonon2-asr,
+    model-underdog-bark3,model-haas-asr,model-lfm-d1-omni,model-pocket-tts-small,
+    model-realtime-reuse`（1m39s；CMakeLists 的 `ALIASES phonon2_asr
+    underdog_bark3 haas_asr` 已核实，别名被上游接受）。
+  - `metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制回落源码构建
+    （预编译自动下载被跳过），属预期；`cargo publish` / tag / Release /
+    预编译资产上传均属第 6 节发布操作，须用户显式下达，本次未执行。
+    上游 main 在 `v0.9.3`（`41c1f8ff`）之后；本仓按惯例跟 origin/main HEAD。
+    预编译 tag 默认 `v{version}`，升版后即为 `v0.9.0`。
 - **升级 `e9303b76`→`cc21c9ea`（main）审查结论**：
   - diff 共 579 文件（+77.4k/-21.5k，91 个提交）：新增 5 个 loader 族
     （`audiocpp_add_model` 125→130，去重 loader 名 130→135，spec 文件 130→134）：

@@ -39,6 +39,7 @@ gigaam_asr	GigaAM v3 / 多语 Conformer 识别，CTC 或 RNN-T 解码。
 glm_tts	社区中英零样本合成与克隆：原生 Llama + Whisper-VQ + Flow/DiT + CAMPPlus + HiFT。
 gradium_phonon	Gradium Phonon 31M 英文 TTS（复用 PocketTTS 运行时）：Mimi codec + flow 声学模型，预置 default 音色，支持导出/复用 voice state 与流式输出。
 granite5asr	IBM Granite Speech 5.0 TurboCTC 470M：紧凑高速英文 ASR，Conformer CTC + 分块自注意力 + 自条件。
+haas_asr	Haas-ja-v1.0 日文 FastConformer-TDT 识别，配 Kimi Delta Attention 预测器（复用 Parakeet 实现），离线+流式。
 heartmula	开源音乐基础模型：由文本、歌词提示与风格标签生成完整歌曲，结构可控、多语歌词条件。
 higgs_audio_stt	Boson AI 英文语音转写：Whisper Large v3 编码器 + Qwen 解码器。
 higgs_audio_tts	Boson AI 对话式 TTS，覆盖 100+ 语言，零样本克隆，行内控制情感、风格、韵律、停顿与音效。
@@ -58,6 +59,7 @@ kugelaudio	KugelAudio TTS，内置预置音色，支持增量音频输出。
 latentsync	LatentSync 1.6 音频驱动唇形同步：按输入语音改写参考视频中的人脸口型（实验性，需 FFmpeg）。
 lfm2_audio	Liquid AI LFM2.5-Audio（加载 llama.cpp 格式 GGUF）：ASR 用 FastConformer 编码器接 LFM2 混合主干；TTS 经 depthformer 生成音频帧再由 ISTFT 还原 24kHz；S2S 输入语音问题、输出文字+音频交错。
 lfm3_audio	Liquid AI LFM3-Audio-2B（llama.cpp 格式 GGUF 或上游 safetensors）：log-mel 编码器 + LFM3 混合 conv/attention 主干；TTS 由 MaskGIT depth 解码 + LiquidCodec + ISTFT 出 24kHz；S2S 多轮历史经产物回传；asr/tts/s2s 离线+流式，18 语种。
+lfm_d1_omni	Liquid AI d1-Omni-2B 音频决策：对音频与具名问题输出校准的是/否、选项、评分与数值估计（cls，仅离线，12 语种）。
 liveavatar	LiveAvatar 音频驱动数字人视频生成（Wan2.2 S2V 架构）。
 magenta_realtime_2	Google Magenta RealTime 2 帧自回归立体声音乐生成（实验性）：文本 / 音频风格 / MIDI（pianoroll_file）条件，按帧生成，离线+流式，含 small 与 base 两档权重。
 magpie_tts	NVIDIA MagpieTTS 多语 TTS：由文本生成 NanoCodec 音频 token（内置说话人上下文嵌入 + 纯解码器 Transformer + 自回归局部 Transformer），再解码为波形。
@@ -94,12 +96,15 @@ owsm_ctc	ESPnet 非自回归多语识别与翻译，自条件 CTC。
 owsm	ESPnet Open Whisper 风格多语识别与翻译。
 parakeet_tdt	NVIDIA Parakeet-TDT 0.6B v3 FastConformer-TDT，覆盖 25 种欧洲语言并自动语种检测；支持上游 safetensors 包与独立 GGUF，提供离线全上下文、有界窗口长音频与缓冲流式；权重为无界双向注意力，非原生 cache-aware 流式模型。
 personaplex	PersonaPlex：Moshi 风格全双工语音对话模型，Mimi 音频分词，内置说话人/人设提示，流式音频输入 + 文本生成 + 合成回复语音。
+phonon2_asr	Fermion Research Phonon-2 英文 ASR（复用 Parakeet 实现）：原生热词偏置与短语级流式，离线+流式。
 piper_tts	Piper TTS 音色的原生 VITS 推理，使用共享 eSpeak-ng 前端。
 pocket_tts	Kyutai 100M 参数 CPU 友好 TTS 包：英/法/德/意/葡/西的实时本地合成与小体积克隆。
+pocket_tts_small	PocketTTS Small 英文 18m/7m/2m 及 ReFL 变体 TTS 与克隆（实验性，离线+流式），默认音色 alba，克隆走 voice embedding。
 pulsevad	16kHz 单声道语音活动检测，提供 2.1K 学生与 81K 教师权重。
 qwen3_asr	Qwen ASR 系列：覆盖 30 语、22 种中文方言与多种英语口音的语种识别与识别，对噪声、长音频与歌唱鲁棒。
 qwen3_forced_aligner	Qwen3 非自回归强制对齐：把文本对齐到语音，11 语下给出词级/字级时间戳。
 qwen3_tts	Qwen TTS 系列：10 语可控合成，3 秒克隆、CustomVoice 指令控制预置音色、VoiceDesign 由自然语言描述设计音色。
+realtime_reuse	Real-time RE-USE 因果通用语音修复（RE-USE 的实时流式变体）：exit layer 与 lookahead 可选，语言无关，离线+流式。
 reuse	RE-USE 采样率无关语音修复，双向 Mamba。
 rvc	RVC 离线检索式声音转换：原生 HuBERT 内容特征 + RMVPE 音高提取 + 可选 IVF 检索混合，内置 v1/v2 音色并支持自备 RVC 权重。
 sam_audio	提示条件音频分离。
@@ -122,6 +127,7 @@ stable_audio	Stability AI 生成式音频系列：文生音乐/音效、音频�
 supertonic	Supertone 端侧 TTS，覆盖 31 语，预置音色，面向浏览器/移动/桌面的紧凑快速本地合成。
 tf_gridnet	TF-GridNet 时频重叠语音分离。
 tone_color_vc	Tone Color VC 独立声音转换，使用参考说话人录音。
+underdog_bark3	Conway Research Underdog Bark 3 Standard/Plus/Pro 英文 ASR（复用 Parakeet 实现）：带发布方输入前缀与模型内流式前端，离线+流式。
 universr	UniverSR：复数 STFT 流匹配音频超分至 48kHz。
 vevo2	Vevo2 统一可控框架：中英语音与歌声生成、声音转换与编辑，分词器解耦内容、韵律、旋律、风格与音色。
 vibeasr	VibeASR.cpp 的 CPU 优先 VibeVoice ASR 移植：INT8（I8_S）音频 VAE 编码器 + 三值（I2_S）Qwen2 解码器。

@@ -244,6 +244,11 @@ pub enum ModelFamily {
     /// task 为 `asr`/`tts`/`s2s`，离线+流式，18 语种（无 auto）；
     /// S2S 多轮历史经 `output_artifacts` 的 `lfm3_audio.reply` 产物回传）
     Lfm3Audio,
+    /// LFM d1-Omni（Liquid AI d1-Omni-2B 音频决策：对音频+具名问题输出
+    /// 校准的是/否、选项、评分与数值估计；CMake target `lfm_d1_omni`，
+    /// 用 `model-lfm-d1-omni` feature 编译；task 为 `cls`（classify）仅离线，
+    /// 多语种，结果在 `custom_schema_output`（schema `audio_decisions`））
+    LfmD1Omni,
     /// OWSM（ESPnet Open Whisper 式多语 ASR/翻译；task 为 `asr`，离线+流式）
     Owsm,
     /// OWSM-CTC（ESPnet 非自回归多语 ASR/翻译；task 为 `asr`，离线+流式）
@@ -253,6 +258,19 @@ pub enum ModelFamily {
     Samsone,
     /// Whistle ASR（社区离线语音识别，本地 FP32 GGUF；task 为 `asr` 仅离线）
     WhistleAsr,
+    /// Phonon-2 ASR（Fermion Research 英文 ASR，复用 Parakeet 实现，原生热词
+    /// 与短语级流式；与 `parakeet_tdt` 同属 `parakeet_tdt` CMake target
+    /// （ALIASES），用 `model-phonon2-asr` feature 编译；
+    /// task 为 `asr`，离线+流式，en）
+    Phonon2Asr,
+    /// Underdog Bark 3（Conway Research 英文 ASR，Standard/Plus/Pro，
+    /// 复用 Parakeet 实现；与 `parakeet_tdt` 同 target（ALIASES），
+    /// 用 `model-underdog-bark3` feature 编译；task 为 `asr`，离线+流式，en）
+    UnderdogBark3,
+    /// Haas ASR（Haas-ja-v1.0 日文 KDA-TDT ASR，复用 Parakeet 实现；
+    /// 与 `parakeet_tdt` 同 target（ALIASES），用 `model-haas-asr` feature
+    /// 编译；task 为 `asr`，离线+流式，ja）
+    HaasAsr,
 
     // ---- TTS ----
     /// Qwen3 TTS
@@ -296,6 +314,11 @@ pub enum ModelFamily {
     /// 预置音色 `default`，可导出/复用 voice state；task 为 `tts`，
     /// 离线+流式；与 `pocket_tts` 同属 `pocket_tts` CMake target）
     GradiumPhonon,
+    /// PocketTTS Small（英文 2m/7m/18m 及 ReFL 变体，实验性；
+    /// 独立 CMake target `pocket_tts_small`，用 `model-pocket-tts-small`
+    /// feature 编译；task 为 `tts`/`clon`，离线+流式，en，
+    /// 内置音色如 `alba`，克隆走 voice embeddings）
+    PocketTtsSmall,
     /// VieNeu TTS v3 Turbo（越南语/英语 48kHz TTS + 即时声音克隆，社区模型；
     /// 上游族名由 `vietneu_tts` 改名而来，旧名仍可经 `From<&str>` 解析；
     /// task 为 `tts`/`clon` 仅离线；文本输入为 SEA-G2P 音素）
@@ -463,6 +486,10 @@ pub enum ModelFamily {
     SoulxFlashhead,
     /// RE-USE（采样率无关语音修复，双向 Mamba；task 为 `s2s` 仅离线）
     Reuse,
+    /// Real-time RE-USE（RE-USE 的实时流式变体，语言无关；独立 CMake target
+    /// `realtime_reuse`，用 `model-realtime-reuse` feature 编译；
+    /// task 为 `s2s`，离线+流式，结果在 `audio_output`）
+    RealtimeReuse,
     /// SAM Audio（prompt 条件音频分离；task 为 `s2s` 仅离线）
     SamAudio,
     /// Sidon v0.1（单说话人语音修复，48kHz 输出；task 为 `s2s` 仅离线）
@@ -612,6 +639,26 @@ impl ModelFamily {
             ("nemotron-3", ModelFamily::Nemotron3Diar),
             ("nemotron", ModelFamily::NemotronAsr),
             ("parakeet", ModelFamily::ParakeetTdt),
+            // phonon2_asr / underdog_bark3 / haas_asr 与 parakeet_tdt 同属
+            // `parakeet_tdt` target（ALIASES），权重名分别为
+            // phonon-2-mixed-*.gguf / underdog-bark-3.0-*.gguf / haas-ja-v1.0-*.gguf。
+            // phonon-2 现为正式族（此前 gradium_phonon 只收 phonon-31m/40m
+            // 正是给这里留白）；"bark" 裸词易误伤，只收带 3 的写法。
+            ("phonon2_asr", ModelFamily::Phonon2Asr),
+            ("phonon2-asr", ModelFamily::Phonon2Asr),
+            ("phonon-2", ModelFamily::Phonon2Asr),
+            ("phonon2", ModelFamily::Phonon2Asr),
+            ("phonon_2", ModelFamily::Phonon2Asr),
+            ("underdog_bark3", ModelFamily::UnderdogBark3),
+            ("underdog-bark3", ModelFamily::UnderdogBark3),
+            ("underdog-bark-3", ModelFamily::UnderdogBark3),
+            ("underdog", ModelFamily::UnderdogBark3),
+            ("bark3", ModelFamily::UnderdogBark3),
+            ("bark-3", ModelFamily::UnderdogBark3),
+            ("haas_asr", ModelFamily::HaasAsr),
+            ("haas-asr", ModelFamily::HaasAsr),
+            ("haas-ja", ModelFamily::HaasAsr),
+            ("haas", ModelFamily::HaasAsr),
             (
                 "vibevoice_asr_streaming",
                 ModelFamily::VibevoiceAsrStreaming,
@@ -686,12 +733,19 @@ impl ModelFamily {
             ("gradium_phonon", ModelFamily::GradiumPhonon),
             ("gradium-phonon", ModelFamily::GradiumPhonon),
             ("gradium", ModelFamily::GradiumPhonon),
-            // 打包权重名为 phonon-31m-en-*.gguf；只收带尺寸的 Phonon 名，
-            // 不收裸 "phonon"，避免与 Parakeet Phonon-2 手动转换权重误判。
+            // 打包权重名为 phonon-31m-en-*.gguf；不收裸 "phonon"（与 31m/40m
+            // 都无子串交叠的 "phonon-2" 已自 cc21c9ea→d2da530b 起归属正式族
+            // Phonon2Asr，见 parakeet 段关键词）。
             ("phonon-31m", ModelFamily::GradiumPhonon),
             ("phonon_31m", ModelFamily::GradiumPhonon),
             ("phonon-40m", ModelFamily::GradiumPhonon),
             ("phonon_40m", ModelFamily::GradiumPhonon),
+            // pocket_tts_small 必须排在裸 "pocket_tts" 之前（族名含其子串，
+            // 否则会被吞成 PocketTts）；官方目录名 PocketTTS-Small-GGUF 由
+            // "pockettts-small" 覆盖。
+            ("pocket_tts_small", ModelFamily::PocketTtsSmall),
+            ("pocket-tts-small", ModelFamily::PocketTtsSmall),
+            ("pockettts-small", ModelFamily::PocketTtsSmall),
             ("pocket_tts", ModelFamily::PocketTts),
             ("pocket-tts", ModelFamily::PocketTts),
             ("vietneu", ModelFamily::VieneuV3Turbo),
@@ -790,6 +844,12 @@ impl ModelFamily {
             ("gigaam_asr", ModelFamily::GigaamAsr),
             ("gigaam-asr", ModelFamily::GigaamAsr),
             ("gigaam", ModelFamily::GigaamAsr),
+            // lfm_d1_omni 权重名为 d1-Omni-2B-*.gguf（含 mmproj- 前缀的
+            // encoder 文件）；"d1" 过短易误伤，只收族名与 d1-omni。
+            ("lfm_d1_omni", ModelFamily::LfmD1Omni),
+            ("lfm-d1-omni", ModelFamily::LfmD1Omni),
+            ("d1_omni", ModelFamily::LfmD1Omni),
+            ("d1-omni", ModelFamily::LfmD1Omni),
             ("lfm2_audio", ModelFamily::Lfm2Audio),
             ("lfm2-audio", ModelFamily::Lfm2Audio),
             ("lfm2", ModelFamily::Lfm2Audio),
@@ -814,6 +874,13 @@ impl ModelFamily {
             ("soulx-flashhead", ModelFamily::SoulxFlashhead),
             ("soulx", ModelFamily::SoulxFlashhead),
             ("flashhead", ModelFamily::SoulxFlashhead),
+            // realtime_reuse 必须排在裸 "reuse"/"re-use" 之前：官方权重目录为
+            // RE-USE-GGUF（小写后含 "re-use"），文件名 realtime-reuse-f32.gguf
+            // （含 "reuse"），两者都会被既有 RE-USE 关键词抢先吞掉。
+            ("realtime_reuse", ModelFamily::RealtimeReuse),
+            ("realtime-reuse", ModelFamily::RealtimeReuse),
+            ("real-time-reuse", ModelFamily::RealtimeReuse),
+            ("realtimereuse", ModelFamily::RealtimeReuse),
             ("reuse", ModelFamily::Reuse),
             ("re-use", ModelFamily::Reuse),
             ("sam_audio", ModelFamily::SamAudio),
@@ -974,10 +1041,14 @@ impl ModelFamily {
             ModelFamily::IndexEcho => "index_echo",
             ModelFamily::Lfm2Audio => "lfm2_audio",
             ModelFamily::Lfm3Audio => "lfm3_audio",
+            ModelFamily::LfmD1Omni => "lfm_d1_omni",
             ModelFamily::Owsm => "owsm",
             ModelFamily::OwsmCtc => "owsm_ctc",
             ModelFamily::Samsone => "samsone",
             ModelFamily::WhistleAsr => "whistle_asr",
+            ModelFamily::Phonon2Asr => "phonon2_asr",
+            ModelFamily::UnderdogBark3 => "underdog_bark3",
+            ModelFamily::HaasAsr => "haas_asr",
             ModelFamily::Qwen3Tts => "qwen3_tts",
             ModelFamily::Confucius4Tts => "confucius4_tts",
             ModelFamily::DotsTts => "dots_tts",
@@ -995,6 +1066,7 @@ impl ModelFamily {
             ModelFamily::Outetts => "outetts",
             ModelFamily::PocketTts => "pocket_tts",
             ModelFamily::GradiumPhonon => "gradium_phonon",
+            ModelFamily::PocketTtsSmall => "pocket_tts_small",
             ModelFamily::VieneuV3Turbo => "vieneu_v3_turbo",
             ModelFamily::Fireredtts3 => "fireredtts3",
             ModelFamily::F5Tts => "f5_tts",
@@ -1058,6 +1130,7 @@ impl ModelFamily {
             ModelFamily::Latentsync => "latentsync",
             ModelFamily::SoulxFlashhead => "soulx_flashhead",
             ModelFamily::Reuse => "reuse",
+            ModelFamily::RealtimeReuse => "realtime_reuse",
             ModelFamily::SamAudio => "sam_audio",
             ModelFamily::Sidon => "sidon",
             ModelFamily::SmartTurn => "smart_turn",
@@ -1131,11 +1204,19 @@ impl From<&str> for ModelFamily {
             "lfm2_audio" => ModelFamily::Lfm2Audio,
             "lfm3_audio" => ModelFamily::Lfm3Audio,
             "lfm3-audio" => ModelFamily::Lfm3Audio,
+            "lfm_d1_omni" => ModelFamily::LfmD1Omni,
+            "lfm-d1-omni" => ModelFamily::LfmD1Omni,
             "owsm" => ModelFamily::Owsm,
             "owsm_ctc" => ModelFamily::OwsmCtc,
             "samsone" => ModelFamily::Samsone,
             "whistle_asr" => ModelFamily::WhistleAsr,
             "whistle-asr" => ModelFamily::WhistleAsr,
+            "phonon2_asr" => ModelFamily::Phonon2Asr,
+            "phonon2-asr" => ModelFamily::Phonon2Asr,
+            "underdog_bark3" => ModelFamily::UnderdogBark3,
+            "underdog-bark3" => ModelFamily::UnderdogBark3,
+            "haas_asr" => ModelFamily::HaasAsr,
+            "haas-asr" => ModelFamily::HaasAsr,
             "qwen3_tts" => ModelFamily::Qwen3Tts,
             "confucius4_tts" => ModelFamily::Confucius4Tts,
             "dots_tts" => ModelFamily::DotsTts,
@@ -1153,6 +1234,8 @@ impl From<&str> for ModelFamily {
             "neutts" => ModelFamily::Neutts,
             "outetts" => ModelFamily::Outetts,
             "pocket_tts" => ModelFamily::PocketTts,
+            "pocket_tts_small" => ModelFamily::PocketTtsSmall,
+            "pocket-tts-small" => ModelFamily::PocketTtsSmall,
             "gradium_phonon" => ModelFamily::GradiumPhonon,
             "gradium-phonon" => ModelFamily::GradiumPhonon,
             "gradium" => ModelFamily::GradiumPhonon,
@@ -1238,6 +1321,8 @@ impl From<&str> for ModelFamily {
             "soulx_flashhead" => ModelFamily::SoulxFlashhead,
             "soulx-flashhead" => ModelFamily::SoulxFlashhead,
             "reuse" => ModelFamily::Reuse,
+            "realtime_reuse" => ModelFamily::RealtimeReuse,
+            "realtime-reuse" => ModelFamily::RealtimeReuse,
             "sam_audio" => ModelFamily::SamAudio,
             "sidon" => ModelFamily::Sidon,
             "smart_turn" => ModelFamily::SmartTurn,
@@ -1704,10 +1789,14 @@ mod tests {
             IndexEcho,
             Lfm2Audio,
             Lfm3Audio,
+            LfmD1Omni,
             Owsm,
             OwsmCtc,
             Samsone,
             WhistleAsr,
+            Phonon2Asr,
+            UnderdogBark3,
+            HaasAsr,
             // TTS
             Qwen3Tts,
             Confucius4Tts,
@@ -1725,6 +1814,7 @@ mod tests {
             Neutts,
             Outetts,
             PocketTts,
+            PocketTtsSmall,
             GradiumPhonon,
             VieneuV3Turbo,
             Fireredtts3,
@@ -1790,6 +1880,7 @@ mod tests {
             Latentsync,
             SoulxFlashhead,
             Reuse,
+            RealtimeReuse,
             SamAudio,
             Sidon,
             SmartTurn,
@@ -2121,8 +2212,16 @@ mod tests {
             ModelFamily::from_path("deepfilternet2"),
             Some(ModelFamily::BuiltinAudioUtils)
         );
-        // gradium_phonon 与 pocket_tts 互不误判（同 target、不同 loader 族）。
-        assert_eq!(ModelFamily::from_path("phonon-2-q8_0.gguf"), None);
+        // gradium_phonon 与 pocket_tts 互不误判（同 target、不同 loader 族）；
+        // phonon-2 自 d2da530b 起是正式族 Phonon2Asr（不再是 None）。
+        assert_eq!(
+            ModelFamily::from_path("phonon-2-mixed-q8.gguf"),
+            Some(ModelFamily::Phonon2Asr)
+        );
+        assert_eq!(
+            ModelFamily::from_path("Phonon-2-GGUF/phonon-2-mixed-q8.gguf"),
+            Some(ModelFamily::Phonon2Asr)
+        );
         assert_eq!(
             ModelFamily::from_path("phonon-31m-en-q8_0.gguf"),
             Some(ModelFamily::GradiumPhonon)
@@ -2134,6 +2233,36 @@ mod tests {
         assert_eq!(
             ModelFamily::from_path("pocket-tts-q8_0.gguf"),
             Some(ModelFamily::PocketTts)
+        );
+        // cc21c9ea→d2da530b 新增 4 族：按上游真实权重文件名断言。
+        // pocket_tts_small 不被裸 "pocket_tts" 吞掉（含目录名的完整路径）。
+        assert_eq!(
+            ModelFamily::from_path(
+                "PocketTTS-Small-GGUF/english-18m-refl/english-18m-refl-f32.gguf"
+            ),
+            Some(ModelFamily::PocketTtsSmall)
+        );
+        // realtime_reuse 不被目录 RE-USE-GGUF 的 "re-use"/文件名的 "reuse"
+        // 抢先吞成 Reuse。
+        assert_eq!(
+            ModelFamily::from_path("RE-USE-GGUF/realtime-reuse-f32.gguf"),
+            Some(ModelFamily::RealtimeReuse)
+        );
+        assert_eq!(
+            ModelFamily::from_path("Haas-ja-v1.0-GGUF/haas-ja-v1.0-q8_0.gguf"),
+            Some(ModelFamily::HaasAsr)
+        );
+        assert_eq!(
+            ModelFamily::from_path("Underdog-Bark-3.0-GGUF/underdog-bark-3.0-mixed-f16.gguf"),
+            Some(ModelFamily::UnderdogBark3)
+        );
+        assert_eq!(
+            ModelFamily::from_path("d1-Omni-2B-GGUF/d1-Omni-2B-Q8_0.gguf"),
+            Some(ModelFamily::LfmD1Omni)
+        );
+        assert_eq!(
+            ModelFamily::from_path("d1-Omni-2B-GGUF/mmproj-d1-Omni-2B-F16.gguf"),
+            Some(ModelFamily::LfmD1Omni)
         );
         // ming3_audio 不被裸 "ming3" 吞成 Ming3Tts；权重名两种写法均命中。
         assert_eq!(

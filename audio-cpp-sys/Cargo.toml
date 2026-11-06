@@ -54,7 +54,7 @@ prebuilt = []
 # vendored 在 audio.cpp/assets/framework/models/，无需下载任何权重。
 # 这也是编译最快、开箱即用的最小编译集，适合仅用 VAD 或验证绑定链路的场景。
 core-models = []
-# 全量编译 audio.cpp 支持的 135 个 loader 族（随上游增长，以
+# 全量编译 audio.cpp 支持的 141 个 loader 族（随上游增长，以
 # audio.cpp/CMakeLists.txt 的 make_*_loader 为准）。注意：全量编译耗时很长且生成
 # 的静态库很大；并不等于"能运行任意模型"，权重文件仍需自行下载。
 # 日常建议优先用模型族 feature 或 custom-models 按需编译，只有需要一次
@@ -175,6 +175,12 @@ model-nemotron-transcribe = ["custom-models"]           # ASR: NVIDIA Nemotron 3
 model-lfm3-audio = ["custom-models"]                    # ASR/TTS/S2S: LFM3-Audio-2B (asr/tts/s2s, offline+streaming)
 model-magenta-realtime-2 = ["custom-models"]            # Music generation: Magenta RealTime 2 (gen, offline+streaming)
 model-soulx-flashhead = ["custom-models"]               # Audio generation: SoulX-FlashHead 人像视频 (gen, offline+streaming)
+model-phonon2-asr = ["custom-models"]                   # ASR: Phonon-2 on Parakeet runtime (asr, offline+streaming, en)
+model-underdog-bark3 = ["custom-models"]                # ASR: Underdog Bark 3 on Parakeet runtime (asr, offline+streaming, en)
+model-haas-asr = ["custom-models"]                      # ASR: Haas-ja-v1.0 Japanese KDA-TDT (asr, offline+streaming, ja)
+model-lfm-d1-omni = ["custom-models"]                   # Audio classification: Liquid d1-Omni-2B audio decisions (cls, offline)
+model-pocket-tts-small = ["custom-models"]              # TTS: PocketTTS Small 2m/7m/18m + ReFL (tts/clon, offline+streaming, en)
+model-realtime-reuse = ["custom-models"]                # Speech restoration: Real-time RE-USE streaming (s2s, offline+streaming)
 
 # ------------------------------------------------------------------------
 # 计算后端 feature（可叠加，映射 engine 的 ENGINE_ENABLE_*_CPU 选项）。
