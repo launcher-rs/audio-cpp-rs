@@ -233,11 +233,51 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     model-underdog-bark3,model-haas-asr,model-lfm-d1-omni,model-pocket-tts-small,
     model-realtime-reuse`（1m39s；CMakeLists 的 `ALIASES phonon2_asr
     underdog_bark3 haas_asr` 已核实，别名被上游接受）。
-  - `metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制回落源码构建
-    （预编译自动下载被跳过），属预期；`cargo publish` / tag / Release /
-    预编译资产上传均属第 6 节发布操作，须用户显式下达，本次未执行。
+  - **发布（用户显式授权执行，第 6 节流程）**：
+    ① `cargo publish --registry crates-io` 已发布 **`audio-cpp-sys 0.9.0`**
+    （2026-11-06 07:15 UTC）与 **`audio-cpp 0.9.0`**（07:27 UTC），两者在
+    crates.io API 可查且未 yanked。必须**按依赖序分两步**发：`audio-cpp` 依赖
+    `audio-cpp-sys ^0.9.0`，先发 sys 并等索引可见，再发 cpp（`--workspace`
+    的 dry-run 会在 cpp 打包阶段因找不到 `^0.9.0` 而失败，属预期）。
+    本机 `~/.cargo/config.toml` 把 crates-io 替换为 `rsproxy-sparse` 镜像，
+    镜像同步有延迟（sys 刚发时 cpp 解析不到 0.9.0，几分钟后自动可用）；
+    另遇一次 crates.io 上传 `SSL connect error (schannel ... handshake)`
+    瞬时错误，重试即过。`chacha20 v0.10.1`（Cargo.lock 传递依赖）被 yank 的
+    warning 与本次发布无关。
+    ② git tag **`v0.9.0`**（指向 `b8a352b`）已推送，触发
+    `.github/workflows/prebuilt-audio-cpp.yml` run `42181033963`
+    （9 cell：linux 4 / windows 4 / macos 1，full × cpu/vulkan/metal，
+    历史同类约 26-27 分钟）。workflow 各 cell 自行 `gh release create`
+    `v0.9.0`（若不存在）再 `gh release upload --clobber`，**无需预先建 Release**；
+    资产名里的 `AUDIO_COMMIT` 取 `git ls-tree HEAD` 的 gitlink，故必须先 commit
+    再推 tag，否则 CI 会按旧 gitlink 打包。
+    **结果**：run `42181033963` 9/9 job 全绿（macOS 13m22s / linux 11m50s~20m13s /
+    windows 19m38s~30m8s），Release `v0.9.0` 资产 **9/9 齐全**，文件名均含
+    `d2da530bf04f`。已下载实测两个 Windows 资产（`cpu-md` 与 `vulkan-mt`）：
+    `engine_runtime.lib`（889MB / 900MB）、`ggml*.lib`（`vulkan-mt` 另含
+    `ggml-vulkan.lib` 67MB）、`sentencepiece*.lib`、`cjson_vendor.lib`、
+    `yaml_vendor.lib` 全部在包内，`metadata.json` 的 `crate_version=0.9.0` /
+    `audio_commit=d2da530bf04f` / `msvc_ver=1944` / `crt` 均正确 → **资产完好**。
+  - ⚠️ **发现 CI 断言失效（本次发布资产未受影响，建议后续修复）**：4 个 Windows
+    cell 都报了 `Missing key archive: engine_runtime.lib|sentencepiece*.lib|
+    ggml*.lib` 的 `::error::` annotation，但 job 仍成功、实测资产也完好——
+    两个缺陷叠加：
+    ① `collect-windows-prebuilt.sh:64` 用 `compgen -G "$ROOT/lib/$need"` 断言，
+    而 Windows runner 的 `$RUNNER_TEMP` 是反斜杠路径（`D:\a\_temp`），bash glob
+    把 `\a`/`\t` 当转义符吃掉，模式必然匹配失败 → **断言恒误报**；
+    `find`/`cp` 不走 glob 所以收集本身正常。Linux/macOS 的 `$RUNNER_TEMP` 是
+    正斜杠，故 `collect-unix-prebuilt.sh` 无此问题（与只在 Windows 报错吻合）。
+    ② workflow 的 `Collect prebuilt libraries` 步骤是 `shell: pwsh` 且内联调用
+    `bash .github/scripts/...`，pwsh 对 native 命令非零退出**不会**因
+    `$ErrorActionPreference='Stop'` 而失败，脚本的 `exit 1`（第 73 行）被吞掉，
+    步骤照样走完 `tar` 打包 → **真缺文件时也会发坏包**，恰是该断言想防的事。
+    本次因 ① 恒误报 + ② 恒吞错，等于断言完全不生效，但包内容实测无误。
+    若要修：断言改 `find "$ROOT/lib" -name "$need" -print -quit | grep -q .`
+    （或先 `cd` 到 `$ROOT/lib` 再用相对 glob），并在 pwsh 步骤把
+    `bash ...` 改为 `if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }`。
+    ③ 预编译 tag 默认 `v{version}`，即 `v0.9.0`；registry 消费端按
+    `CARGO_PKG_VERSION` 查该 tag 的 Release 资产。
     上游 main 在 `v0.9.3`（`41c1f8ff`）之后；本仓按惯例跟 origin/main HEAD。
-    预编译 tag 默认 `v{version}`，升版后即为 `v0.9.0`。
 - **升级 `e9303b76`→`cc21c9ea`（main）审查结论**：
   - diff 共 579 文件（+77.4k/-21.5k，91 个提交）：新增 5 个 loader 族
     （`audiocpp_add_model` 125→130，去重 loader 名 130→135，spec 文件 130→134）：
