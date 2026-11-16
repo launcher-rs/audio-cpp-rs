@@ -28,6 +28,7 @@ dots_tts	DotTTS 多语零样本 TTS / 克隆 / 语音编辑：SOAR + MeanFlow、
 dramabox	DramaBox 英文表现力 TTS 与克隆（独立 GGUF）：Gemma 文本条件 + 扩散采样 + 参考音频条件 + 长文分块，48kHz 立体声输出。
 echo_tts	Echo-TTS 英文零样本克隆 TTS：2.8B 扩散 Transformer 在 PCA 空间生成 80 维潜变量，经 Fish S1-DAC 解码为 44.1kHz；生成为固定 29.72s（640 潜帧）窗口。
 earshot_vad	Earshot VAD 的原生 C++ 移植（与 Rust 参考实现逐位对齐）：16kHz 单声道、16ms 帧，按 CPU ISA 选 SIMD 内核；离线+流式，权重为 earshot_vad.safetensors，阈值键 threshold / neg_threshold。
+edda_asr	Edda v0.2 丹麦语 Whisper-large-v3 识别，可选 DFlash2 无损投机解码 drafter 大幅提速，离线+流式（每块出完整结果）。
 f5_tts	社区 F5-TTS 流匹配扩散 Transformer，零样本克隆（含 Habibi-TTS 阿拉伯语微调）：文本卷积条件器 + RoPE DiT + CFM 采样 + Vocos 声码。
 firered_audio	FireRedAudio 原生 GGUF：Qwen3.5 混合主干 + FireRed RedAE 条件 + RedPatchEncoder + RedDiT 潜流 + RedAE 波形解码。
 firered_vad	FireRed DFSMN 语音活动检测，含离线与因果 Stream-VAD 两种权重。
@@ -81,9 +82,11 @@ moss_transcribe_diarize	Whisper 编码器 + Qwen3 解码器，联合输出 50+ �
 moss_tts_local	MOSS-TTS 旗舰：高保真 31 语与语码混合语音、零样本克隆、长文生成，支持拼音/音素/时长细粒度控制。
 moss_tts_nano	MOSS-TTS-Nano 紧凑部署优先，实时多语生成、轻量集成与零样本克隆。
 moss_tts_v15	8B delay-pattern MOSS-TTS：短参考零样本克隆，24kHz，带显式时长预算。
+moss_soundeffect	MOSS-SoundEffect v2 文本转音效（en/zh）：Qwen3 文本编码器 + Wan 音频 DiT + 连续 DAC 解码器，按 duration_sec/num_steps 生成，仅离线。
 moss_ttsd	8B delay-pattern 对话 TTS：一遍生成带说话人标记的对话，逐说话人零样本克隆，24kHz、16 码本。
 moss_voicegen	MOSS 声音设计：用文字指令而非参考录音创建音色，再用该音色朗读文本。
 mossformer2	MossFormer2 16kHz 重叠语音分离。
+mulacover	MuLaCover 翻唱歌曲生成（实验性）：以参考音频或旋律/和弦 MIDI 为条件，配新歌词与音乐风格生成翻唱，仅离线。
 muscriptor	MuScriptor 音频转符号：把音乐音频转为符号音符事件或 MIDI，支持乐器约束、采样、beam 搜索、批量分块与流式最终结果输出。
 nemotron_3_diar	NVIDIA 八说话人流式分离，采用到达顺序身份与可配置延迟档位。
 nemotron_asr	NVIDIA 600M 流式 ASR，覆盖 40 种语言区域，支持低延迟与批处理、原生标点/大小写、自动语种检测与可配置分块。
@@ -143,3 +146,6 @@ whistle_asr	Whistle 离线识别，本地转换 FP32 GGUF，运行于 CPU 或 Me
 xtts_v2	Coqui XTTS v2 跨语 TTS + 声音克隆：GPT-2 mel-code 生成器 + perceiver 条件重采样 + HiFi-GAN 解码器，覆盖 17 语。
 yue2	YuE2 音乐生成：符号 ABC 规划 + 语义 codec 生成 + NAR 声学流合成 + Oobleck VAE 解码。
 zipvoice	社区 ZipVoice / ZipVoice-Distill 流匹配 TTS：TTSZipformer 主干、按提示比例预测时长、带 t-shift 与无分类器引导的 Euler 求解器、Vocos mel-24kHz 声码。
+zonos2	Zyphra ZONOS2 社区 TTS：28 层 GQA/MoE 主干 + 9 延迟 1024-entry DAC codebook，Descript Audio Codec 解码 44.1kHz，ECAPA 说话人嵌入克隆，9 语。
+zonos3	Zyphra ZONOS3-Mini 社区 TTS：GDN/attention latent-MoE 主干 + 10 延迟 4096-entry codebook，MR-iSTFT 解码 44.1kHz，支持说话人嵌入与原始参考克隆，9 语。
+m5_tts	M5-TTS 多语自回归 TTS（实验性）：Qwen3 speech codec 解码，8 种语言/方言，含 CustomVoice 预置音色与参考音频克隆，离线+流式。

@@ -228,6 +228,10 @@ pub enum ModelFamily {
     MossTranscribeDiarize,
     /// Confucius4-R2T2（网易实时流式 ASR，社区模型；离线+流式）
     Confucius4R2t2,
+    /// Edda ASR（丹麦语 Whisper-large-v3 微调，实验性；可选 DFlash2 无损投机
+    /// 解码 drafter；CMake target `edda_asr`，用 `model-edda-asr` feature 编译；
+    /// task 为 `asr`，离线+流式，da；请求选项 `language`/`speculative`）
+    EddaAsr,
     /// Audio Flamingo（转写/描述/问答，speech+music+环境音；task 为 `asr` 仅离线）
     AudioFlamingo,
     /// CrisperWhisper（Whisper 逐字/意图转写；task 为 `asr`/`align`，离线+流式）
@@ -386,6 +390,23 @@ pub enum ModelFamily {
     /// 条件重采样 + HiFi-GAN 解码器，17 语；task 为 `tts` 仅离线；
     /// 参考音频即说话人条件，`language` 选项必填）
     XttsV2,
+    /// ZONOS2（Zyphra 社区 TTS：28 层 GQA/MoE 主干 + 9 延迟 1024-entry DAC
+    /// codebook + 44.1kHz Descript Audio Codec，ECAPA 说话人嵌入克隆；
+    /// CMake target `zonos2`，用 `model-zonos2` feature 编译；task 为
+    /// `tts`/`clon`，离线+流式，en/fr/de/es/it/pt/ja/zh/ko）
+    Zonos2,
+    /// ZONOS3-Mini（Zyphra 社区 TTS：GDN/attention latent-MoE 主干 + 10 延迟
+    /// 4096-entry codebook + 44.1kHz MR-iSTFT 解码器，说话人嵌入与原始参考
+    /// 克隆；CMake target `zonos3`，用 `model-zonos3` feature 编译；task 为
+    /// `tts`/`clon`，离线+流式，en/fr/de/es/it/pt/ja/zh/ko；
+    /// 权重主干文件名为 `backbone-ptq.gguf`，族名靠目录 `ZONOS3-Mini-GGUF` 识别）
+    Zonos3,
+    /// M5-TTS（多语自回归 TTS 与参考音频克隆：Qwen3 speech codec 解码，
+    /// zh/yue/zh-Sichuan/en/de/fr/ja/ko；CMake target `m5_tts`，用
+    /// `model-m5-tts` feature 编译；task 为 `tts`/`clon`，离线+流式；
+    /// `voice_id` 仅对 CustomVoice 检查点有效，`reference_text` 供克隆；
+    /// 请求选项 `language`/`temperature`/`top_k`/`max_tokens`/`instruct`）
+    M5Tts,
 
     // ---- 说话人分离 / 语音转换 / 音乐生成 ----
     /// SortFormer 说话人分离（Diar）
@@ -439,6 +460,11 @@ pub enum ModelFamily {
     /// YuE2（音乐生成：符号 ABC 规划 + 语义 codec + NAR 声学流合成；
     /// 仅离线，task 为 `gen`；请求为纯文本（歌词）+ `style` 选项，不消费音频）
     Yue2,
+    /// MuLaCover（翻唱歌曲生成：参考音频或旋律/和弦 MIDI + 新歌词与风格，
+    /// 实验性；CMake target `mulacover`，用 `model-mulacover` feature 编译；
+    /// task 为 `music`（即 `gen`）仅离线；请求选项 `melody_file`/`chord_file`/
+    /// `drum_file` 等 MIDI 路径）
+    Mulacover,
     /// Magenta RealTime 2（Google 帧自回归立体声音乐生成，实验性；文本/音频风格/
     /// MIDI 条件；CMake target `magenta_realtime_2`，用 `model-magenta-realtime-2`
     /// feature 编译；task 为 `music`（即 `gen`），离线+流式；结果在 `audio_output`；
@@ -468,6 +494,11 @@ pub enum ModelFamily {
     BuiltinAudioUtils,
     /// ControlFoley（可控电影音效生成）
     ControlFoley,
+    /// MOSS-SoundEffect v2（en/zh 文本转音效：Qwen3 文本编码器、Wan 音频 DiT
+    /// 与连续 DAC 解码器；CMake target `moss_soundeffect`，用
+    /// `model-moss-soundeffect` feature 编译；task 为 `sfx`（即 `gen`）仅离线；
+    /// 请求选项 `duration_sec`/`num_steps` 等）
+    MossSoundeffect,
     /// MidoAudio / MIdashengLM 生成式音频
     MidashEnglmGen,
     /// LiveAvatar（Wan S2V 音频驱动数字人；task 为 `sfx`（即 `gen`），
@@ -623,6 +654,10 @@ impl ModelFamily {
             ("whistle_asr", ModelFamily::WhistleAsr),
             ("whistle-asr", ModelFamily::WhistleAsr),
             ("whistle", ModelFamily::WhistleAsr),
+            // edda_asr 无裸前缀冲突，单独列出（丹麦语 Whisper）。
+            ("edda_asr", ModelFamily::EddaAsr),
+            ("edda-asr", ModelFamily::EddaAsr),
+            ("edda", ModelFamily::EddaAsr),
             ("kroko", ModelFamily::KrokoAsr),
             // nemotron_transcribe 必须排在 nemotron_3_diar / 裸 "nemotron" 之前：
             // 上游权重目录名 `NVIDIA-Nemotron-3.5-Transcribe-30B-A4B-GGUF` 小写后
@@ -715,6 +750,12 @@ impl ModelFamily {
             ("mossformer2", ModelFamily::Mossformer2),
             ("mossformer-2", ModelFamily::Mossformer2),
             ("mossformer", ModelFamily::Mossformer2),
+            // moss_soundeffect 必须排在裸 "moss" 之前（权重名
+            // moss-soundeffect-v2-q8_0.gguf）。
+            ("moss_soundeffect", ModelFamily::MossSoundeffect),
+            ("moss-soundeffect", ModelFamily::MossSoundeffect),
+            ("moss_sound_effect", ModelFamily::MossSoundeffect),
+            ("moss-sound-effect", ModelFamily::MossSoundeffect),
             ("moss-tts-nano", ModelFamily::MossTtsNano),
             ("moss_tts_nano", ModelFamily::MossTtsNano),
             ("moss-tts-local", ModelFamily::MossTtsLocal),
@@ -803,6 +844,19 @@ impl ModelFamily {
             ("xtts_v2", ModelFamily::XttsV2),
             ("xtts-v2", ModelFamily::XttsV2),
             ("xtts", ModelFamily::XttsV2),
+            // zonos2 / zonos3 无裸前缀冲突，各收族名与连字符写法；
+            // zonos3 主干权重名 backbone-ptq.gguf 不含族名，靠目录
+            // ZONOS3-Mini-GGUF 命中。
+            ("zonos2", ModelFamily::Zonos2),
+            ("zonos-2", ModelFamily::Zonos2),
+            ("zonos3_mini", ModelFamily::Zonos3),
+            ("zonos3-mini", ModelFamily::Zonos3),
+            ("zonos3", ModelFamily::Zonos3),
+            ("zonos-3", ModelFamily::Zonos3),
+            // m5_tts：上游权重目录 M5-TTS-GGUF / 文件名 m5-tts-50m-*.gguf
+            ("m5_tts", ModelFamily::M5Tts),
+            ("m5-tts", ModelFamily::M5Tts),
+            ("m5tts", ModelFamily::M5Tts),
             ("voxcpm1", ModelFamily::Voxcpm1),
             ("voxcpm-1", ModelFamily::Voxcpm1),
             ("sanotts", ModelFamily::Sanotts),
@@ -944,6 +998,10 @@ impl ModelFamily {
             ("magenta-rt2", ModelFamily::MagentaRealtime2),
             ("magenta", ModelFamily::MagentaRealtime2),
             ("yue-2", ModelFamily::Yue2),
+            // mulacover 只收完整族名：裸 "mula" 会误伤 heartmula。
+            ("mulacover", ModelFamily::Mulacover),
+            ("mula-cover", ModelFamily::Mulacover),
+            ("mula_cover", ModelFamily::Mulacover),
             ("sheetsage2", ModelFamily::Sheetsage2),
             ("sheetsage-2", ModelFamily::Sheetsage2),
             ("sheetsage", ModelFamily::Sheetsage2),
@@ -1035,6 +1093,7 @@ impl ModelFamily {
             ModelFamily::CohereAsr => "cohere_asr",
             ModelFamily::MossTranscribeDiarize => "moss_transcribe_diarize",
             ModelFamily::Confucius4R2t2 => "confucius4_r2t2",
+            ModelFamily::EddaAsr => "edda_asr",
             ModelFamily::AudioFlamingo => "audio_flamingo",
             ModelFamily::Crisperwhisper => "crisperwhisper",
             ModelFamily::GigaamAsr => "gigaam_asr",
@@ -1087,6 +1146,9 @@ impl ModelFamily {
             ModelFamily::MossTtsd => "moss_ttsd",
             ModelFamily::Ming3Tts => "ming3_tts",
             ModelFamily::XttsV2 => "xtts_v2",
+            ModelFamily::Zonos2 => "zonos2",
+            ModelFamily::Zonos3 => "zonos3",
+            ModelFamily::M5Tts => "m5_tts",
             ModelFamily::MinimaxH3 => "minimax_h3",
             ModelFamily::Sanotts => "sanotts",
             ModelFamily::SoproTts => "sopro_tts",
@@ -1116,6 +1178,7 @@ impl ModelFamily {
             ModelFamily::MinimaxMusic3 => "minimax_music3",
             ModelFamily::Supertonic => "supertonic",
             ModelFamily::Yue2 => "yue2",
+            ModelFamily::Mulacover => "mulacover",
             ModelFamily::MagentaRealtime2 => "magenta_realtime_2",
             ModelFamily::Sheetsage2 => "sheetsage2",
             ModelFamily::VoxtralRealtime => "voxtral_realtime",
@@ -1125,6 +1188,7 @@ impl ModelFamily {
             ModelFamily::Universr => "universr",
             ModelFamily::BuiltinAudioUtils => "builtin_audio_utils",
             ModelFamily::ControlFoley => "controlfoley",
+            ModelFamily::MossSoundeffect => "moss_soundeffect",
             ModelFamily::MidashEnglmGen => "midashenglm_gen",
             ModelFamily::Liveavatar => "liveavatar",
             ModelFamily::Latentsync => "latentsync",
@@ -1197,6 +1261,8 @@ impl From<&str> for ModelFamily {
             "cohere_asr" => ModelFamily::CohereAsr,
             "moss_transcribe_diarize" => ModelFamily::MossTranscribeDiarize,
             "confucius4_r2t2" => ModelFamily::Confucius4R2t2,
+            "edda_asr" => ModelFamily::EddaAsr,
+            "edda-asr" => ModelFamily::EddaAsr,
             "audio_flamingo" => ModelFamily::AudioFlamingo,
             "crisperwhisper" => ModelFamily::Crisperwhisper,
             "gigaam_asr" => ModelFamily::GigaamAsr,
@@ -1266,6 +1332,13 @@ impl From<&str> for ModelFamily {
             "xtts_v2" => ModelFamily::XttsV2,
             "xtts-v2" => ModelFamily::XttsV2,
             "xtts" => ModelFamily::XttsV2,
+            "zonos2" => ModelFamily::Zonos2,
+            "zonos-2" => ModelFamily::Zonos2,
+            "zonos3" => ModelFamily::Zonos3,
+            "zonos3_mini" => ModelFamily::Zonos3,
+            "zonos3-mini" => ModelFamily::Zonos3,
+            "zonos-3" => ModelFamily::Zonos3,
+            "m5_tts" | "m5-tts" | "m5tts" => ModelFamily::M5Tts,
             "minimax_h3" => ModelFamily::MinimaxH3,
             "sanotts" => ModelFamily::Sanotts,
             "sopro_tts" => ModelFamily::SoproTts,
@@ -1303,6 +1376,8 @@ impl From<&str> for ModelFamily {
             "minimax_music3" => ModelFamily::MinimaxMusic3,
             "supertonic" => ModelFamily::Supertonic,
             "yue2" => ModelFamily::Yue2,
+            "mulacover" => ModelFamily::Mulacover,
+            "mula-cover" => ModelFamily::Mulacover,
             "magenta_realtime_2" => ModelFamily::MagentaRealtime2,
             "magenta-realtime-2" => ModelFamily::MagentaRealtime2,
             "sheetsage2" => ModelFamily::Sheetsage2,
@@ -1314,6 +1389,8 @@ impl From<&str> for ModelFamily {
             "universr" => ModelFamily::Universr,
             "builtin_audio_utils" => ModelFamily::BuiltinAudioUtils,
             "controlfoley" => ModelFamily::ControlFoley,
+            "moss_soundeffect" => ModelFamily::MossSoundeffect,
+            "moss-soundeffect" => ModelFamily::MossSoundeffect,
             "midashenglm_gen" => ModelFamily::MidashEnglmGen,
             "liveavatar" => ModelFamily::Liveavatar,
             "latentsync" => ModelFamily::Latentsync,
@@ -1783,6 +1860,7 @@ mod tests {
             CohereAsr,
             MossTranscribeDiarize,
             Confucius4R2t2,
+            EddaAsr,
             AudioFlamingo,
             Crisperwhisper,
             GigaamAsr,
@@ -1836,6 +1914,9 @@ mod tests {
             MossTtsd,
             Ming3Tts,
             XttsV2,
+            Zonos2,
+            Zonos3,
+            M5Tts,
             MinimaxH3,
             Sanotts,
             SoproTts,
@@ -1866,6 +1947,7 @@ mod tests {
             MinimaxMusic3,
             Supertonic,
             Yue2,
+            Mulacover,
             MagentaRealtime2,
             Sheetsage2,
             VoxtralRealtime,
@@ -1875,6 +1957,7 @@ mod tests {
             Universr,
             BuiltinAudioUtils,
             ControlFoley,
+            MossSoundeffect,
             MidashEnglmGen,
             Liveavatar,
             Latentsync,
@@ -2353,6 +2436,39 @@ mod tests {
         assert_eq!(
             ModelFamily::from_path("SoulX-FlashHead-GGUF"),
             Some(ModelFamily::SoulxFlashhead)
+        );
+        // ---- d2da530b→d38518a0 新增 5 族：按上游真实权重名/目录名校验 ----
+        // edda_asr（丹麦语 Whisper）无前缀冲突。
+        assert_eq!(
+            ModelFamily::from_path("edda-v0.2-large-q8_0.gguf"),
+            Some(ModelFamily::EddaAsr)
+        );
+        // moss_soundeffect 不被裸 "moss" 吞成 MossTtsNano。
+        assert_eq!(
+            ModelFamily::from_path("MOSS-SoundEffect-v2-GGUF/moss-soundeffect-v2-q8_0.gguf"),
+            Some(ModelFamily::MossSoundeffect)
+        );
+        // mulacover 只能命中完整族名，裸 "mula" 不收（heartmula 不受影响）。
+        assert_eq!(
+            ModelFamily::from_path("MuLaCover-GGUF/mulacover-q8_0.gguf"),
+            Some(ModelFamily::Mulacover)
+        );
+        assert_eq!(
+            ModelFamily::from_path("heartmula-q8_0.gguf"),
+            Some(ModelFamily::Heartmula)
+        );
+        assert_eq!(
+            ModelFamily::from_path("ZONOS2-GGUF/zonos2-q8_0.gguf"),
+            Some(ModelFamily::Zonos2)
+        );
+        // zonos3 主干文件名为 backbone-ptq.gguf，族名靠目录识别。
+        assert_eq!(
+            ModelFamily::from_path("ZONOS3-Mini-GGUF/backbone-ptq.gguf"),
+            Some(ModelFamily::Zonos3)
+        );
+        assert_eq!(
+            ModelFamily::from_path("M5-TTS-GGUF/m5-tts-50m-voiceclone-q8_0.gguf"),
+            Some(ModelFamily::M5Tts)
         );
         // 无法识别
         assert_eq!(ModelFamily::from_path("my-weights.gguf"), None);

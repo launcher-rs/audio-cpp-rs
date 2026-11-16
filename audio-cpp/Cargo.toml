@@ -39,7 +39,7 @@ default = ["core-models"]
 prebuilt = ["audio-cpp-sys/prebuilt"]
 # 转发给 audio-cpp-sys 的模型组合 / 后端 feature。
 core-models = ["audio-cpp-sys/core-models"]   # 引擎核心 + 内置 VAD（默认，最小编译集）
-full-models = ["audio-cpp-sys/full-models"]   # 全量 141 个 loader 族（编译慢）
+full-models = ["audio-cpp-sys/full-models"]   # 全量 147 个 loader 族（编译慢）
 # 按需编译：可直接启用 `model-<族>` feature（推荐），或设置环境变量
 # `$env:AUDIOCPP_MODELS="qwen3_asr,citrinet_asr"` 后用本开关。
 # 示例：cargo run --features model-qwen3-asr
@@ -154,6 +154,12 @@ model-haas-asr = ["audio-cpp-sys/model-haas-asr"]  # ASR: Haas-ja-v1.0 日文
 model-lfm-d1-omni = ["audio-cpp-sys/model-lfm-d1-omni"]  # 音频分类: d1-Omni-2B audio decisions
 model-pocket-tts-small = ["audio-cpp-sys/model-pocket-tts-small"]  # TTS: PocketTTS Small
 model-realtime-reuse = ["audio-cpp-sys/model-realtime-reuse"]  # 语音修复: Real-time RE-USE（流式）
+model-edda-asr = ["audio-cpp-sys/model-edda-asr"]  # ASR: Edda 丹麦语 Whisper-large-v3
+model-zonos2 = ["audio-cpp-sys/model-zonos2"]  # TTS: Zyphra ZONOS2
+model-zonos3 = ["audio-cpp-sys/model-zonos3"]  # TTS: Zyphra ZONOS3-Mini
+model-moss-soundeffect = ["audio-cpp-sys/model-moss-soundeffect"]  # 音效生成: MOSS-SoundEffect v2
+model-mulacover = ["audio-cpp-sys/model-mulacover"]  # 音乐生成: MuLaCover 翻唱
+model-m5-tts = ["audio-cpp-sys/model-m5-tts"]  # TTS: M5-TTS（多语自回归 + 克隆）
 cuda = ["audio-cpp-sys/cuda"]     # NVIDIA CUDA（需 CUDA Toolkit）
 hip = ["audio-cpp-sys/hip"]       # AMD HIP/ROCm（与 cuda 互斥）
 vulkan = ["audio-cpp-sys/vulkan"] # Vulkan 通用后端（需 Vulkan SDK）

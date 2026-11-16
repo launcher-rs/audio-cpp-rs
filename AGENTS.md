@@ -125,8 +125,8 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `d2da530b`（origin/main）。
-  crate 版本为 **0.9.0**（workspace 统一；历史见下条与逐条升级记录）。
+- 当前 submodule HEAD = `5ec688c6`（origin/main，tag `v0.9.5` 之后的提交）。
+  crate 版本为 **0.10.0**（workspace 统一；历史见下条与逐条升级记录）。
   ⚠️ **`e9303b76`→`cc21c9ea` 那次升级的工作树/gitlink 不一致（当时已纠正，记录以防再犯）**：
   `5a5b7a1` 把
   gitlink 提交为 `e9303b76`，但 submodule **工作树始终停在 `ccdbe769`**（submodule
@@ -138,6 +138,144 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
   只看 `git ls-tree HEAD` 的指针不足以证明源码已切换。
   注：当时已按 `e9303b76` 实际文件复核更早的 130 计数（`audiocpp_add_model` 125 /
   去重 loader 130 / spec 130 全部吻合），Rust 侧同步内容本身无误。
+- **升级 `d38518a0`→`5ec688c6`（main，v0.9.5 之后）审查结论**：
+  - diff 共 62 文件（+5.2k/-0.9k，13 个提交）：新增 **1 个 `audiocpp_add_model`
+    target**（138→139）`m5_tts`（M5-TTS：Qwen3 speech codec 解码的多语自回归 TTS
+    + 参考音频克隆；task `tts`/`clone`（即 `clon`），离线+流式；语言
+    zh/yue/zh-Sichuan/en/de/fr/ja/ko；请求选项 `language`/`temperature`/`top_k`/
+    `max_tokens`/`voice_id`（仅 CustomVoice 检查点）/`reference_text`/`instruct`/
+    `seed`/`text_chunk_size`/`text_chunk_mode`，会话选项
+    `weight_type`/`codec_weight_type`/`attention`）。去重 loader 名 146→**147**，
+    spec 文件 145→**146**（`earshot_vad` 仍无 spec）。无新增 ALIASES。
+  - 其余为共享 MoE FFN + Gated DeltaNet 内核重构、chatterbox T3 音色跨语言保留、
+    campplus 常量共享、PocketTTS 流式修复、omnivoice RKNN zeroop、上游 **opt-in
+    C API** 暴露 custom-schema 结果（`src/capi/audiocpp.cpp` + `include/audiocpp.h`，
+    与本仓 shim 无关；本仓 `dump_task_result` 早已导出 `custom_schema_output`）
+    与新增 `AUDIOCPP_BUILD_C_API_STATIC`、Windows Xet 下载校验等。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 8 个头
+    （`framework/core/backend.h`、`framework/io/json.h`、
+    `framework/runtime/{model,registry,session}.h`、`runtime/task_vocabulary.h`、
+    `core/errors.h`、`runtime/spec_backed_model.h`）本次 diff **零改动**。
+    `capi.h` / `capi.cpp` / build.rs bindgen allowlist（`audiocpp_.*`）保持原样，
+    `bindings.docsrs.rs` 无需重拷。
+  - 无新 task 类型 / 输出字段：`clone` 是既有 `clon` 别名（经通用任务字符串透传）；
+    spec diff 无 `*_list` 数组类型、无删除/改名键（仅新增 `m5_tts.json`）。
+    高层 `types.rs` serde 结构无需改。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增枚举变体 `M5Tts`
+    （`as_str()` → `"m5_tts"`，与上游 loader 族名一致）+ `from_path()` 关键词
+    （`m5_tts`/`m5-tts`/`m5tts`；上游权重目录 `M5-TTS-GGUF`、文件名
+    `m5-tts-50m-{voiceclone,customvoice}-{f16,q8_0}.gguf` 均可命中）+ `From<&str>`
+    （含 `m5-tts`/`m5tts`）；并在两个 Cargo.toml 新增 `model-m5-tts` feature
+    （build.rs 自动映射 CMake target）。`model_family_roundtrip` /
+    `model_family_from_path`（含 `M5-TTS-GGUF/m5-tts-50m-voiceclone-q8_0.gguf`
+    真实路径断言）已覆盖。
+  - 新族 session 自持资产：`m5_tts` 持 `shared_ptr<const ModelAssets>` + contract
+    （spec-backed），`Session` 独立于 `Model` 存活的保证成立。
+  - 计数同步：`README.md`（3 处）/ `audio-cpp-sys/README.md` / 两个 Cargo.toml
+    的族数注释统一 146→**147**；重跑 `pwsh -File scripts/gen-models-doc.ps1`
+    刷新 `docs/models.md`（**147** 族 + 2 内置 VAD，missing zh desc = 0），
+    `scripts/model-desc-zh.tsv` 补 1 条中文简介。注意 `audiocpp_add_model` 的
+    **target** 数是 139，去重 **loader** 名才是 147。
+  - 验证：`cargo fmt --all -- --check` + `cargo build --workspace`（34s，
+    build.rs 跟踪 submodule HEAD 正常触发 CMake 增量重编与 `engine_runtime.lib`
+    重链接）+ `cargo test --workspace`（32 lib + 12 doc 全过）+
+    `cargo clippy --workspace --all-targets` 零警告 +
+    `cargo check -p audio-cpp-sys --features custom-models,model-m5-tts`
+    （`engine_model_m5_tts` 的 ar/assets/session 三个 obj 已编译，映射通过）。
+  - 注意：`metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制回落
+    源码构建（预编译自动下载被跳过），属预期；`cargo publish` / tag /
+    Release / 预编译资产上传均属第 6 节发布操作，须用户显式下达，本次未执行。
+    上游 `v0.9.5` 在本范围起点之前（`51fa5e61`），本仓按惯例跟 origin/main HEAD。
+- **升级 `d2da530b`→`d38518a0`（main）审查结论**：
+  - diff 共 526 文件（+64.2k/-9.7k，63 个提交）：新增 **5 个 `audiocpp_add_model`
+    target**（133→138）`edda_asr`（社区 Edda v0.2 large：丹麦语 Whisper-large-v3
+    微调，可选 DFlash2 无损投机解码 drafter（edda-v0.2-large-hurtig），约 3~7 倍
+    解码加速；task `asr`，离线+流式（每块出完整结果），da；请求选项
+    `language`/`speculative`）/ `moss_soundeffect`（MOSS-SoundEffect v2：
+    en/zh 文本转音效，Qwen3 文本编码器 + Wan 音频 DiT + 连续 DAC 解码器；
+    task `sfx`（即 `gen`）仅离线，请求选项 `duration_sec`（0.1~30s）/
+    `num_steps`/会话选项 `moss_soundeffect.weight_type`）/
+    `mulacover`（MuLaCover 翻唱歌曲生成，实验性：参考音频或旋律/和弦 MIDI +
+    新歌词与风格；task `music`（即 `gen`）仅离线，请求选项 `melody_file`/
+    `chord_file`/`drum_file` 等 MIDI 路径，另含转写器子模型）/
+    `zonos2`（Zyphra ZONOS2 社区 TTS：28 层 GQA/MoE 主干 + 9 延迟
+    1024-entry DAC codebook，Descript Audio Codec 解码 44.1kHz，ECAPA
+    说话人嵌入克隆；task `tts`/`clon`，离线+流式，en/fr/de/es/it/pt/ja/zh/ko；
+    主干权重 `zonos2-q8_0.gguf`）/ `zonos3`（Zyphra ZONOS3-Mini 社区 TTS：
+    GDN/attention latent-MoE 主干 + 10 延迟 4096-entry codebook，MR-iSTFT
+    解码 44.1kHz，说话人嵌入与原始参考两种克隆；同 9 语，离线+流式；
+    主干权重名为 `backbone-ptq.gguf`，族名只能靠目录 `ZONOS3-Mini-GGUF` 识别）。
+    去重 loader 名 141→**146**，spec 文件 140→**145**（`earshot_vad` 仍无 spec，
+    故 loader 数比 spec 多 1）。无新增 `ALIASES`。
+  - 其余为上游 **SYCL 后端**（`ENGINE_ENABLE_SYCL`，Intel oneAPI；本仓与 WebGPU
+    一样不接 feature，仅源码可编）/ 上游 opt-in C API 新增日志回调
+    `audiocpp_log_set`（`src/capi/audiocpp.cpp`，与本仓 shim 无关）/ MoE 专家
+    卸载统一到共享框架资源（drama3、nemotron_transcribe、ming3_audio 重构）/
+    会话自持 PreparedGraph 生命周期 / 共享 DiT 运行时迁移 4 族 / Qwen3 音频
+    tokenizer 提升为框架 codecs / Kroko XL 离线 ASR（仍属既有 `kroko_asr` 族，
+    无新 loader）/ `sense_asr` 输出词级时间戳（走既有 `word_timestamps`）/
+    `audio8_tts` 新增 Realistic 0.6B 并改为默认包（原 Preview 保留）/
+    `kugelaudio` 新增参考音频克隆（tasks 变为 `tts`+`clone`，新选项
+    `reference_encoder_path`）/ `pocket_tts` 支持 `flow_lm.z_proj` 维度不等 /
+    `chatterbox` 语音转换目标缓存 / 任务请求接受内联 `voice_ref`（WAV 数据，
+    非 WAV 返回 400；本仓高层未加构造器，属既有 JSON 透传可达面）。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 8 个头
+    （`framework/core/backend.h`、`framework/io/json.h`、
+    `framework/runtime/{model,registry,session}.h`、`runtime/task_vocabulary.h`、
+    `core/errors.h`、`runtime/spec_backed_model.h`）本次 diff **零改动**
+    （`task_vocabulary` 的 17 个规范 token 与别名不变）。
+    `capi.h` / `capi.cpp` / build.rs bindgen allowlist（`audiocpp_.*`）保持原样，
+    `bindings.docsrs.rs` 无需重拷。
+  - 无新 task 类型 / 输出字段：5 新族复用既有 `asr`/`sfx`/`music`/`tts`/`clone`
+    （`sfx`/`music`/`clone` 均为既有别名，经通用任务字符串透传）；
+    `sense_asr` 时间戳走既有 `word_timestamps`。高层 `types.rs` serde 结构无需改。
+  - **无数组选项缺口**：12 个改动 spec 的 options `type` 全为
+    `bool`/`int`/`enum`/`float`/`string`，无 `*_list` 类型（kokoro
+    `phonemes`、ming3_tts `speaker_embedding_file` 两处既有缺口依旧未接）。
+  - spec diff 无破坏性删除：既有族仅描述/包清单/新增选项（audio8_tts 默认包
+    由 Preview 改为 Realistic、kugelaudio 增 `clone`），无删键改名；
+    本仓 Rust 侧无需适配。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 5 个枚举变体
+    `EddaAsr`（`as_str()` → `"edda_asr"`）/ `MossSoundeffect`
+    （→ `"moss_soundeffect"`）/ `Mulacover`（→ `"mulacover"`）/ `Zonos2`
+    （→ `"zonos2"`）/ `Zonos3`（→ `"zonos3"`，均与上游 loader 族名一致）+
+    `from_path()` 关键词表（`moss_soundeffect` 系必须排在裸 `moss` 之前；
+    `mulacover` 只收完整族名，**不收裸 `mula`**（否则 `heartmula` 会被误吞）；
+    `zonos2`/`zonos-2`、`zonos3`/`zonos3_mini`/`zonos3-mini`/`zonos-3`；
+    `edda_asr`/`edda-asr`/`edda`）+ `From<&str>`；并在两个 Cargo.toml 新增
+    `model-edda-asr` / `model-moss-soundeffect` / `model-mulacover` /
+    `model-zonos2` / `model-zonos3` 五个 feature（build.rs 自动映射 CMake
+    target，无需改 build.rs）。`model_family_roundtrip` /
+    `model_family_from_path`（含上游真实路径断言：
+    `MOSS-SoundEffect-v2-GGUF/moss-soundeffect-v2-q8_0.gguf` /
+    `MuLaCover-GGUF/mulacover-q8_0.gguf` / `ZONOS2-GGUF/zonos2-q8_0.gguf` /
+    `ZONOS3-Mini-GGUF/backbone-ptq.gguf`，以及 `heartmula-q8_0.gguf` 不被
+    `mulacover` 影响的回归断言）测试已覆盖。
+  - 5 新族 session 均自持资产：`edda_asr` 持 `shared_ptr<const EddaAssets>`、
+    `moss_soundeffect` 持 `shared_ptr<const Assets>`、`mulacover` 持
+    `shared_ptr<const MuLaCoverAssets>`、`zonos2`/`zonos3` 分别持
+    `shared_ptr<const Zonos2Assets>`/`shared_ptr<const Zonos3Assets>`
+    （均为 spec-backed，另持 contract）；`Session` 独立于 `Model` 存活的保证成立。
+  - 计数同步：`README.md`（3 处）/ `audio-cpp-sys/README.md` / 两个 Cargo.toml
+    的族数注释统一 141→**146**；重跑 `pwsh -File scripts/gen-models-doc.ps1`
+    刷新 `docs/models.md`（**146** 族 + 2 内置 VAD，missing zh desc = 0），
+    `scripts/model-desc-zh.tsv` 补 5 条中文简介。注意 `audiocpp_add_model` 的
+    **target** 数是 138，去重 **loader** 名才是 146。
+  - **版本 0.9.0 → 0.10.0**（`workspace.package.version` +
+    `workspace.dependencies.audio-cpp-sys` 版本 + `audio-cpp-sys/README.md`
+    四处 + 本文件；`Cargo.lock` 随构建同步）。`prebuilt_download.rs` 测试 fixture
+    里的旧版本号是纯逻辑测试数据，未改。
+  - 验证：`cargo fmt --all -- --check` + `cargo build --workspace`（2m08s，
+    build.rs 跟踪 submodule HEAD 正常触发重编）+ `cargo test --workspace`
+    （32 lib + 12 doc 全过）+ `cargo clippy --workspace --all-targets` 零警告 +
+    `cargo check -p audio-cpp-sys --features custom-models,model-edda-asr,
+    model-zonos2,model-zonos3,model-moss-soundeffect,model-mulacover`
+    （5 个 feature→CMake target 映射全部通过）。
+  - 注意：`metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制回落
+    源码构建（预编译自动下载被跳过），属预期；`cargo publish` / tag /
+    Release / 预编译资产上传均属第 6 节发布操作，须用户显式下达，本次未执行。
+    上游 main 已过 `v0.9.5` 清理提交（`51fa5e61`），但 tag 仍停在 `v0.9.4`
+    （`v0.9.5` 未打 tag）；本仓按惯例跟 origin/main HEAD。
 - **升级 `cc21c9ea`→`d2da530b`（main）审查结论**：
   - diff 共 368 文件（+27.6k/-9.1k）：新增 **3 个 `audiocpp_add_model` target**
     （130→133）`lfm_d1_omni`（Liquid AI d1-Omni-2B 音频决策：对音频+具名问题输出

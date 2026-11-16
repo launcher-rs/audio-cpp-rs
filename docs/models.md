@@ -11,7 +11,7 @@
 > GGUF 加载时通常须**显式传 `family_hint`**（引擎自动探测可能误判），用法见 [audio-cpp/README.md](../audio-cpp/README.md)。
 > 上游“状态”为 audio.cpp 的成熟度标注：稳定（`supported`）/ 实验（`experimental`）/ 社区（`community`）/ 测试（`testing`）/ 开发中（`wip`），仅供参考。
 
-共收录 **141** 个上游模型族，另有 **2** 个内置 VAD 模型（随引擎编译、权重已 vendored，无需下载）。
+共收录 **147** 个上游模型族，另有 **2** 个内置 VAD 模型（随引擎编译、权重已 vendored，无需下载）。
 
 ## 内置模型（开箱即用，无需下载权重）
 
@@ -24,12 +24,12 @@
 
 | 分类 | 数量 | 跳转 |
 |---|---|---|
-| 语音识别（ASR） | 37 | [跳转](#cat-asr) |
-| 语音合成（TTS） | 52 | [跳转](#cat-tts) |
+| 语音识别（ASR） | 38 | [跳转](#cat-asr) |
+| 语音合成（TTS） | 55 | [跳转](#cat-tts) |
 | 语音转换 / 声音克隆（VC） | 5 | [跳转](#cat-voice_conversion) |
 | 语音分析（VAD · 说话人分离 · 对齐 · 分类 · 唤醒 · 轮次检测） | 9 | [跳转](#cat-speech_analysis) |
 | 音频工具（降噪 / 修复 / 超分 / 源分离 / 转谱） | 24 | [跳转](#cat-audio_tools) |
-| 音频与音乐生成 | 11 | [跳转](#cat-audio_generation) |
+| 音频与音乐生成 | 13 | [跳转](#cat-audio_generation) |
 | 其他社区模型 | 3 | [跳转](#cat-community) |
 
 <a id="cat-asr"></a>
@@ -47,6 +47,7 @@
 | `cohere_asr` | Cohere Transcribe | `asr` | 离线 | en, fr, de, es, it, pt, nl, pl …（共 14 种） | 稳定（supported） | `model-cohere-asr` | Cohere 多语语音转写，支持标点控制。 |
 | `confucius4_r2t2` | Confucius4-R2T2 | `asr` | 离线 + 流式 | zh, en, yue, ar, de, fr, es, pt …（共 30 种） | 社区（community） | `model-confucius4-r2t2` | 网易有道 Confucius4-R2T2 实时 ASR：Qwen3-ASR 微调 + 最长稳定前缀（LSP）流式，80ms–2s 分块，支持上下文/热词提示，覆盖 30 语。 |
 | `crisperwhisper` | CrisperWhisper 2.0 | `asr` `align` | 离线 + 流式 | af, am, ar, as, az, ba, be, bg …（共 99 种） | 稳定（supported） | `model-crisperwhisper` | 基于 Whisper 的逐字（verbatim）与意图转写。 |
+| `edda_asr` | Edda ASR | `asr` | 离线 + 流式 | da | 实验（experimental） | `model-edda-asr` | Edda v0.2 丹麦语 Whisper-large-v3 识别，可选 DFlash2 无损投机解码 drafter 大幅提速，离线+流式（每块出完整结果）。 |
 | `fun_asr_nano` | Fun-ASR-Nano | `asr` | 离线 | 自动检测, zh, en, ja | 开发中（wip） | `model-fun-asr-nano` | FunAudioLLM Fun-ASR-Nano-2512 离线多语识别。 |
 | `gigaam_asr` | GigaAM ASR | `asr` | 离线 | ru, kk, ky, uz, en | 稳定（supported） | `model-gigaam-asr` | GigaAM v3 / 多语 Conformer 识别，CTC 或 RNN-T 解码。 |
 | `granite5asr` | Granite Speech 5.0 470M TurboCTC | `asr` | 离线 + 流式 | en, fr, de, es, pt, it, ja | 稳定（supported） | `model-granite5asr` | IBM Granite Speech 5.0 TurboCTC 470M：紧凑高速英文 ASR，Conformer CTC + 分块自注意力 + 自条件。 |
@@ -86,7 +87,7 @@
 
 | 族 | 模型 | 任务 | 模式 | 语言 | 状态 | 专用 feature | 简介 |
 |---|---|---|---|---|---|---|---|
-| `audio8_tts` | Audio8 TTS Preview 0.6B | `tts` `clon` | 离线 + 流式 | 自动检测, yue, zh, nl, en, fr, de, it …（共 12 种） | 社区（community） | `model-audio8-tts` | Audio8 TTS Preview 0.6B DualAR 语音合成，覆盖粤/中/荷/英/法/德/意/日/韩/波/西共 11 语，自动语种处理，支持短参考快速克隆。 |
+| `audio8_tts` | Audio8 TTS | `tts` `clon` | 离线 + 流式 | 自动检测, yue, zh, nl, en, fr, de, it …（共 12 种） | 社区（community） | `model-audio8-tts` | Audio8 TTS Preview 0.6B DualAR 语音合成，覆盖粤/中/荷/英/法/德/意/日/韩/波/西共 11 语，自动语种处理，支持短参考快速克隆。 |
 | `auk` | AuK | `tts` `clon` `gen` | 离线 | 自动检测 | 实验（experimental） | `model-auk` | 腾讯 AuK base / AuK-Flash 语音生成与编辑模型。 |
 | `breeze_tts` | BreezeTTS 2 | `tts` `clon` `vdes` | 离线 + 流式 | zh, en | 稳定（supported） | `model-breeze-tts` | BreezeTTS 2 原生 GGUF：指令条件 TTS + 提示音频克隆，T5Gemma 文本条件、Qwen 风格声学码生成、深度码本解码、Mimi 波形还原。 |
 | `chatterbox` | Chatterbox | `tts` `clon` `vc` | 离线 | ar, da, de, el, en, es, fi, fr …（共 19 种） | 稳定（supported） | — | 开源 Chatterbox 系列：情感夸张可控的表现力 TTS 与声音转换，支持快速生成、零样本克隆与多语 TTS 路径。 |
@@ -110,7 +111,8 @@
 | `kitten_tts` | KittenTTS Mini 0.8 | `tts` | 离线 | en | 社区（community） | `model-kitten-tts` | KittenTTS Mini 0.8 英文 TTS，8 个内置音色，共享 eSpeak-ng 音素化。 |
 | `kitten_tts2` | Kitten TTS 2 | `tts` `clon` | 离线 | en, ar, zh, fr, de, hi, it, pt …（共 16 种） | 实验（experimental） | `model-kitten-tts2` | Kitten TTS 2 多语生成：Qwen3 语音生成 + S3 meanflow 解码 + 参考音频克隆。 |
 | `kokoro_tts` | Kokoro 82M | `tts` | 离线 + 流式 | en-us, en-gb, es, fr-fr, hi, it, ja, pt-br, zh | 社区（community） | `model-kokoro-tts` | Kokoro 82M 多语 TTS，54 个预置音色，优化 CPU 推理，共享 eSpeak-ng 音素化。 |
-| `kugelaudio` | KugelAudio-0-Open | `tts` | 离线 + 流式 | en, de, fr, es, it, pt, nl, pl …（共 23 种） | 实验（experimental） | `model-kugelaudio` | KugelAudio TTS，内置预置音色，支持增量音频输出。 |
+| `kugelaudio` | KugelAudio-0-Open | `tts` `clon` | 离线 + 流式 | en, de, fr, es, it, pt, nl, pl …（共 23 种） | 实验（experimental） | `model-kugelaudio` | KugelAudio TTS，内置预置音色，支持增量音频输出。 |
+| `m5_tts` | M5-TTS | `tts` `clon` | 离线 + 流式 | zh, yue, zh-Sichuan, en, de, fr, ja, ko | 实验（experimental） | `model-m5-tts` | M5-TTS 多语自回归 TTS（实验性）：Qwen3 speech codec 解码，8 种语言/方言，含 CustomVoice 预置音色与参考音频克隆，离线+流式。 |
 | `magpie_tts` | MagpieTTS Multilingual 357M | `tts` | 离线 | ar-AE, ar-MSA, ar-SA, de, en, es, fr, hi …（共 13 种） | 稳定（supported） | `model-magpie-tts` | NVIDIA MagpieTTS 多语 TTS：由文本生成 NanoCodec 音频 token（内置说话人上下文嵌入 + 纯解码器 Transformer + 自回归局部 Transformer），再解码为波形。 |
 | `maya1` | Maya1 | `tts` `vdes` | 离线 | en | 稳定（supported） | `model-maya1` | Maya Research 3B 表现力英文 TTS，支持自然语言声音设计与行内情感控制。 |
 | `ming3_tts` | Ming 3.0 TTS 0.5B | `tts` `clon` `vdes` | 离线 + 流式 | zh, en, ja, ko, de, fr, es | 稳定（supported） | `model-ming3-tts` | Ming 3.0 TTS 0.5B：Qwen 主干 + flow matching 声学头 + CAMPPlus 说话人条件 + 音频 VAE，覆盖 zh/en/ja/ko/de/fr/es，支持克隆、声音设计与模板化风格控制。 |
@@ -138,6 +140,8 @@
 | `voxtral_tts` | Voxtral 4B TTS | `tts` | 离线 + 流式 | en, fr, es, de, it, pt, nl, ar, hi | 稳定（supported） | — | Mistral 基于 Ministral 的自回归 + 流匹配 TTS，内置 20 个预置音色。 |
 | `xtts_v2` | XTTS v2 | `tts` | 离线 | en, es, fr, de, it, pt, pl, tr …（共 17 种） | 社区（community） | `model-xtts-v2` | Coqui XTTS v2 跨语 TTS + 声音克隆：GPT-2 mel-code 生成器 + perceiver 条件重采样 + HiFi-GAN 解码器，覆盖 17 语。 |
 | `zipvoice` | ZipVoice | `tts` `clon` | 离线 + 流式 | en, zh | 社区（community） | `model-zipvoice` | 社区 ZipVoice / ZipVoice-Distill 流匹配 TTS：TTSZipformer 主干、按提示比例预测时长、带 t-shift 与无分类器引导的 Euler 求解器、Vocos mel-24kHz 声码。 |
+| `zonos2` | ZONOS2 | `tts` `clon` | 离线 + 流式 | en, fr, de, es, it, pt, ja, zh, ko | 社区（community） | `model-zonos2` | Zyphra ZONOS2 社区 TTS：28 层 GQA/MoE 主干 + 9 延迟 1024-entry DAC codebook，Descript Audio Codec 解码 44.1kHz，ECAPA 说话人嵌入克隆，9 语。 |
+| `zonos3` | ZONOS3-Mini | `tts` `clon` | 离线 + 流式 | en, fr, de, es, it, pt, ja, zh, ko | 社区（community） | `model-zonos3` | Zyphra ZONOS3-Mini 社区 TTS：GDN/attention latent-MoE 主干 + 10 延迟 4096-entry codebook，MR-iSTFT 解码 44.1kHz，支持说话人嵌入与原始参考克隆，9 语。 |
 
 <a id="cat-voice_conversion"></a>
 
@@ -190,7 +194,7 @@
 | `mel_band_roformer` | Mel-Band RoFormer | `sep` | 离线 | 语言无关 | 稳定（supported） | `model-roformer` | Mel-Band RoFormer 分离：mel 尺度重叠频带 + RoFormer 注意力，估计人声 / 鼓 / 伴奏等。 |
 | `micro_wake_word` | microWakeWord | `wake` | 离线 + 流式 | 随模型而定 | 实验（experimental） | `model-micro-wake-word` | microWakeWord MixedNet（TFLite 转 GGUF）流式唤醒词检测。 |
 | `miocodec` | MioCodec | `vc` `s2s` | 离线 | 语言无关 | 稳定（supported） | — | MioCodec 轻量神经音频编解码：把 44.1kHz 音频编码为 25Hz 低码率离散 token，再带说话人条件解码。 |
-| `mossformer2` | MossFormer2 | `sep` | 离线 | 语言无关 | 稳定（supported） | `model-mossformer2` | MossFormer2 16kHz 重叠语音分离。 |
+| `mossformer2` | MossFormer2 | `sep` `s2s` | 离线 | 语言无关 | 稳定（supported） | `model-mossformer2` | MossFormer2 16kHz 重叠语音分离。 |
 | `muscriptor` | MuScriptor | `midi` | 离线 + 流式 | 音乐 | 稳定（supported） | — | MuScriptor 音频转符号：把音乐音频转为符号音符事件或 MIDI，支持乐器约束、采样、beam 搜索、批量分块与流式最终结果输出。 |
 | `open_wake_word` | OpenWakeWord | `wake` | 离线 + 流式 | en | 实验（experimental） | `model-open-wake-word` | OpenWakeWord 唤醒词检测：共享语音嵌入 CNN + 分类器，英文 "alexa"。 |
 | `pulsevad` | PulseVAD | `vad` | 离线 | 语言无关 | 稳定（supported） | `model-pulsevad` | 16kHz 单声道语音活动检测，提供 2.1K 学生与 81K 教师权重。 |
@@ -220,6 +224,8 @@
 | `midashenglm_gen` | MiDashengLM-Gen | `gen` | 离线 | 自动检测 | 实验（experimental） | `model-midashenglm-gen` | DashengLM 生成式音频模型，支持语音、音乐、音效与环境声提示生成。 |
 | `minimax_h3` | MiniMax-H3 | `tts` `gen` | 离线 | 自动检测 | 实验（experimental） | — | MiniMax-H3 文生音视频（官方 T2VA 管线）：Qwen3-VL 文本条件 + 音视频联合 DiT 去噪 + MiniMax-H3 音视频 VAE 解码。 |
 | `minimax_music3` | MiniMax Music 3 | `gen` | 离线 | 自动检测 | 实验（experimental） | `model-minimax-music3` | MiniMax Music 3 文生音乐，支持歌词条件。 |
+| `moss_soundeffect` | MOSS-SoundEffect v2 | `gen` | 离线 | en, zh | 稳定（supported） | `model-moss-soundeffect` | MOSS-SoundEffect v2 文本转音效（en/zh）：Qwen3 文本编码器 + Wan 音频 DiT + 连续 DAC 解码器，按 duration_sec/num_steps 生成，仅离线。 |
+| `mulacover` | MuLaCover | `gen` | 离线 | 多语 | 实验（experimental） | `model-mulacover` | MuLaCover 翻唱歌曲生成（实验性）：以参考音频或旋律/和弦 MIDI 为条件，配新歌词与音乐风格生成翻唱，仅离线。 |
 | `soulx_flashhead` | SoulX-FlashHead | `gen` | 离线 + 流式 | 自动检测 | 实验（experimental） | `model-soulx-flashhead` | SoulX-FlashHead Lite 音频驱动的人像视频生成（DiT + VAE 管线，实验性）：参考图 + 语音输入，离线+流式输出视频帧，CUDA 下可选 cuDNN conv 执行计划。 |
 | `stable_audio` | Stable Audio 3 | `gen` | 离线 | en | 稳定（supported） | — | Stability AI 生成式音频系列：文生音乐/音效、音频到音频编辑、修复、续写、变长生成与 LoRA 个性化。 |
 | `yue2` | YuE2 | `gen` | 离线 | en | 稳定（supported） | `model-yue2` | YuE2 音乐生成：符号 ABC 规划 + 语义 codec 生成 + NAR 声学流合成 + Oobleck VAE 解码。 |
@@ -245,7 +251,7 @@
 - [`ast_audioset`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/ast_audioset.md) — AST AudioSet
 - [`audio_flamingo`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/audio_flamingo.md) — Audio Flamingo 3 / Next / Music Flamingo
 - [`audio8_asr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/audio8_asr.md) — Audio8-ASR-0.1B
-- [`audio8_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/audio8_tts.md) — Audio8 TTS Preview 0.6B
+- [`audio8_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/audio8_tts.md) — Audio8 TTS
 - [`audiosr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/audiosr.md) — AudioSR
 - [`auk`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/auk.md) — AuK
 - [`breeze_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/breeze_tts.md) — BreezeTTS 2
@@ -259,6 +265,7 @@
 - [`dots_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/dots_tts.md) — DotTTS
 - [`earshot_vad`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/earshot_vad.md) — Earshot VAD
 - [`echo_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/echo_tts.md) — Echo-TTS
+- [`edda_asr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/edda_asr.md) — Edda ASR
 - [`f5_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/f5_tts.md) — F5-TTS
 - [`firered_audio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/firered_audio.md) — FireRedAudio
 - [`firered_vad`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/firered_vad.md) — FireRed VAD
@@ -287,6 +294,7 @@
 - [`lfm2_audio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/lfm2_audio.md) — LFM2.5-Audio
 - [`lfm3_audio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/lfm3_audio.md) — LFM3-Audio
 - [`liveavatar`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/liveavatar.md) — LiveAvatar
+- [`m5_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/m5_tts.md) — M5-TTS
 - [`magenta_realtime_2`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/magenta_realtime_2.md) — Magenta RealTime 2
 - [`magpie_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/magpie_tts.md) — MagpieTTS Multilingual 357M
 - [`maya1`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/maya1.md) — Maya1
@@ -301,6 +309,7 @@
 - [`mira_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/mira_tts.md) — MiraTTS
 - [`mms_forced_aligner`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/mms_forced_aligner.md) — Meta MMS-300M Forced Aligner
 - [`moonshine_asr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/moonshine_asr.md) — Moonshine Streaming ASR
+- [`moss_soundeffect`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/moss_soundeffect.md) — MOSS-SoundEffect v2
 - [`moss_transcribe_diarize`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/moss_transcribe_diarize.md) — MOSS-Transcribe-Diarize
 - [`moss_tts_local`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/moss_tts_local.md) — MOSS-TTS-Local
 - [`moss_tts_nano`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/moss_tts_nano.md) — MOSS-TTS-Nano
@@ -308,6 +317,7 @@
 - [`moss_ttsd`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/moss_ttsd.md) — MOSS-TTSD
 - [`moss_voicegen`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/moss_voicegen.md) — MOSS-VoiceGenerator
 - [`mossformer2`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/mossformer2.md) — MossFormer2
+- [`mulacover`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/mulacover.md) — MuLaCover
 - [`muscriptor`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/muscriptor.md) — MuScriptor
 - [`nemotron_3_diar`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/nemotron_3_diar.md) — Nemotron 3 Diarization
 - [`nemotron_transcribe`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/nemotron_transcribe.md) — NVIDIA Nemotron 3.5 Transcribe 30B-A4B
@@ -356,6 +366,8 @@
 - [`whistle_asr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/whistle_asr.md) — Whistle ASR
 - [`yue2`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/yue2.md) — YuE2
 - [`zipvoice`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/zipvoice.md) — ZipVoice
+- [`zonos2`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/zonos2.md) — ZONOS2
+- [`zonos3`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/zonos3.md) — ZONOS3-Mini
 
 ---
 
