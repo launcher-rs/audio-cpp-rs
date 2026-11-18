@@ -149,3 +149,6 @@ zipvoice	社区 ZipVoice / ZipVoice-Distill 流匹配 TTS：TTSZipformer 主干�
 zonos2	Zyphra ZONOS2 社区 TTS：28 层 GQA/MoE 主干 + 9 延迟 1024-entry DAC codebook，Descript Audio Codec 解码 44.1kHz，ECAPA 说话人嵌入克隆，9 语。
 zonos3	Zyphra ZONOS3-Mini 社区 TTS：GDN/attention latent-MoE 主干 + 10 延迟 4096-entry codebook，MR-iSTFT 解码 44.1kHz，支持说话人嵌入与原始参考克隆，9 语。
 m5_tts	M5-TTS 多语自回归 TTS（实验性）：Qwen3 speech codec 解码，8 种语言/方言，含 CustomVoice 预置音色与参考音频克隆，离线+流式。
+tiny_voca	Tiny Voca 4.5M 参数英文 TTS（社区）：自带 dizione 音素化前端、无需外部 phonemizer，内置 M2/F2 两音色，支持长文本，仅离线。
+rosvot	ROSVOT 歌声转符号谱（supported）：音符音高/时值与词对齐 MIDI 转写，ROSVOT + RWBD + RMVPE 三模型，输出 MIDI 或 JSON 音符事件。
+soulx_singer	SoulX-Singer 歌唱生成（supported）：参考音频条件的歌唱合成（SVS）与歌唱 voice conversion（SVC），zh/en/yue，支持 MIDI 乐谱控制。

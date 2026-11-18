@@ -407,6 +407,11 @@ pub enum ModelFamily {
     /// `voice_id` 仅对 CustomVoice 检查点有效，`reference_text` 供克隆；
     /// 请求选项 `language`/`temperature`/`top_k`/`max_tokens`/`instruct`）
     M5Tts,
+    /// Tiny Voca（4.5M 参数英文 TTS，自带 dizione 音素化前端，无需外部
+    /// phonemizer；CMake target `tiny_voca`，用 `model-tiny-voca` feature
+    /// 编译；task 为 `tts` 仅离线；内置 M2/F2 两个音色，支持长文本；
+    /// 请求选项 `voice_id`/`speed`/`semitone_shift`/`pitch_shift`/`language`）
+    TinyVoca,
 
     // ---- 说话人分离 / 语音转换 / 音乐生成 ----
     /// SortFormer 说话人分离（Diar）
@@ -474,6 +479,11 @@ pub enum ModelFamily {
     /// SheetSage2（音频转符号谱：输入录音，输出 ABC 乐谱产物；
     /// 仅离线，task 为 `midi`；结果在 `artifact_output` / `output_artifacts`）
     Sheetsage2,
+    /// ROSVOT（歌声转符号谱：音符音高/时值与词对齐 MIDI，ROSVOT + RWBD +
+    /// RMVPE；CMake target `rosvot`，用 `model-rosvot` feature 编译；
+    /// task 为 `midi` 仅离线；请求选项 `output_format`（midi/json）/
+    /// `note_boundary_threshold`/`word_boundary_threshold`/`word_durations_file`）
+    Rosvot,
     /// Voxtral Realtime
     VoxtralRealtime,
     /// Voxtral 4B TTS（Mistral Ministral 系自回归 + 流匹配 TTS，内置 20 个预置音色；
@@ -515,6 +525,13 @@ pub enum ModelFamily {
     /// `color_correction_strength`/`audio_guidance_scale`；视频帧经
     /// `output_artifacts` 回传，会话选项 `exec_plan`（vae.impl ggml/cudnn））
     SoulxFlashhead,
+    /// SoulX-Singer（参考音频条件的歌唱合成（SVS）与歌唱 voice conversion
+    /// （SVC）；CMake target `soulx_singer`，用 `model-soulx-singer` feature
+    /// 编译；task 为 `music`（即 `gen`）/`svc` 仅离线，语言 zh/en/yue；
+    /// 请求选项 `reference_metadata_file`/`target_metadata_file`/`control`/
+    /// `pitch_shift`/`auto_pitch_shift`/`guidance_scale`/`num_steps`/`seed`，
+    /// 会话选项 `weight_type`/`attention`）
+    SoulxSinger,
     /// RE-USE（采样率无关语音修复，双向 Mamba；task 为 `s2s` 仅离线）
     Reuse,
     /// Real-time RE-USE（RE-USE 的实时流式变体，语言无关；独立 CMake target
@@ -924,6 +941,17 @@ impl ModelFamily {
             ("latentsync", ModelFamily::Latentsync),
             ("latent-sync", ModelFamily::Latentsync),
             ("latent_sync", ModelFamily::Latentsync),
+            // tiny_voca / rosvot 与既有关键词无前缀冲突。
+            ("tiny_voca", ModelFamily::TinyVoca),
+            ("tiny-voca", ModelFamily::TinyVoca),
+            ("tinyvoca", ModelFamily::TinyVoca),
+            ("rosvot", ModelFamily::Rosvot),
+            // soulx_singer 必须排在裸 "soulx" 之前：官方权重目录为
+            // SoulX-Singer-GGUF、文件名 soulx-singer-q8_0.gguf，都会被既有
+            // SoulX-FlashHead 的 "soulx" 关键词抢先吞掉。
+            ("soulx_singer", ModelFamily::SoulxSinger),
+            ("soulx-singer", ModelFamily::SoulxSinger),
+            ("soulxsinger", ModelFamily::SoulxSinger),
             ("soulx_flashhead", ModelFamily::SoulxFlashhead),
             ("soulx-flashhead", ModelFamily::SoulxFlashhead),
             ("soulx", ModelFamily::SoulxFlashhead),
@@ -1149,6 +1177,7 @@ impl ModelFamily {
             ModelFamily::Zonos2 => "zonos2",
             ModelFamily::Zonos3 => "zonos3",
             ModelFamily::M5Tts => "m5_tts",
+            ModelFamily::TinyVoca => "tiny_voca",
             ModelFamily::MinimaxH3 => "minimax_h3",
             ModelFamily::Sanotts => "sanotts",
             ModelFamily::SoproTts => "sopro_tts",
@@ -1181,6 +1210,7 @@ impl ModelFamily {
             ModelFamily::Mulacover => "mulacover",
             ModelFamily::MagentaRealtime2 => "magenta_realtime_2",
             ModelFamily::Sheetsage2 => "sheetsage2",
+            ModelFamily::Rosvot => "rosvot",
             ModelFamily::VoxtralRealtime => "voxtral_realtime",
             ModelFamily::VoxtralTts => "voxtral_tts",
             ModelFamily::Audiosr => "audiosr",
@@ -1193,6 +1223,7 @@ impl ModelFamily {
             ModelFamily::Liveavatar => "liveavatar",
             ModelFamily::Latentsync => "latentsync",
             ModelFamily::SoulxFlashhead => "soulx_flashhead",
+            ModelFamily::SoulxSinger => "soulx_singer",
             ModelFamily::Reuse => "reuse",
             ModelFamily::RealtimeReuse => "realtime_reuse",
             ModelFamily::SamAudio => "sam_audio",
@@ -1339,6 +1370,7 @@ impl From<&str> for ModelFamily {
             "zonos3-mini" => ModelFamily::Zonos3,
             "zonos-3" => ModelFamily::Zonos3,
             "m5_tts" | "m5-tts" | "m5tts" => ModelFamily::M5Tts,
+            "tiny_voca" | "tiny-voca" | "tinyvoca" => ModelFamily::TinyVoca,
             "minimax_h3" => ModelFamily::MinimaxH3,
             "sanotts" => ModelFamily::Sanotts,
             "sopro_tts" => ModelFamily::SoproTts,
@@ -1381,6 +1413,7 @@ impl From<&str> for ModelFamily {
             "magenta_realtime_2" => ModelFamily::MagentaRealtime2,
             "magenta-realtime-2" => ModelFamily::MagentaRealtime2,
             "sheetsage2" => ModelFamily::Sheetsage2,
+            "rosvot" => ModelFamily::Rosvot,
             "voxtral_realtime" => ModelFamily::VoxtralRealtime,
             "voxtral_tts" => ModelFamily::VoxtralTts,
             "voxtral-tts" => ModelFamily::VoxtralTts,
@@ -1397,6 +1430,9 @@ impl From<&str> for ModelFamily {
             "latent-sync" => ModelFamily::Latentsync,
             "soulx_flashhead" => ModelFamily::SoulxFlashhead,
             "soulx-flashhead" => ModelFamily::SoulxFlashhead,
+            "soulx_singer" => ModelFamily::SoulxSinger,
+            "soulx-singer" => ModelFamily::SoulxSinger,
+            "soulxsinger" => ModelFamily::SoulxSinger,
             "reuse" => ModelFamily::Reuse,
             "realtime_reuse" => ModelFamily::RealtimeReuse,
             "realtime-reuse" => ModelFamily::RealtimeReuse,
@@ -1917,6 +1953,7 @@ mod tests {
             Zonos2,
             Zonos3,
             M5Tts,
+            TinyVoca,
             MinimaxH3,
             Sanotts,
             SoproTts,
@@ -1950,6 +1987,7 @@ mod tests {
             Mulacover,
             MagentaRealtime2,
             Sheetsage2,
+            Rosvot,
             VoxtralRealtime,
             VoxtralTts,
             Audiosr,
@@ -1962,6 +2000,7 @@ mod tests {
             Liveavatar,
             Latentsync,
             SoulxFlashhead,
+            SoulxSinger,
             Reuse,
             RealtimeReuse,
             SamAudio,
@@ -2469,6 +2508,31 @@ mod tests {
         assert_eq!(
             ModelFamily::from_path("M5-TTS-GGUF/m5-tts-50m-voiceclone-q8_0.gguf"),
             Some(ModelFamily::M5Tts)
+        );
+        // ---- d38518a0→5ec688c6..4de392e0 新增 3 族：按上游真实权重名/目录名校验 ----
+        // tiny_voca：上游权重为 models/tiny-voca-GGUF/tiny-voca-orig.gguf。
+        assert_eq!(
+            ModelFamily::from_path("tiny-voca-GGUF/tiny-voca-orig.gguf"),
+            Some(ModelFamily::TinyVoca)
+        );
+        // rosvot：上游权重为 ROSVOT-GGUF/rosvot-f32.gguf，无前缀冲突。
+        assert_eq!(
+            ModelFamily::from_path("ROSVOT-GGUF/rosvot-f32.gguf"),
+            Some(ModelFamily::Rosvot)
+        );
+        // soulx_singer 不被裸 "soulx" 吞成 SoulxFlashhead。
+        assert_eq!(
+            ModelFamily::from_path("SoulX-Singer-GGUF/soulx-singer-q8_0.gguf"),
+            Some(ModelFamily::SoulxSinger)
+        );
+        assert_eq!(
+            ModelFamily::from_path("soulx-singer-f16.gguf"),
+            Some(ModelFamily::SoulxSinger)
+        );
+        // 反向断言：SoulX-FlashHead 仍判 SoulxFlashhead。
+        assert_eq!(
+            ModelFamily::from_path("SoulX-FlashHead-Lite-Q8_0.gguf"),
+            Some(ModelFamily::SoulxFlashhead)
         );
         // 无法识别
         assert_eq!(ModelFamily::from_path("my-weights.gguf"), None);

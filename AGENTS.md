@@ -125,8 +125,8 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `5ec688c6`（origin/main，tag `v0.9.5` 之后的提交）。
-  crate 版本为 **0.10.0**（workspace 统一；历史见下条与逐条升级记录）。
+- 当前 submodule HEAD = `4de392e0`（origin/main，`5ec688c6` 之后 19 个提交）。
+  crate 版本为 **0.11.0**（workspace 统一；历史见下条与逐条升级记录）。
   ⚠️ **`e9303b76`→`cc21c9ea` 那次升级的工作树/gitlink 不一致（当时已纠正，记录以防再犯）**：
   `5a5b7a1` 把
   gitlink 提交为 `e9303b76`，但 submodule **工作树始终停在 `ccdbe769`**（submodule
@@ -138,6 +138,83 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
   只看 `git ls-tree HEAD` 的指针不足以证明源码已切换。
   注：当时已按 `e9303b76` 实际文件复核更早的 130 计数（`audiocpp_add_model` 125 /
   去重 loader 130 / spec 130 全部吻合），Rust 侧同步内容本身无误。
+- **升级 `5ec688c6`→`4de392e0`（main）审查结论**：
+  - diff 共 182 文件（+24.8k/-5.4k，19 个提交）：新增 **3 个 `audiocpp_add_model`
+    target**（139→142）`tiny_voca`（Tiny Voca：4.5M 参数英文 TTS，自带 dizione
+    音素化前端（src/community_models/tiny_voca/dizione/*，含 g2p/同形异义词/
+    形态学/规整化），无需外部 phonemizer；task `tts` 仅离线，内置 M2/F2 两音色，
+    支持长文本；请求选项 `voice_id`/`speed`/`semitone_shift`/`pitch_shift`/
+    `language`）/ `rosvot`（ROSVOT 歌声转符号谱：音符音高/时值与词对齐 MIDI，
+    ROSVOT+RWBD+RMVPE 三检查点打包单 GGUF；task `midi` 仅离线，语言 `music`；
+    请求选项 `output_format`（midi/json）/`note_boundary_threshold`/
+    `word_boundary_threshold`/`word_durations_file`）/ `soulx_singer`
+    （SoulX-Singer：参考音频条件的歌唱合成（SVS）与歌唱 voice conversion
+    （SVC）；task `music`（即 `gen` 别名）/`svc` 仅离线，zh/en/yue；
+    请求选项 `reference_metadata_file`/`target_metadata_file`/`control`/
+    `pitch_shift`/`auto_pitch_shift`/`guidance_scale`/`num_steps`/`seed`，
+    会话选项 `weight_type`/`attention`）。去重 loader 名 147→**150**，
+    spec 文件 146→**149**（`earshot_vad` 仍无 spec）。无新增 ALIASES。
+    上游权重名：`tiny-voca-GGUF/tiny-voca-orig.gguf`（24MB 单文件，音素化器
+    内嵌）、`ROSVOT-GGUF/rosvot-f32.gguf`、`SoulX-Singer-GGUF/
+    soulx-singer-{q8_0,f16}.gguf`。
+  - 其余为 PocketTTS / PocketTTS Small 重构到共享 Mimi latent 解码器运行时
+    （`framework/codecs/mimi_latent_decoder_runtime`，修流式历史与解码器生命
+    周期）/ zonos2 长文本续写（`long_form_continuation`，chunk 默认 300→150）/
+    cosyvoice3 新增 `speed` + HiFT 元数据 arena 缩小（1024→64 / 2048→4）/
+    RMVPE CUDA 运行时（`ENGINE_HAS_CUDA_RMVPE`）/ 中文规整化日文保留（audio8/
+    voxcpm1 描述更新）/ ace_step `reference_audio` 音色条件 / CLI YAML 配置
+    （app/cli/args.cpp +286）/ dizione 拉丁语支持 / HIP rocBLAS 兼容包（CI 层）
+    等。
+  - **C ABI 边界无需改动**：capi.cpp 实际包含的 6 个头（`capi.h`、
+    `framework/core/backend.h`、`framework/io/json.h`、
+    `framework/runtime/{model,registry,session}.h`）本次 diff **零改动**
+    （另核查的 `errors.h`/`spec_backed_model.h`/`task_vocabulary.{h,cpp}` 亦
+    零改动）。`capi.h` / `capi.cpp` / build.rs bindgen allowlist（`audiocpp_.*`）
+    保持原样，`bindings.docsrs.rs` 无需重拷。
+  - 无新 task 类型 / 输出字段：`svc` 是**既有** `VoiceTaskKind::Svc` token
+    （`task_vocabulary.cpp:27`，`TaskKind::Svc` 高层早已存在）；`midi`/`music`
+    均既有（`sheetsage2` 先例）。3 个新 spec 的 options `type` 全为
+    `enum`/`float`/`int`/`string`/`bool`，无 `*_list` 数组类型（kokoro
+    `phonemes`、ming3_tts `speaker_embedding_file` 两处既有缺口依旧）；
+    5 个既有 spec 的改动全是加法选项/描述与默认值（无删键改名）。高层
+    `types.rs` serde 结构无需改。
+  - 已同步 `audio-cpp/src/types.rs` 的 `ModelFamily`：新增 3 个枚举变体
+    `TinyVoca`（`as_str()` → `"tiny_voca"`）/ `Rosvot`（→ `"rosvot"`）/
+    `SoulxSinger`（→ `"soulx_singer"`，均与上游 `kFamily`/`family()` 一致）+
+    `from_path()` 关键词表（**排序陷阱**：`soulx_singer`/`soulx-singer`/
+    `soulxsinger` 三条必须排在裸 `"soulx"`（SoulX-FlashHead）之前——上游权重
+    目录 `SoulX-Singer-GGUF` 与文件名 `soulx-singer-q8_0.gguf` 均含 `"soulx"`，
+    会被抢先吞掉；`tiny_voca`/`rosvot` 与既有关键词无前缀冲突）+ `From<&str>`；
+    并在两个 Cargo.toml 新增 `model-tiny-voca` / `model-rosvot` /
+    `model-soulx-singer` 三个 feature（build.rs 自动映射 CMake target）。
+    `model_family_roundtrip` / `model_family_from_path`（含
+    `SoulX-Singer-GGUF/soulx-singer-q8_0.gguf`、`soulx-singer-f16.gguf` 与
+    `SoulX-FlashHead-Lite-Q8_0.gguf` 仍判 SoulxFlashhead 的反向断言）测试已
+    覆盖。
+  - 3 新族 session 均自持资产：`tiny_voca` 持 `shared_ptr<const TinyVocaAssets>`；
+    `rosvot` 持 `RosvotRuntime`（值成员，内部持 `shared_ptr<const RosvotAssets>`）
+    + contract（spec-backed）；`soulx_singer` 持 `shared_ptr<const ModelAssets>`
+    + contract（spec-backed）。`Session` 独立于 `Model` 存活的保证成立。
+  - 计数同步：`README.md`（3 处）/ `audio-cpp-sys/README.md` / 两个 Cargo.toml
+    的族数注释统一 147→**150**；重跑 `pwsh -File scripts/gen-models-doc.ps1`
+    刷新 `docs/models.md`（**150** 族 + 2 内置 VAD，with upstream doc 125，
+    missing zh desc = 0），`scripts/model-desc-zh.tsv` 补 3 条中文简介。
+    注意 `audiocpp_add_model` 的 **target** 数是 142，去重 **loader** 名才是 150
+    （一个 target 可挂多个 loader；`earshot_vad` 无 spec，故 spec 149）。
+  - **版本 0.10.0 → 0.11.0**（`workspace.package.version` +
+    `workspace.dependencies.audio-cpp-sys` 版本 + `audio-cpp-sys/README.md`
+    四处 + 本文件；`Cargo.lock` 随构建同步）。
+  - 验证：`cargo fmt --all -- --check` + `cargo build --workspace`（2m10s，
+    build.rs 跟踪 submodule HEAD 正常触发 CMake 重编与 `engine_runtime.lib`
+    重链接）+ `cargo test --workspace`（32 lib + 12 doc 全过）+
+    `cargo clippy --workspace --all-targets` 零代码警告（4 条 prebuilt 下载
+    依赖的 manifest unused 警告为既有）+
+    `cargo check -p audio-cpp-sys --features custom-models,model-tiny-voca,
+    model-rosvot,model-soulx-singer`（CMakeCache `AUDIOCPP_MODELS=rosvot,
+    soulx_singer,tiny_voca`，dizione 全部 obj 已编译，映射通过）。
+  - 注意：`metadata.json.audio_commit` 与新 submodule HEAD 不一致会强制回落
+    源码构建（预编译自动下载被跳过），属预期；`cargo publish` / tag /
+    Release / 预编译资产上传均属第 6 节发布操作，须用户显式下达，本次未执行。
 - **升级 `d38518a0`→`5ec688c6`（main，v0.9.5 之后）审查结论**：
   - diff 共 62 文件（+5.2k/-0.9k，13 个提交）：新增 **1 个 `audiocpp_add_model`
     target**（138→139）`m5_tts`（M5-TTS：Qwen3 speech codec 解码的多语自回归 TTS

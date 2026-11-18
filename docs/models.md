@@ -11,7 +11,7 @@
 > GGUF 加载时通常须**显式传 `family_hint`**（引擎自动探测可能误判），用法见 [audio-cpp/README.md](../audio-cpp/README.md)。
 > 上游“状态”为 audio.cpp 的成熟度标注：稳定（`supported`）/ 实验（`experimental`）/ 社区（`community`）/ 测试（`testing`）/ 开发中（`wip`），仅供参考。
 
-共收录 **147** 个上游模型族，另有 **2** 个内置 VAD 模型（随引擎编译、权重已 vendored，无需下载）。
+共收录 **150** 个上游模型族，另有 **2** 个内置 VAD 模型（随引擎编译、权重已 vendored，无需下载）。
 
 ## 内置模型（开箱即用，无需下载权重）
 
@@ -25,11 +25,11 @@
 | 分类 | 数量 | 跳转 |
 |---|---|---|
 | 语音识别（ASR） | 38 | [跳转](#cat-asr) |
-| 语音合成（TTS） | 55 | [跳转](#cat-tts) |
+| 语音合成（TTS） | 56 | [跳转](#cat-tts) |
 | 语音转换 / 声音克隆（VC） | 5 | [跳转](#cat-voice_conversion) |
 | 语音分析（VAD · 说话人分离 · 对齐 · 分类 · 唤醒 · 轮次检测） | 9 | [跳转](#cat-speech_analysis) |
-| 音频工具（降噪 / 修复 / 超分 / 源分离 / 转谱） | 24 | [跳转](#cat-audio_tools) |
-| 音频与音乐生成 | 13 | [跳转](#cat-audio_generation) |
+| 音频工具（降噪 / 修复 / 超分 / 源分离 / 转谱） | 25 | [跳转](#cat-audio_tools) |
+| 音频与音乐生成 | 14 | [跳转](#cat-audio_generation) |
 | 其他社区模型 | 3 | [跳转](#cat-community) |
 
 <a id="cat-asr"></a>
@@ -133,6 +133,7 @@
 | `soprano_tts` | Soprano | `tts` | 离线 + 流式 | en | 社区（community） | `model-soprano-tts` | Soprano 超轻量（约 80M）纯英文 TTS：17 层 Qwen3 风格因果 LM 自回归输出每帧 512 维特征，非迭代 Vocos 式解码器还原 32kHz 音频，无扩散细化。 |
 | `sopro_tts` | Sopro V2 Turbo | `tts` `clon` | 离线 + 流式 | en, pt, fr, de | 社区（community） | `model-sopro-tts` | 社区 Sopro V2 Turbo（samuel-vitorino/sopro-v2-turbo）120M 零样本克隆 TTS：SentencePiece 分词 + 风格前缀条件的 FSQ 语义 LM + rectified-flow 声学 DiT + Vocos iSTFT 声码，24kHz。 |
 | `supertonic` | Supertonic 3 | `tts` | 离线 + 流式 | en, ko, ja, ar, bg, cs, da, de …（共 31 种） | 稳定（supported） | — | Supertone 端侧 TTS，覆盖 31 语，预置音色，面向浏览器/移动/桌面的紧凑快速本地合成。 |
+| `tiny_voca` | tiny-voca | `tts` | 离线 | en | 社区（community） | `model-tiny-voca` | Tiny Voca 4.5M 参数英文 TTS（社区）：自带 dizione 音素化前端、无需外部 phonemizer，内置 M2/F2 两音色，支持长文本，仅离线。 |
 | `vibevoice` | VibeVoice | `tts` | 离线 + 流式 | en, zh | 稳定（supported） | — | 微软长音频多说话人 TTS，面向播客等对话音频，最长 90 分钟、最多 4 说话人。 |
 | `vieneu_v3_turbo` | VieNeu-TTS v3 Turbo | `tts` `clon` | 离线 | vi, en | 社区（community） | `model-vieneu-v3-turbo` | VieNeu-TTS v3 Turbo 端侧越/英 TTS（48kHz），3–5 秒参考即时克隆；文本输入为 SEA-G2P 音素。 |
 | `voxcpm1` | VoxCPM1 | `tts` `clon` | 离线 + 流式 | zh, en, ja, ko | 稳定（supported） | `model-voxcpm1` | OpenBMB VoxCPM 0.5B 无分词器 TTS，支持短参考克隆与流式输出（16kHz）。 |
@@ -200,6 +201,7 @@
 | `pulsevad` | PulseVAD | `vad` | 离线 | 语言无关 | 稳定（supported） | `model-pulsevad` | 16kHz 单声道语音活动检测，提供 2.1K 学生与 81K 教师权重。 |
 | `realtime_reuse` | Real-time RE-USE | `s2s` | 离线 + 流式 | 语言无关 | 稳定（supported） | `model-realtime-reuse` | Real-time RE-USE 因果通用语音修复（RE-USE 的实时流式变体）：exit layer 与 lookahead 可选，语言无关，离线+流式。 |
 | `reuse` | RE-USE | `s2s` | 离线 | 语言无关 | 稳定（supported） | `model-reuse` | RE-USE 采样率无关语音修复，双向 Mamba。 |
+| `rosvot` | ROSVOT | `midi` | 离线 | 音乐 | 稳定（supported） | `model-rosvot` | ROSVOT 歌声转符号谱（supported）：音符音高/时值与词对齐 MIDI 转写，ROSVOT + RWBD + RMVPE 三模型，输出 MIDI 或 JSON 音符事件。 |
 | `sam_audio` | SAM Audio | `s2s` | 离线 | 语言无关 | 稳定（supported） | `model-sam-audio` | 提示条件音频分离。 |
 | `sheetsage2` | SheetSage2 | `midi` | 离线 | 音乐 | 稳定（supported） | `model-sheetsage2` | SheetSage2 音频转符号：从自包含 GGUF 读取录音并输出 ABC 乐谱产物。 |
 | `sherpa_kws` | sherpa-onnx Zipformer KWS | `wake` | 离线 + 流式 | 随模型而定 | 实验（experimental） | `model-sherpa-kws` | sherpa-onnx Zipformer transducer 流式关键词检测。 |
@@ -227,6 +229,7 @@
 | `moss_soundeffect` | MOSS-SoundEffect v2 | `gen` | 离线 | en, zh | 稳定（supported） | `model-moss-soundeffect` | MOSS-SoundEffect v2 文本转音效（en/zh）：Qwen3 文本编码器 + Wan 音频 DiT + 连续 DAC 解码器，按 duration_sec/num_steps 生成，仅离线。 |
 | `mulacover` | MuLaCover | `gen` | 离线 | 多语 | 实验（experimental） | `model-mulacover` | MuLaCover 翻唱歌曲生成（实验性）：以参考音频或旋律/和弦 MIDI 为条件，配新歌词与音乐风格生成翻唱，仅离线。 |
 | `soulx_flashhead` | SoulX-FlashHead | `gen` | 离线 + 流式 | 自动检测 | 实验（experimental） | `model-soulx-flashhead` | SoulX-FlashHead Lite 音频驱动的人像视频生成（DiT + VAE 管线，实验性）：参考图 + 语音输入，离线+流式输出视频帧，CUDA 下可选 cuDNN conv 执行计划。 |
+| `soulx_singer` | SoulX-Singer | `gen` `svc` | 离线 | zh, en, yue | 稳定（supported） | `model-soulx-singer` | SoulX-Singer 歌唱生成（supported）：参考音频条件的歌唱合成（SVS）与歌唱 voice conversion（SVC），zh/en/yue，支持 MIDI 乐谱控制。 |
 | `stable_audio` | Stable Audio 3 | `gen` | 离线 | en | 稳定（supported） | — | Stability AI 生成式音频系列：文生音乐/音效、音频到音频编辑、修复、续写、变长生成与 LoRA 个性化。 |
 | `yue2` | YuE2 | `gen` | 离线 | en | 稳定（supported） | `model-yue2` | YuE2 音乐生成：符号 ABC 规划 + 语义 codec 生成 + NAR 声学流合成 + Oobleck VAE 解码。 |
 
@@ -339,6 +342,7 @@
 - [`qwen3_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/qwen3_tts.md) — Qwen3-TTS
 - [`realtime_reuse`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/realtime_reuse.md) — Real-time RE-USE
 - [`reuse`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/reuse.md) — RE-USE
+- [`rosvot`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/rosvot.md) — ROSVOT
 - [`sam_audio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/sam_audio.md) — SAM Audio
 - [`samsone`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/samsone.md) — SAMSONE
 - [`sanotts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/sanotts.md) — sanoTTS Nano
@@ -351,8 +355,10 @@
 - [`sopro_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/sopro_tts.md) — Sopro V2 Turbo
 - [`sortformer_diar_v2`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/sortformer_diar_v2.md) — Sortformer Diarization v2.1
 - [`soulx_flashhead`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/soulx_flashhead.md) — SoulX-FlashHead
+- [`soulx_singer`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/soulx_singer.md) — SoulX-Singer
 - [`stable_audio`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/stable_audio.md) — Stable Audio 3
 - [`tf_gridnet`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/tf_gridnet.md) — TF-GridNet
+- [`tiny_voca`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/tiny_voca.md) — tiny-voca
 - [`tone_color_vc`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/tone_color_vc.md) — Tone Color VC
 - [`underdog_bark3`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/underdog_bark3.md) — Underdog Bark 3
 - [`universr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/universr.md) — UniverSR
