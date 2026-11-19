@@ -11,7 +11,7 @@
 > GGUF 加载时通常须**显式传 `family_hint`**（引擎自动探测可能误判），用法见 [audio-cpp/README.md](../audio-cpp/README.md)。
 > 上游“状态”为 audio.cpp 的成熟度标注：稳定（`supported`）/ 实验（`experimental`）/ 社区（`community`）/ 测试（`testing`）/ 开发中（`wip`），仅供参考。
 
-共收录 **150** 个上游模型族，另有 **2** 个内置 VAD 模型（随引擎编译、权重已 vendored，无需下载）。
+共收录 **151** 个上游模型族，另有 **2** 个内置 VAD 模型（随引擎编译、权重已 vendored，无需下载）。
 
 ## 内置模型（开箱即用，无需下载权重）
 
@@ -24,7 +24,7 @@
 
 | 分类 | 数量 | 跳转 |
 |---|---|---|
-| 语音识别（ASR） | 38 | [跳转](#cat-asr) |
+| 语音识别（ASR） | 39 | [跳转](#cat-asr) |
 | 语音合成（TTS） | 56 | [跳转](#cat-tts) |
 | 语音转换 / 声音克隆（VC） | 5 | [跳转](#cat-voice_conversion) |
 | 语音分析（VAD · 说话人分离 · 对齐 · 分类 · 唤醒 · 轮次检测） | 9 | [跳转](#cat-speech_analysis) |
@@ -50,6 +50,7 @@
 | `edda_asr` | Edda ASR | `asr` | 离线 + 流式 | da | 实验（experimental） | `model-edda-asr` | Edda v0.2 丹麦语 Whisper-large-v3 识别，可选 DFlash2 无损投机解码 drafter 大幅提速，离线+流式（每块出完整结果）。 |
 | `fun_asr_nano` | Fun-ASR-Nano | `asr` | 离线 | 自动检测, zh, en, ja | 开发中（wip） | `model-fun-asr-nano` | FunAudioLLM Fun-ASR-Nano-2512 离线多语识别。 |
 | `gigaam_asr` | GigaAM ASR | `asr` | 离线 | ru, kk, ky, uz, en | 稳定（supported） | `model-gigaam-asr` | GigaAM v3 / 多语 Conformer 识别，CTC 或 RNN-T 解码。 |
+| `granite_speech5` | Granite Speech 5.0 2B | `asr` | 离线 | en, fr, de, es, pt, ja | 社区（community） | `model-granite-speech5` | IBM Granite Speech 5.0 2B 自回归多语 ASR + 语音翻译（社区）：Conformer 编码器 + Q-Former 投影 + Granite 文本解码器，en/fr/de/es/pt/ja，翻译目标另支持 it/zh，仅离线。 |
 | `granite5asr` | Granite Speech 5.0 470M TurboCTC | `asr` | 离线 + 流式 | en, fr, de, es, pt, it, ja | 稳定（supported） | `model-granite5asr` | IBM Granite Speech 5.0 TurboCTC 470M：紧凑高速英文 ASR，Conformer CTC + 分块自注意力 + 自条件。 |
 | `haas_asr` | Haas-ja-v1.0 | `asr` | 离线 + 流式 | ja | 社区（community） | `model-parakeet-tdt` / `model-phonon2-asr` / `model-underdog-bark3` / `model-haas-asr` | Haas-ja-v1.0 日文 FastConformer-TDT 识别，配 Kimi Delta Attention 预测器（复用 Parakeet 实现），离线+流式。 |
 | `higgs_audio_stt` | Higgs Audio v3 STT | `asr` | 离线 + 流式 | en | 稳定（supported） | — | Boson AI 英文语音转写：Whisper Large v3 编码器 + Qwen 解码器。 |
@@ -279,6 +280,7 @@
 - [`gigaam_asr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/gigaam_asr.md) — GigaAM ASR
 - [`glm_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/glm_tts.md) — GLM-TTS
 - [`gradium_phonon`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/gradium_phonon.md) — Gradium Phonon
+- [`granite_speech5`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/granite_speech5.md) — Granite Speech 5.0 2B
 - [`granite5asr`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/granite5asr.md) — Granite Speech 5.0 470M TurboCTC
 - [`higgs_audio_stt`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/higgs_audio_stt.md) — Higgs Audio v3 STT
 - [`higgs_audio_tts`](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/higgs_audio_tts.md) — Higgs Audio v3 TTS

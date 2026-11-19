@@ -152,3 +152,4 @@ m5_tts	M5-TTS 多语自回归 TTS（实验性）：Qwen3 speech codec 解码，8
 tiny_voca	Tiny Voca 4.5M 参数英文 TTS（社区）：自带 dizione 音素化前端、无需外部 phonemizer，内置 M2/F2 两音色，支持长文本，仅离线。
 rosvot	ROSVOT 歌声转符号谱（supported）：音符音高/时值与词对齐 MIDI 转写，ROSVOT + RWBD + RMVPE 三模型，输出 MIDI 或 JSON 音符事件。
 soulx_singer	SoulX-Singer 歌唱生成（supported）：参考音频条件的歌唱合成（SVS）与歌唱 voice conversion（SVC），zh/en/yue，支持 MIDI 乐谱控制。
+granite_speech5	IBM Granite Speech 5.0 2B 自回归多语 ASR + 语音翻译（社区）：Conformer 编码器 + Q-Former 投影 + Granite 文本解码器，en/fr/de/es/pt/ja，翻译目标另支持 it/zh，仅离线。

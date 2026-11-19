@@ -125,8 +125,12 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     触发或执行。已在“已知状态”记录的验证结论随版本变化需复核。
 
 ## 已知状态
-- 当前 submodule HEAD = `4de392e0`（origin/main，`5ec688c6` 之后 19 个提交）。
-  crate 版本为 **0.11.0**（workspace 统一；历史见下条与逐条升级记录）。
+- 当前 submodule HEAD = `5e7273db`（origin/main，`4de392e0` 之后 3 个提交）。
+  crate 版本为 **0.10.0**（workspace 统一；历史见下条与逐条升级记录）。
+  ⚠️ **版本号口径（0.11.0 回退事件）**：0.10.0 在 `f540526`（升级到 `5ec688c6`）时
+  就已生效但**从未发布**，crates.io 上最新仍是 0.9.0。`eb622d4` 升级到 `4de392e0`
+  时误把版本推进到 0.11.0，已按用户指示回退为 0.10.0——**升版依据应以 crates.io
+  已发布的最新版本为准（未发布的版本号留在原地继续用），不是仓库当前号 +1**。
   ⚠️ **`e9303b76`→`cc21c9ea` 那次升级的工作树/gitlink 不一致（当时已纠正，记录以防再犯）**：
   `5a5b7a1` 把
   gitlink 提交为 `e9303b76`，但 submodule **工作树始终停在 `ccdbe769`**（submodule
@@ -138,6 +142,66 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
   只看 `git ls-tree HEAD` 的指针不足以证明源码已切换。
   注：当时已按 `e9303b76` 实际文件复核更早的 130 计数（`audiocpp_add_model` 125 /
   去重 loader 130 / spec 130 全部吻合），Rust 侧同步内容本身无误。
+- **升级 `4de392e0`→`5e7273db`（main）审查结论 + 发布配套改动**：
+  - diff 共 116 文件（+14.7k/-4.2k，3 个提交）：新增 **1 个 `audiocpp_add_model`
+    target**（142→143）`granite_speech5`（IBM Granite Speech 5.0 2B 自回归多语
+    ASR + 语音翻译：Conformer 编码器 + Q-Former 投影 + Granite 文本解码器，社区
+    模型；task `asr` 仅离线，en/fr/de/es/pt/ja，翻译目标另支持 it/zh；请求选项
+    `language`/`target_language` 等，options 类型仅
+    enum/float/int/path/string，无 `*_list`）。去重 loader 名 150→**151**，
+    spec 文件 149→**150**（`earshot_vad` 仍无 spec）。上游权重名：
+    `Granite-Speech-5.0-2B-GGUF/granite-speech-5.0-2b-{q8_0,orig}.gguf`。
+    其余 2 提交为独立 MoE 引擎（独立放置与缓存策略）与 granite5asr 编码器图
+    复用 + 批量 GPU block attention（`granite5asr.json` 仅 arena 默认值
+    1024→16 与描述更新，无删键改名）。
+  - **C ABI 边界无需改动**：capi.cpp 依赖的 6 个头 + `errors.h`/
+    `spec_backed_model.h`/`task_vocabulary.{h,cpp}` 本次 diff **零改动**。
+    `capi.h` / `capi.cpp` / bindgen allowlist 保持原样，`bindings.docsrs.rs`
+    无需重拷。无新 task 类型 / 输出字段，高层 serde 结构无需改。
+  - 已同步 `audio-cpp/src/types.rs`：新增枚举变体 `GraniteSpeech5`
+    （`as_str()` → `"granite_speech5"`，与上游 `family()` 一致）+
+    `from_path()` 关键词（`granite_speech5`/`granite-speech5`/
+    `granite-speech-5.0-2b` 三条置于既有 granite5asr 系之前——**排序陷阱**：
+    granite5asr 的关键词已含 `granite-speech`/`granite_speech`/裸 `granite`
+    （其覆盖 IBM Granite Speech 5.0 **470M TurboCTC**，权重
+    `granite-speech-5.0-470m-turboctc-q8_0.gguf`），新族 2B 权重名含
+    `granite-speech` 子串会被吞，故 2B 系关键词必须整体前置且带 `-5.0-2b`
+    精确后缀；turboctc 文件名不含 `-5.0-2b` 不受影响）+ `From<&str>`
+    （`granite_speech5`/`granite-speech5`，与既有 `granite_speech5_asr`/
+    `granite_speech5_ctc`→Granite5Asr 精确匹配互不冲突）；新增
+    `model-granite-speech5` feature（两个 Cargo.toml）。测试：roundtrip 表
+    补 `GraniteSpeech5`；from_path 断言 2B 两名 + 反向断言
+    `Granite-Speech-5.0-470M-TurboCTC-GGUF/granite-speech-5.0-470m-turboctc-q8_0.gguf`
+    仍判 Granite5Asr（TurboCTC 权重名取自 `granite5asr.json` packages）。
+  - 新族 session 自持资产：`granite_speech5` 持
+    `shared_ptr<const GraniteSpeech5Assets>`（spec-backed），
+    `Session` 独立于 `Model` 存活的保证成立。
+  - 计数同步：`README.md`（3 处）/ `audio-cpp-sys/README.md` / 两个 Cargo.toml
+    的族数注释统一 150→**151**；重跑 `pwsh -File scripts/gen-models-doc.ps1`
+    刷新 `docs/models.md`（**151** 族 + 2 内置 VAD，with upstream doc 126，
+    missing zh desc = 0），`scripts/model-desc-zh.tsv` 补 1 条中文简介。
+    注意 target 数是 143，去重 loader 名才是 151。
+  - **版本号回退 0.11.0 → 0.10.0**（`workspace.package.version` +
+    `workspace.dependencies.audio-cpp-sys` 版本 + `audio-cpp-sys/README.md`
+    四处 + 本文件头部说明；`Cargo.lock` 随构建同步）。缘由见头部口径说明。
+  - **新增 `CHANGELOG.md`**：Keep a Changelog 格式（参照 rumark），「未发布」
+    段随代码提交，发布时改名版本号 + 日期；0.10.0 条目汇总
+    `f540526`/`eb622d4`/本次共 5 个新模型族与上游行为变化；0.10.0 之前的
+    历史版本按用户指示不补记。
+  - **`prebuilt-audio-cpp.yml` 新增 `prepare-release` job**（仅 tag 推送触发）：
+    ① 校验 tag 与工作区 Cargo.toml 版本一致（不一致 `::error::` 阻断）；
+    ② `CHANGELOG.md` 存在则用 awk 提取 `## [x.y.z]` 到下一个 `## ` 之间段落
+    作为 Release 正文（空段/缺失则 `::warning::` 并退回通用文案）；③ Release
+    已存在则跳过创建（重传资产场景不覆盖已有说明与附件）；④ 固定追加预编译
+    资产说明段。三个平台 job 增 `needs: prepare-release`，`if` 改为
+    `(needs.prepare-release.result == 'success' || == 'skipped') && 原平台条件`，
+    workflow_dispatch 构建路径（prepare 被跳过）行为不变；平台 job 既有的
+    「Create or update GitHub release」步骤保留为 dispatch+upload 场景兜底。
+    参照 rumark `.github/workflows/release.yml` 的同名机制。
+  - 验证：`cargo fmt --all -- --check` + `cargo build --workspace` +
+    `cargo test --workspace` + `cargo clippy --workspace --all-targets` +
+    `cargo check -p audio-cpp-sys --features custom-models,
+    model-granite-speech5`（结果见提交后记录；本次为 CI 前的本地验证）。
 - **升级 `5ec688c6`→`4de392e0`（main）审查结论**：
   - diff 共 182 文件（+24.8k/-5.4k，19 个提交）：新增 **3 个 `audiocpp_add_model`
     target**（139→142）`tiny_voca`（Tiny Voca：4.5M 参数英文 TTS，自带 dizione
@@ -203,7 +267,9 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     （一个 target 可挂多个 loader；`earshot_vad` 无 spec，故 spec 149）。
   - **版本 0.10.0 → 0.11.0**（`workspace.package.version` +
     `workspace.dependencies.audio-cpp-sys` 版本 + `audio-cpp-sys/README.md`
-    四处 + 本文件；`Cargo.lock` 随构建同步）。
+    四处 + 本文件；`Cargo.lock` 随构建同步）。**后已回退**：0.10.0 从未发布
+    （crates.io 最新 0.9.0），按用户指示在下一提交（`5e7273db` 升级记录）改回
+    **0.10.0**，见头部版本号口径说明。
   - 验证：`cargo fmt --all -- --check` + `cargo build --workspace`（2m10s，
     build.rs 跟踪 submodule HEAD 正常触发 CMake 重编与 `engine_runtime.lib`
     重链接）+ `cargo test --workspace`（32 lib + 12 doc 全过）+

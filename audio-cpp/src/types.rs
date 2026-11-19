@@ -207,6 +207,13 @@ pub enum ModelFamily {
     FireredAudio,
     /// Granite 5 ASR（IBM Granite Speech 5.0 470M TurboCTC ASR，社区模型）
     Granite5Asr,
+    /// Granite Speech 5.0 2B（IBM 自回归多语 ASR + 语音翻译：Conformer 编码器 +
+    /// Q-Former 投影 + Granite 文本解码器；社区模型。CMake target
+    /// `granite_speech5`，用 `model-granite-speech5` feature 编译；
+    /// task 为 `asr` 仅离线，en/fr/de/es/pt/ja，翻译目标另支持 it/zh；
+    /// 请求选项 `language`/`target_language`；权重为
+    /// `Granite-Speech-5.0-2B-GGUF/granite-speech-5.0-2b-{q8_0,orig}.gguf`）
+    GraniteSpeech5,
     /// Audio8 ASR（社区 ASR 模型）
     Audio8Asr,
     /// Audio8 TTS（社区 TTS 模型）
@@ -722,6 +729,13 @@ impl ModelFamily {
             ("vibevoice_asr", ModelFamily::VibevoiceAsr),
             ("firered_audio", ModelFamily::FireredAudio),
             ("firered-audio", ModelFamily::FireredAudio),
+            // granite_speech5（Granite Speech 5.0 2B）必须排在 granite5asr 的
+            // "granite-speech"/"granite" 之前：新族权重为 granite-speech-5.0-2b-*.gguf，
+            // 含 "granite-speech" 子串，会被既有关键词抢先吞掉；470m-turboctc
+            // 权重名不含 "-5.0-2b"，不受影响。
+            ("granite_speech5", ModelFamily::GraniteSpeech5),
+            ("granite-speech5", ModelFamily::GraniteSpeech5),
+            ("granite-speech-5.0-2b", ModelFamily::GraniteSpeech5),
             ("granite5asr", ModelFamily::Granite5Asr),
             ("granite-speech", ModelFamily::Granite5Asr),
             ("granite_speech", ModelFamily::Granite5Asr),
@@ -1112,6 +1126,7 @@ impl ModelFamily {
             ModelFamily::VibevoiceAsrStreaming => "vibevoice_asr_streaming",
             ModelFamily::FireredAudio => "firered_audio",
             ModelFamily::Granite5Asr => "granite5asr",
+            ModelFamily::GraniteSpeech5 => "granite_speech5",
             ModelFamily::Audio8Asr => "audio8_asr",
             ModelFamily::Audio8Tts => "audio8_tts",
             ModelFamily::Vibeasr => "vibeasr",
@@ -1282,6 +1297,9 @@ impl From<&str> for ModelFamily {
             "granite_speech5_asr" => ModelFamily::Granite5Asr,
             "granite_speech" => ModelFamily::Granite5Asr,
             "granite_speech5_ctc" => ModelFamily::Granite5Asr,
+            // Granite Speech 5.0 2B（granite_speech5 族；与上面 granite5asr 的
+            // turboctc 变体名互斥，均为精确匹配不冲突）。
+            "granite_speech5" | "granite-speech5" => ModelFamily::GraniteSpeech5,
             "audio8_asr" => ModelFamily::Audio8Asr,
             "arkasr" => ModelFamily::Audio8Asr,
             "audio8_tts" => ModelFamily::Audio8Tts,
@@ -1887,6 +1905,7 @@ mod tests {
             VibevoiceAsrStreaming,
             FireredAudio,
             Granite5Asr,
+            GraniteSpeech5,
             Audio8Asr,
             Audio8Tts,
             Vibeasr,
@@ -2533,6 +2552,23 @@ mod tests {
         assert_eq!(
             ModelFamily::from_path("SoulX-FlashHead-Lite-Q8_0.gguf"),
             Some(ModelFamily::SoulxFlashhead)
+        );
+        // ---- 5e7273db 新增 granite_speech5：不被 granite5asr 的 "granite-speech"
+        // /"granite" 吞掉（新族权重带 "-5.0-2b"，turboctc 权重名则不含）。
+        assert_eq!(
+            ModelFamily::from_path("Granite-Speech-5.0-2B-GGUF/granite-speech-5.0-2b-q8_0.gguf"),
+            Some(ModelFamily::GraniteSpeech5)
+        );
+        assert_eq!(
+            ModelFamily::from_path("granite-speech-5.0-2b-orig.gguf"),
+            Some(ModelFamily::GraniteSpeech5)
+        );
+        // 反向断言：granite5asr 的 470m-turboctc 权重仍判 Granite5Asr。
+        assert_eq!(
+            ModelFamily::from_path(
+                "Granite-Speech-5.0-470M-TurboCTC-GGUF/granite-speech-5.0-470m-turboctc-q8_0.gguf"
+            ),
+            Some(ModelFamily::Granite5Asr)
         );
         // 无法识别
         assert_eq!(ModelFamily::from_path("my-weights.gguf"), None);
