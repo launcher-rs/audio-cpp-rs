@@ -276,6 +276,9 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $ROOT = "$env:RUNNER_TEMP/prebuilt"
           bash .github/scripts/collect-windows-prebuilt.sh "$ROOT"
+          # pwsh 对 native 命令的非零退出不会抛异常（$ErrorActionPreference 无效），
+          # 必须显式检查 $LASTEXITCODE，否则脚本的 exit 1 被吞掉、照样打包发坏包。
+          if ($LASTEXITCODE -ne 0) { "collect 脚本失败（exit $LASTEXITCODE）"; exit $LASTEXITCODE }
           $msvcVer = 0
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           if (Test-Path $vswhere) {
@@ -304,6 +307,7 @@ jobs:
           } | ConvertTo-Json -Compress
           Set-Content -Path "$ROOT/metadata.json" -Value $json -Encoding ascii
           tar -C "$ROOT" -czf "$env:RUNNER_TEMP/$env:ASSET_NAME" .
+          if ($LASTEXITCODE -ne 0) { "tar 打包失败（exit $LASTEXITCODE）"; exit $LASTEXITCODE }
 
       - name: Create or update GitHub release
         if: startsWith(github.ref, 'refs/tags/') || inputs.upload_to_release == true

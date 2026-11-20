@@ -226,7 +226,8 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     Windows cell 均报 `::error::Missing key archive: engine_runtime.lib|
     sentencepiece*.lib|ggml*.lib`（`compgen -G` 反斜杠路径恒误报 + pwsh 吞脚本
     `exit 1`，两缺陷叠加使断言不生效，修复方法见 v0.9.0 条目原文），job 本身
-    绿色、抽查资产实测完好。
+    绿色、抽查资产实测完好。**该缺陷已于 2026-11-20 修复**（见 v0.9.0 条目
+    「已修复」注记），自下一个 tag 起生效。
 - **升级 `5ec688c6`→`4de392e0`（main）审查结论**：
   - diff 共 182 文件（+24.8k/-5.4k，19 个提交）：新增 **3 个 `audiocpp_add_model`
     target**（139→142）`tiny_voca`（Tiny Voca：4.5M 参数英文 TTS，自带 dizione
@@ -581,6 +582,14 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     若要修：断言改 `find "$ROOT/lib" -name "$need" -print -quit | grep -q .`
     （或先 `cd` 到 `$ROOT/lib` 再用相对 glob），并在 pwsh 步骤把
     `bash ...` 改为 `if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }`。
+    **已修复（2026-11-20）**：① `collect-windows-prebuilt.sh` 断言改为
+    `find "$ROOT/lib" -maxdepth 1 -type f -name "$need" -print -quit | grep -q .`
+    （find 仅对文件名匹配模式，路径作参数不经 glob，反斜杠不受影响）；
+    ② workflow Windows `Collect prebuilt libraries`（shell: pwsh）步骤对
+    `bash .github/scripts/collect-windows-prebuilt.sh` 与 `tar` 两处 native
+    调用后各补 `if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }`。已在本地
+    Git Bash 复现旧 `compgen` 恒误报并验证新断言的正确/失败两分支。
+    自下一个 tag 的 prebuilt run 起生效；v0.10.0 及之前资产实测完好，不受影响。
     ③ 预编译 tag 默认 `v{version}`，即 `v0.9.0`；registry 消费端按
     `CARGO_PKG_VERSION` 查该 tag 的 Release 资产。
     上游 main 在 `v0.9.3`（`41c1f8ff`）之后；本仓按惯例跟 origin/main HEAD。

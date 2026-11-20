@@ -61,7 +61,11 @@ fi
 # 这里失败比发一个坏包出去更容易定位（对应 build.rs 的 sentencepiece 警告）。
 missing=0
 for need in 'engine_runtime.lib' 'sentencepiece*.lib' 'ggml*.lib'; do
-  if ! compgen -G "$ROOT/lib/$need" > /dev/null; then
+  # 断言不能用 compgen -G "$ROOT/lib/$need"：Windows runner 的 $RUNNER_TEMP 是
+  # 反斜杠路径（D:\a\_temp），bash glob 会把模式里的 \a/\t 当转义符吃掉，
+  # 模式必然匹配失败 → 断言恒误报。find 把路径作为参数、仅对文件名匹配
+  # 模式，反斜杠不受影响（Linux/macOS 行为一致）。
+  if ! find "$ROOT/lib" -maxdepth 1 -type f -name "$need" -print -quit | grep -q .; then
     echo "::error::Missing key archive: $need"
     missing=1
   fi
