@@ -126,11 +126,13 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
 
 ## 已知状态
 - 当前 submodule HEAD = `5e7273db`（origin/main，`4de392e0` 之后 3 个提交）。
-  crate 版本为 **0.10.0**（workspace 统一；历史见下条与逐条升级记录）。
+  crate 版本为 **0.10.0**，**已发布**（workspace 统一；发布记录见下方
+  `5e7273db` 条目，历史见逐条升级记录）。
   ⚠️ **版本号口径（0.11.0 回退事件）**：0.10.0 在 `f540526`（升级到 `5ec688c6`）时
-  就已生效但**从未发布**，crates.io 上最新仍是 0.9.0。`eb622d4` 升级到 `4de392e0`
-  时误把版本推进到 0.11.0，已按用户指示回退为 0.10.0——**升版依据应以 crates.io
-  已发布的最新版本为准（未发布的版本号留在原地继续用），不是仓库当前号 +1**。
+  就已生效但当时**从未发布**，crates.io 上最新还是 0.9.0。`eb622d4` 升级到 `4de392e0`
+  时误把版本推进到 0.11.0，已按用户指示回退为 0.10.0，至 `5e7273db` 升级时正式发布——
+  **升版依据应以 crates.io 已发布的最新版本为准（未发布的版本号留在原地继续用），
+  不是仓库当前号 +1**。
   ⚠️ **`e9303b76`→`cc21c9ea` 那次升级的工作树/gitlink 不一致（当时已纠正，记录以防再犯）**：
   `5a5b7a1` 把
   gitlink 提交为 `e9303b76`，但 submodule **工作树始终停在 `ccdbe769`**（submodule
@@ -198,10 +200,33 @@ AI 代理**不得擅自**执行以下“对外发布”类操作，除非用户�
     workflow_dispatch 构建路径（prepare 被跳过）行为不变；平台 job 既有的
     「Create or update GitHub release」步骤保留为 dispatch+upload 场景兜底。
     参照 rumark `.github/workflows/release.yml` 的同名机制。
-  - 验证：`cargo fmt --all -- --check` + `cargo build --workspace` +
+  - 验证：本地五项全部通过——`cargo fmt --all -- --check` + `cargo build --workspace` +
     `cargo test --workspace` + `cargo clippy --workspace --all-targets` +
     `cargo check -p audio-cpp-sys --features custom-models,
-    model-granite-speech5`（结果见提交后记录；本次为 CI 前的本地验证）。
+    model-granite-speech5`；推送 `756ddde` 后 CI 全绿（`ci.yml` run
+    `44583710794`，5/5 job，29m34s）。
+  - **发布（用户显式授权执行，第 6 节流程）**：
+    ① `cargo publish --registry crates-io` 已按依赖序发布 **`audio-cpp-sys
+    0.10.0`**（2026-11-19 18:39 UTC）与 **`audio-cpp 0.10.0`**（18:42 UTC），
+    crates.io API 可查 `max_version=0.10.0` 且未 yanked（必须分两步：`audio-cpp`
+    依赖 `audio-cpp-sys ^0.10.0`，先发 sys 等索引可见再发 cpp）。
+    ② git tag **`v0.10.0`**（指向 `756ddde`）已推送，触发
+    `prebuilt-audio-cpp.yml` run `44590838989` —— **`prepare-release` 机制首跑
+    成功**（job 5s：tag 与 Cargo.toml 版本校验通过，CHANGELOG `## [0.10.0]` 段
+    提取为 Release 正文并追加预编译资产说明段，Release 正文实测吻合）。
+    **结果**：10/10 job 全绿（prepare-release + 9 cell：macOS 12m3s /
+    linux 12m14s~23m25s / windows 23m6s~34m8s），Release `v0.10.0` 资产
+    **9/9 齐全**，文件名均含 `5e7273db060e`。已下载实测 Windows `cpu-md` 资产：
+    `engine_runtime.lib`（989MB）、`ggml*.lib`、`sentencepiece*.lib`、
+    `cjson_vendor.lib`、`yaml_vendor.lib` 全部在包内，`metadata.json` 的
+    `crate_version=0.10.0` / `audio_commit=5e7273db060e` / `features=full-models` /
+    `modelset=full` / `backend=cpu` / `crt=md` / `msvc_ver=1944` 均正确 →
+    **资产完好**。
+    ③ ⚠️ **v0.9.0 条目记录的 CI 断言失效缺陷仍未修复，本次同样复现**：4 个
+    Windows cell 均报 `::error::Missing key archive: engine_runtime.lib|
+    sentencepiece*.lib|ggml*.lib`（`compgen -G` 反斜杠路径恒误报 + pwsh 吞脚本
+    `exit 1`，两缺陷叠加使断言不生效，修复方法见 v0.9.0 条目原文），job 本身
+    绿色、抽查资产实测完好。
 - **升级 `5ec688c6`→`4de392e0`（main）审查结论**：
   - diff 共 182 文件（+24.8k/-5.4k，19 个提交）：新增 **3 个 `audiocpp_add_model`
     target**（139→142）`tiny_voca`（Tiny Voca：4.5M 参数英文 TTS，自带 dizione
